@@ -270,7 +270,7 @@ const PortfolioTable: React.FC<{ stocks: Stock[] }> = ({ stocks }) => {
     };
 
     const ActiveFilters = () => {
-        const activeFilters = [];
+        const activeFilters: { key: string; label: string }[] = [];
         if (filters.searchTerm) {
             activeFilters.push({ key: 'searchTerm', label: `Search: "${filters.searchTerm}"` });
         }
@@ -488,7 +488,7 @@ const App: React.FC = () => {
     useEffect(() => {
         const loadStocks = async () => {
             try {
-                const response = await fetch('/service/portfolio');
+                const response = await fetch('/api/portfolio');
                 if (!response.ok) {
                     throw new Error('Failed to fetch portfolio data');
                 }
@@ -509,7 +509,7 @@ const App: React.FC = () => {
     const handleDataUploaded = async (newData: Stock[]) => {
         try {
             // Update via Service
-            const response = await fetch('/service/portfolio', {
+            const response = await fetch('/api/portfolio', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
