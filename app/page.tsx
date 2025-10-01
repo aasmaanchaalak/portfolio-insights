@@ -132,7 +132,7 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                 <div className="upload-instructions">
                     <h3>File Requirements</h3>
                     <ul>
-                        <li>Must be a valid CSV file.</li>
+                        <li>Must be a valid CSV file</li>
                         <li>Must contain the following header columns: <code>name, bseCode, nseCode, industry, currentPrice, return1D, return1M, return1W, return3M, return6M, return1Y</code></li>
                         <li>Numeric columns can be empty for N/A values.</li>
                     </ul>
