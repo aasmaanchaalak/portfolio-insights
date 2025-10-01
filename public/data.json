@@ -1,0 +1,95 @@
+{
+  "stocks": [
+    {
+      "name": "20 Microns",
+      "bseCode": "533022",
+      "nseCode": "20MICRONS",
+      "industry": "Minerals & Mining",
+      "currentPrice": 209.75,
+      "return1D": -0.93,
+      "return1M": -10.27,
+      "return1W": -8.43,
+      "return3M": -9.17,
+      "return6M": -0.09,
+      "return1Y": -30.89
+    },
+    {
+      "name": "63 Moons Tech.",
+      "bseCode": "526881",
+      "nseCode": "63MOONS",
+      "industry": "IT - Software",
+      "currentPrice": 841,
+      "return1D": -2.62,
+      "return1M": -7.4,
+      "return1W": -9.54,
+      "return3M": -15.82,
+      "return6M": 3.36,
+      "return1Y": 115.47
+    },
+    {
+      "name": "7Seas Enter.",
+      "bseCode": "540874",
+      "nseCode": null,
+      "industry": "Entertainment",
+      "currentPrice": 89.16,
+      "return1D": -0.86,
+      "return1M": 28.25,
+      "return1W": -5.44,
+      "return3M": 30.22,
+      "return6M": 16.7,
+      "return1Y": 26.99
+    },
+    {
+      "name": "A2Z Infra Engg.",
+      "bseCode": "533292",
+      "nseCode": "A2ZINFRA",
+      "industry": "Construction",
+      "currentPrice": 16.9,
+      "return1D": -1.97,
+      "return1M": -12.47,
+      "return1W": -6.39,
+      "return3M": -14.47,
+      "return6M": 15.33,
+      "return1Y": -6.6
+    },
+    {
+      "name": "Aarti Pharma",
+      "bseCode": "543748",
+      "nseCode": "AARTIPHARM",
+      "industry": "Pharmaceuticals & Biotechnology",
+      "currentPrice": 827.65,
+      "return1D": 2.29,
+      "return1M": -3.83,
+      "return1W": -7.18,
+      "return3M": -9.89,
+      "return6M": 0.26,
+      "return1Y": 27.08
+    },
+    {
+      "name": "Archean Chemical",
+      "bseCode": "543657",
+      "nseCode": "ACI",
+      "industry": "Chemicals & Petrochemicals",
+      "currentPrice": 689.3,
+      "return1D": 1.35,
+      "return1M": 3.62,
+      "return1W": -3.87,
+      "return3M": 9.83,
+      "return6M": 24.36,
+      "return1Y": -5.78
+    },
+    {
+      "name": "ASM Technologies",
+      "bseCode": "526433",
+      "nseCode": null,
+      "industry": "IT - Software",
+      "currentPrice": 4015,
+      "return1D": -4.47,
+      "return1M": 8.49,
+      "return1W": -12.03,
+      "return3M": 53.11,
+      "return6M": 206.84,
+      "return1Y": 147.83
+    }
+  ]
+}
