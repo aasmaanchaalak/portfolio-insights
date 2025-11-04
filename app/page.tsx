@@ -1366,7 +1366,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                         <tbody>
                             {filteredAndSortedData.map((item, index) => (
                                 <tr key={`${item.scripName}-${index}`}>
-                                    <td>
+                                    <td className="stock-name-col" title={item.scripName}>
                                         {item.nseCode || item.bseCode ? (
                                             <a href={`https://www.screener.in/company/${item.nseCode || item.bseCode}/`} target="_blank" rel="noopener noreferrer">
                                                 {item.scripName}

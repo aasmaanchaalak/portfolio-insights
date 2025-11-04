@@ -871,3 +871,17 @@ a:hover {
   max-width: 140px;
   white-space: nowrap;
 }
+
+.stock-table .stock-name-col {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-table .stock-name-col a {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
