@@ -185,6 +185,7 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
     const [editingRemark, setEditingRemark] = useState<string | null>(null);
     const [remarkValue, setRemarkValue] = useState<string>('');
     const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
+    const [deleteConfirmStock, setDeleteConfirmStock] = useState<Stock | null>(null);
 
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
         key: 'name',
@@ -263,6 +264,36 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
         } catch (error) {
             console.error('Error saving assignment:', error);
         }
+    };
+
+    const handleDeleteClick = (stock: Stock) => {
+        setDeleteConfirmStock(stock);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!deleteConfirmStock) return;
+
+        try {
+            const updatedStocks = stocks.filter(s => s.name !== deleteConfirmStock.name);
+
+            // Update via API
+            const response = await fetch('/api/portfolio', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data: updatedStocks })
+            });
+
+            if (response.ok) {
+                onStocksUpdate(updatedStocks);
+                setDeleteConfirmStock(null);
+            }
+        } catch (error) {
+            console.error('Error deleting stock:', error);
+        }
+    };
+
+    const handleDeleteCancel = () => {
+        setDeleteConfirmStock(null);
     };
 
     const requestSort = (key: SortKey) => {
@@ -576,6 +607,7 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
                                     </button>
                                 </div>
                             </th>}
+                            <th className="actions-col">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -632,11 +664,35 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
                                         ))}
                                     </select>
                                 </td>}
+                                <td className="actions-cell">
+                                    <button
+                                        onClick={() => handleDeleteClick(stock)}
+                                        className="delete-btn"
+                                        aria-label="Delete stock"
+                                        title="Delete stock from portfolio"
+                                    >
+                                        🗑️
+                                    </button>
+                                </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
+
+            {deleteConfirmStock && (
+                <div className="delete-confirm-backdrop" onClick={handleDeleteCancel}>
+                    <div className="delete-confirm-dialog" onClick={(e) => e.stopPropagation()}>
+                        <h3>Confirm Delete</h3>
+                        <p>Are you sure you want to delete <strong>{deleteConfirmStock.name}</strong> from your portfolio?</p>
+                        <p className="warning-text">This action cannot be undone.</p>
+                        <div className="dialog-actions">
+                            <button onClick={handleDeleteCancel} className="cancel-dialog-btn">Cancel</button>
+                            <button onClick={handleDeleteConfirm} className="confirm-delete-btn">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 };
