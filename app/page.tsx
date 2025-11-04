@@ -911,11 +911,22 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
                     const cleanAmount = currentAmountStr ? currentAmountStr.replace(/,/g, '') : null;
                     const currentAmount = cleanAmount ? parseFloat(cleanAmount) : null;
 
+                    // Optional fields for quantity and average buy price
+                    const quantityStr = header.includes('Quantity') ? values[header.indexOf('Quantity')] : null;
+                    const cleanQuantity = quantityStr ? quantityStr.replace(/,/g, '') : null;
+                    const quantity = cleanQuantity ? parseFloat(cleanQuantity) : null;
+
+                    const avgBuyPriceStr = header.includes('Average buy price') ? values[header.indexOf('Average buy price')] : null;
+                    const cleanAvgBuyPrice = avgBuyPriceStr ? avgBuyPriceStr.replace(/,/g, '') : null;
+                    const averageBuyPrice = cleanAvgBuyPrice ? parseFloat(cleanAvgBuyPrice) : null;
+
                     return {
                         scripName,
                         bseCode: bseCode && bseCode !== '' ? bseCode : null,
                         nseCode: nseCode && nseCode !== '' ? nseCode : null,
-                        currentAmount
+                        currentAmount,
+                        quantity,
+                        averageBuyPrice
                     };
                 });
 
@@ -950,14 +961,15 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
                     <h3>File Requirements</h3>
                     <ul>
                         <li>Must be a valid CSV file</li>
-                        <li>Must contain: <code>Asset name, Bse, Nse, Current amount</code></li>
+                        <li>Required columns: <code>Asset name, Bse, Nse, Current amount</code></li>
+                        <li>Optional columns: <code>Quantity, Average buy price</code></li>
                         <li>Stocks without BSE/NSE codes will be filtered out</li>
                     </ul>
                     <h3>What Happens After Upload</h3>
                     <ul>
                         <li>Stocks are matched with your portfolio using BSE/NSE codes</li>
                         <li>Current amount is displayed alongside matched stocks</li>
-                        <li>Unmatched stocks are also shown for reference</li>
+                        <li>View Portfolio Insights page to see holdings details</li>
                     </ul>
                 </div>
 
@@ -978,8 +990,121 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
 };
 
 
+const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[] }> = ({ gridKeyData }) => {
+    const [sortConfig, setSortConfig] = useState<{ key: keyof GridKeyData; direction: 'ascending' | 'descending' }>({
+        key: 'scripName',
+        direction: 'ascending',
+    });
+
+    const requestSort = (key: keyof GridKeyData) => {
+        let direction: 'ascending' | 'descending' = 'ascending';
+        if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+            direction = 'descending';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const sortedData = useMemo(() => {
+        const sorted = [...gridKeyData];
+        sorted.sort((a, b) => {
+            const aValue = a[sortConfig.key];
+            const bValue = b[sortConfig.key];
+
+            if (aValue === null || aValue === undefined) return 1;
+            if (bValue === null || bValue === undefined) return -1;
+
+            if (aValue < bValue) {
+                return sortConfig.direction === 'ascending' ? -1 : 1;
+            }
+            if (aValue > bValue) {
+                return sortConfig.direction === 'ascending' ? 1 : -1;
+            }
+            return 0;
+        });
+        return sorted;
+    }, [gridKeyData, sortConfig]);
+
+    const SortIndicator: React.FC<{ columnKey: keyof GridKeyData }> = ({ columnKey }) => {
+        if (sortConfig.key !== columnKey) return null;
+        return <span className="sort-indicator">{sortConfig.direction === 'ascending' ? '▲' : '▼'}</span>;
+    };
+
+    const totalCurrentAmount = useMemo(() => {
+        return gridKeyData.reduce((total, item) => total + (item.currentAmount || 0), 0);
+    }, [gridKeyData]);
+
+    return (
+        <>
+            <header className="main-header">
+                <h1>Portfolio Insights</h1>
+                <p>View your holdings details including quantity and average buy price.</p>
+                {totalCurrentAmount > 0 && (
+                    <div className="portfolio-summary">
+                        <span className="portfolio-label">Total Holdings Value:</span>
+                        <span className="portfolio-value">₹{totalCurrentAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+                    </div>
+                )}
+            </header>
+
+            {gridKeyData.length === 0 ? (
+                <div className="empty-state">
+                    <p>No holdings data available. Please upload GridKey data first.</p>
+                </div>
+            ) : (
+                <div className="stock-table-container">
+                    <table className="stock-table">
+                        <thead>
+                            <tr>
+                                <th onClick={() => requestSort('scripName')}>
+                                    <div className="th-content">
+                                        <span>Stock Name <SortIndicator columnKey="scripName" /></span>
+                                    </div>
+                                </th>
+                                <th className="text-right" onClick={() => requestSort('quantity')}>
+                                    <div className="th-content">
+                                        <span>Quantity <SortIndicator columnKey="quantity" /></span>
+                                    </div>
+                                </th>
+                                <th className="text-right" onClick={() => requestSort('averageBuyPrice')}>
+                                    <div className="th-content">
+                                        <span>Average Buy Price <SortIndicator columnKey="averageBuyPrice" /></span>
+                                    </div>
+                                </th>
+                                <th className="text-right" onClick={() => requestSort('currentAmount')}>
+                                    <div className="th-content">
+                                        <span>Current Amount <SortIndicator columnKey="currentAmount" /></span>
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sortedData.map((item, index) => (
+                                <tr key={`${item.scripName}-${index}`}>
+                                    <td>
+                                        {item.nseCode || item.bseCode ? (
+                                            <a href={`https://www.screener.in/company/${item.nseCode || item.bseCode}/`} target="_blank" rel="noopener noreferrer">
+                                                {item.scripName}
+                                            </a>
+                                        ) : (
+                                            item.scripName
+                                        )}
+                                    </td>
+                                    <td className="text-right">{item.quantity !== null && item.quantity !== undefined ? item.quantity.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : 'N/A'}</td>
+                                    <td className="text-right">{item.averageBuyPrice !== null && item.averageBuyPrice !== undefined ? `₹${item.averageBuyPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
+                                    <td className="text-right current-amount-cell">{item.currentAmount !== null && item.currentAmount !== undefined ? `₹${item.currentAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </>
+    );
+};
+
+
 const App: React.FC = () => {
-    const [page, setPage] = useState<'table' | 'upload' | 'gridkey'>('table');
+    const [page, setPage] = useState<'table' | 'upload' | 'gridkey' | 'insights'>('table');
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [loading, setLoading] = useState(true);
@@ -1081,11 +1206,13 @@ const App: React.FC = () => {
         <>
             <nav className="main-nav">
                 <button className={page === 'table' ? 'active' : ''} onClick={() => setPage('table')}>Portfolio View</button>
+                <button className={page === 'insights' ? 'active' : ''} onClick={() => setPage('insights')}>Portfolio Insights</button>
                 <button className={page === 'upload' ? 'active' : ''} onClick={() => setPage('upload')}>Upload Data</button>
                 <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>
             </nav>
             <main>
                 {page === 'table' && <PortfolioTable stocks={stocks} onStocksUpdate={setStocks} gridKeyData={gridKeyData} />}
+                {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} />}
                 {page === 'upload' && <UploadPage onDataUploaded={handleDataUploaded} />}
                 {page === 'gridkey' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}
             </main>

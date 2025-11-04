@@ -24,4 +24,6 @@ export interface GridKeyData {
   bseCode: string | null;
   nseCode: string | null;
   currentAmount: number | null;
+  quantity?: number | null;
+  averageBuyPrice?: number | null;
 }
