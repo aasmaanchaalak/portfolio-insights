@@ -1037,6 +1037,12 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     const [editingRemark, setEditingRemark] = useState<string | null>(null);
     const [remarkValue, setRemarkValue] = useState<string>('');
     const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
+    const [filters, setFilters] = useState({
+        searchTerm: '',
+        assignedTo: 'All',
+        remarksSearch: '',
+    });
+    const [showFilterPopover, setShowFilterPopover] = useState(false);
 
     const requestSort = (key: string) => {
         let direction: 'ascending' | 'descending' = 'ascending';
@@ -1092,9 +1098,39 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         }));
     }, [enrichedData, totalCurrentAmount]);
 
-    const sortedData = useMemo(() => {
-        const sorted = [...enrichedDataWithWeightage];
-        sorted.sort((a, b) => {
+    const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFilters(prev => ({ ...prev, [name]: value }));
+    };
+
+    const filteredAndSortedData = useMemo(() => {
+        let filtered = [...enrichedDataWithWeightage];
+
+        // Apply search filter
+        if (filters.searchTerm) {
+            filtered = filtered.filter(item =>
+                item.scripName.toLowerCase().includes(filters.searchTerm.toLowerCase())
+            );
+        }
+
+        // Apply assignment filter
+        if (filters.assignedTo !== 'All') {
+            if (filters.assignedTo === 'Unassigned') {
+                filtered = filtered.filter(item => !(item as any).assignedTo);
+            } else {
+                filtered = filtered.filter(item => (item as any).assignedTo === filters.assignedTo);
+            }
+        }
+
+        // Apply remarks filter
+        if (filters.remarksSearch) {
+            filtered = filtered.filter(item =>
+                (item as any).remarks && (item as any).remarks.toLowerCase().includes(filters.remarksSearch.toLowerCase())
+            );
+        }
+
+        // Sort
+        filtered.sort((a, b) => {
             const aValue = (a as any)[sortConfig.key];
             const bValue = (b as any)[sortConfig.key];
 
@@ -1109,8 +1145,8 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             }
             return 0;
         });
-        return sorted;
-    }, [enrichedDataWithWeightage, sortConfig]);
+        return filtered;
+    }, [enrichedDataWithWeightage, sortConfig, filters]);
 
     const SortIndicator: React.FC<{ columnKey: string }> = ({ columnKey }) => {
         if (sortConfig.key !== columnKey) return null;
@@ -1200,7 +1236,58 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                     <p>No holdings data available. Please upload GridKey data first.</p>
                 </div>
             ) : (
-                <div className="stock-table-container">
+                <>
+                    <div className="action-bar">
+                        <div className="search-bar">
+                            <input
+                                type="search"
+                                name="searchTerm"
+                                placeholder="Search by name..."
+                                value={filters.searchTerm}
+                                onChange={handleFilterChange}
+                            />
+                        </div>
+                        <button className="filter-btn" onClick={() => setShowFilterPopover(true)}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10 8.692V13.5a.5.5 0 0 1-.342.474l-3 1.5A.5.5 0 0 1 6 14.5V8.692L1.628 3.834A.5.5 0 0 1 1.5 3.5z"/>
+                            </svg>
+                            Filters
+                        </button>
+                    </div>
+
+                    {showFilterPopover && (
+                        <div className="popover-backdrop" onClick={() => setShowFilterPopover(false)}>
+                            <div className="popover-content" onClick={e => e.stopPropagation()}>
+                                <div className="popover-header">
+                                    <h3>Filter Options</h3>
+                                    <button className="close-btn" onClick={() => setShowFilterPopover(false)}>×</button>
+                                </div>
+                                <div className="popover-body">
+                                    <div className="filter-group">
+                                        <label htmlFor="assignedTo">Assigned To</label>
+                                        <select id="assignedTo" name="assignedTo" value={filters.assignedTo} onChange={handleFilterChange}>
+                                            <option value="All">All</option>
+                                            <option value="Unassigned">Unassigned</option>
+                                            {TEAM_MEMBERS.map(member => <option key={member} value={member}>{member}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="filter-group">
+                                        <label htmlFor="remarksSearch">Search Remarks</label>
+                                        <input
+                                            type="text"
+                                            id="remarksSearch"
+                                            name="remarksSearch"
+                                            placeholder="Search in remarks..."
+                                            value={filters.remarksSearch}
+                                            onChange={handleFilterChange}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="stock-table-container">
                     <table className="stock-table">
                         <thead>
                             <tr>
@@ -1277,7 +1364,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                             </tr>
                         </thead>
                         <tbody>
-                            {sortedData.map((item, index) => (
+                            {filteredAndSortedData.map((item, index) => (
                                 <tr key={`${item.scripName}-${index}`}>
                                     <td>
                                         {item.nseCode || item.bseCode ? (
@@ -1338,6 +1425,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                         </tbody>
                     </table>
                 </div>
+                </>
             )}
         </>
     );
@@ -1403,7 +1491,7 @@ const App: React.FC = () => {
                 setStocks(newData);
             }
 
-            setTimeout(() => setPage('table'), 500);
+            setTimeout(() => setPage('insights'), 500);
         } catch (error) {
             console.error('Error updating portfolio data:', error);
             // Still update the UI even if API fails
@@ -1427,7 +1515,7 @@ const App: React.FC = () => {
             }
 
             setGridKeyData(data);
-            setTimeout(() => setPage('table'), 1000);
+            setTimeout(() => setPage('insights'), 1000);
         } catch (error) {
             console.error('Error saving GridKey data:', error);
             // Still update the UI even if API fails
