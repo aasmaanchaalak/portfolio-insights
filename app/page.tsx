@@ -126,21 +126,27 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                     'Industry Group': 'industry',
                     'Current Price': 'currentPrice',
                     'Current Price (Rs)': 'currentPrice',
+                    'Return over 1day': 'return1D',
                     'Return over 1 Day': 'return1D',
                     'Return over 1 Day (%)': 'return1D',
                     '1-Day Return (%)': 'return1D',
+                    'Return over 1week': 'return1W',
                     'Return over 1 Week': 'return1W',
                     'Return over 5 Days (%)': 'return1W',
                     '1-Week Return (%)': 'return1W',
+                    'Return over 1month': 'return1M',
                     'Return over 1 Month': 'return1M',
                     'Return over 1 Month (%)': 'return1M',
                     '1-Month Return (%)': 'return1M',
+                    'Return over 3months': 'return3M',
                     'Return over 3 Months': 'return3M',
                     'Return over 3 Months (%)': 'return3M',
                     '3-Month Return (%)': 'return3M',
+                    'Return over 6months': 'return6M',
                     'Return over 6 Months': 'return6M',
                     'Return over 6 Months (%)': 'return6M',
                     '6-Month Return (%)': 'return6M',
+                    'Return over 1year': 'return1Y',
                     'Return over 1 Year': 'return1Y',
                     'Return over 1 Year (%)': 'return1Y',
                     '1-Year Return (%)': 'return1Y'
@@ -148,8 +154,8 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
 
                 const requiredCsvHeaders = [
                     'Name', 'BSE Code', 'NSE Code', 'Current Price',
-                    'Return over 1 Day', 'Return over 1 Week', 'Return over 1 Month',
-                    'Return over 3 Months', 'Return over 6 Months', 'Return over 1 Year'
+                    'Return over 1day', 'Return over 1week', 'Return over 1month',
+                    'Return over 3months', 'Return over 6months', 'Return over 1year'
                 ];
 
                 const missingHeaders = requiredCsvHeaders.filter(h => !header.includes(h));
@@ -216,7 +222,7 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                     <h3>File Requirements</h3>
                     <ul>
                         <li>Must be a valid CSV file</li>
-                        <li>Must contain the following header columns: <code>Name, BSE Code, NSE Code, Current Price, Return over 1 Day, Return over 1 Week, Return over 1 Month, Return over 3 Months, Return over 6 Months, Return over 1 Year</code></li>
+                        <li>Must contain the following header columns: <code>Name, BSE Code, NSE Code, Current Price, Return over 1day, Return over 1week, Return over 1month, Return over 3months, Return over 6months, Return over 1year</code></li>
                         <li>Industry Group column is ignored if present</li>
                         <li>Numeric columns can be empty for N/A values.</li>
                     </ul>
@@ -249,7 +255,7 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
 const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void; gridKeyData: GridKeyData[] }> = ({ stocks, onStocksUpdate, gridKeyData }) => {
     const industries = useMemo(() => ['All', ...Array.from(new Set(stocks.map(s => s.industry).filter(ind => ind !== null))).sort()], [stocks]);
 
-    // Map GridKey amounts to stocks and calculate total portfolio value
+    // Map GridKey data to stocks and calculate current amount from quantity * current price
     const stocksWithAmounts = useMemo(() => {
         return stocks.map(stock => {
             const gridKeyMatch = gridKeyData.find(gk => {
@@ -261,9 +267,11 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
                 }
                 return false;
             });
+            const quantity = gridKeyMatch?.quantity || null;
+            const calculatedAmount = (quantity && stock.currentPrice) ? quantity * stock.currentPrice : null;
             return {
                 ...stock,
-                currentAmount: gridKeyMatch?.currentAmount || null
+                currentAmount: calculatedAmount
             };
         });
     }, [stocks, gridKeyData]);
@@ -909,8 +917,21 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
 
                 const header = parseCSVLine(lines[0]);
 
-                const requiredHeaders = ['Asset name', 'Bse', 'Nse', 'Current amount'];
-                const missingHeaders = requiredHeaders.filter(h => !header.includes(h));
+                const requiredHeaders = ['Asset name', 'Bse', 'Nse', 'Quantity', 'Average buy price'];
+                const missingHeaders = requiredHeaders.filter(h => {
+                    if (h === 'Quantity') {
+                        return !header.some(col => col === 'Quantity' || col === 'quantity' || col.toLowerCase().includes('quantity'));
+                    }
+                    if (h === 'Average buy price') {
+                        return !header.some(col =>
+                            col === 'Average buy price' ||
+                            col === 'Avg. buy price' ||
+                            col === 'Average Buy Price' ||
+                            (col.toLowerCase().includes('avg') && col.toLowerCase().includes('buy') && col.toLowerCase().includes('price'))
+                        );
+                    }
+                    return !header.includes(h);
+                });
                 if (missingHeaders.length > 0) {
                     throw new Error(`Missing required CSV columns: ${missingHeaders.join(', ')}`);
                 }
@@ -920,12 +941,8 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
                     const scripName = values[header.indexOf('Asset name')] || '';
                     const bseCode = values[header.indexOf('Bse')] || null;
                     const nseCode = values[header.indexOf('Nse')] || null;
-                    const currentAmountStr = values[header.indexOf('Current amount')];
-                    // Remove commas from amount (e.g., "1,234.56" -> "1234.56")
-                    const cleanAmount = currentAmountStr ? currentAmountStr.replace(/,/g, '') : null;
-                    const currentAmount = cleanAmount ? parseFloat(cleanAmount) : null;
 
-                    // Optional fields for quantity and average buy price
+                    // Required fields for quantity and average buy price
                     const quantityColIndex = header.findIndex(h =>
                         h === 'Quantity' || h === 'quantity' || h.toLowerCase().includes('quantity')
                     );
@@ -937,7 +954,7 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
                         h === 'Average buy price' ||
                         h === 'Avg. buy price' ||
                         h === 'Average Buy Price' ||
-                        h.toLowerCase().includes('avg') && h.toLowerCase().includes('buy') && h.toLowerCase().includes('price')
+                        (h.toLowerCase().includes('avg') && h.toLowerCase().includes('buy') && h.toLowerCase().includes('price'))
                     );
                     const avgBuyPriceStr = avgBuyPriceColIndex >= 0 ? values[avgBuyPriceColIndex] : null;
                     const cleanAvgBuyPrice = avgBuyPriceStr ? avgBuyPriceStr.replace(/,/g, '') : null;
@@ -947,7 +964,6 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
                         scripName,
                         bseCode: bseCode && bseCode !== '' ? bseCode : null,
                         nseCode: nseCode && nseCode !== '' ? nseCode : null,
-                        currentAmount,
                         quantity,
                         averageBuyPrice
                     };
@@ -984,15 +1000,15 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
                     <h3>File Requirements</h3>
                     <ul>
                         <li>Must be a valid CSV file</li>
-                        <li>Required columns: <code>Asset name, Bse, Nse, Current amount</code></li>
-                        <li>Optional columns: <code>Quantity, Average buy price</code></li>
+                        <li>Required columns: <code>Asset name, Bse, Nse, Quantity, Average buy price</code></li>
                         <li>Stocks without BSE/NSE codes will be filtered out</li>
+                        <li>Current amount is calculated automatically from quantity × current price</li>
                     </ul>
                     <h3>What Happens After Upload</h3>
                     <ul>
                         <li>Stocks are matched with your portfolio using BSE/NSE codes</li>
-                        <li>Current amount is displayed alongside matched stocks</li>
-                        <li>View Portfolio Insights page to see holdings details</li>
+                        <li>Current amount is calculated and displayed alongside matched stocks</li>
+                        <li>View Portfolio Insights page to see complete holdings details</li>
                     </ul>
                 </div>
 
@@ -1027,7 +1043,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         setSortConfig({ key, direction });
     };
 
-    // Enrich GridKey data with current price from portfolio stocks
+    // Enrich GridKey data with current price from portfolio stocks and calculate current amount
     const enrichedData = useMemo(() => {
         return gridKeyData.map(item => {
             const matchedStock = stocks.find(stock => {
@@ -1039,9 +1055,12 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                 }
                 return false;
             });
+            const currentPrice = matchedStock?.currentPrice || null;
+            const calculatedAmount = (item.quantity && currentPrice) ? item.quantity * currentPrice : null;
             return {
                 ...item,
-                currentPrice: matchedStock?.currentPrice || null
+                currentPrice,
+                calculatedAmount
             };
         });
     }, [gridKeyData, stocks]);
@@ -1072,8 +1091,8 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     };
 
     const totalCurrentAmount = useMemo(() => {
-        return gridKeyData.reduce((total, item) => total + (item.currentAmount || 0), 0);
-    }, [gridKeyData]);
+        return enrichedData.reduce((total, item) => total + ((item as any).calculatedAmount || 0), 0);
+    }, [enrichedData]);
 
     return (
         <>
@@ -1117,9 +1136,9 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         <span>Current Price <SortIndicator columnKey="currentPrice" /></span>
                                     </div>
                                 </th>
-                                <th className="text-right" onClick={() => requestSort('currentAmount')}>
+                                <th className="text-right" onClick={() => requestSort('calculatedAmount')}>
                                     <div className="th-content">
-                                        <span>Current Amount <SortIndicator columnKey="currentAmount" /></span>
+                                        <span>Current Amount <SortIndicator columnKey="calculatedAmount" /></span>
                                     </div>
                                 </th>
                             </tr>
@@ -1139,7 +1158,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                     <td className="text-right">{item.quantity !== null && item.quantity !== undefined ? item.quantity.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : 'N/A'}</td>
                                     <td className="text-right">{item.averageBuyPrice !== null && item.averageBuyPrice !== undefined ? `₹${item.averageBuyPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
                                     <td className="text-right">{(item as any).currentPrice !== null && (item as any).currentPrice !== undefined ? `₹${(item as any).currentPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
-                                    <td className="text-right current-amount-cell">{item.currentAmount !== null && item.currentAmount !== undefined ? `₹${item.currentAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
+                                    <td className="text-right current-amount-cell">{(item as any).calculatedAmount !== null && (item as any).calculatedAmount !== undefined ? `₹${(item as any).calculatedAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
                                 </tr>
                             ))}
                         </tbody>
