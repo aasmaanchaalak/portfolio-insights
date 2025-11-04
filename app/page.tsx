@@ -789,7 +789,7 @@ const GridKeyPage: React.FC<{ stocks: Stock[] }> = ({ stocks }) => {
 
                 const header = parseCSVLine(lines[0]);
 
-                const requiredHeaders = ['Scrip Name', 'BSE Code', 'NSE Symbol', 'Current Amount'];
+                const requiredHeaders = ['Asset name', 'Bse', 'Nse', 'Current amount'];
                 const missingHeaders = requiredHeaders.filter(h => !header.includes(h));
                 if (missingHeaders.length > 0) {
                     throw new Error(`Missing required CSV columns: ${missingHeaders.join(', ')}`);
@@ -797,10 +797,10 @@ const GridKeyPage: React.FC<{ stocks: Stock[] }> = ({ stocks }) => {
 
                 const data: GridKeyData[] = lines.slice(1).map((line) => {
                     const values = parseCSVLine(line);
-                    const scripName = values[header.indexOf('Scrip Name')] || '';
-                    const bseCode = values[header.indexOf('BSE Code')] || null;
-                    const nseCode = values[header.indexOf('NSE Symbol')] || null;
-                    const currentAmountStr = values[header.indexOf('Current Amount')];
+                    const scripName = values[header.indexOf('Asset name')] || '';
+                    const bseCode = values[header.indexOf('Bse')] || null;
+                    const nseCode = values[header.indexOf('Nse')] || null;
+                    const currentAmountStr = values[header.indexOf('Current amount')];
                     // Remove commas from amount (e.g., "1,234.56" -> "1234.56")
                     const cleanAmount = currentAmountStr ? currentAmountStr.replace(/,/g, '') : null;
                     const currentAmount = cleanAmount ? parseFloat(cleanAmount) : null;
@@ -863,13 +863,13 @@ const GridKeyPage: React.FC<{ stocks: Stock[] }> = ({ stocks }) => {
                     <h3>File Requirements</h3>
                     <ul>
                         <li>Must be a valid CSV file</li>
-                        <li>Must contain: <code>Scrip Name, BSE Code, NSE Symbol, Current Amount</code></li>
+                        <li>Must contain: <code>Asset name, Bse, Nse, Current amount</code></li>
                         <li>Stocks without BSE/NSE codes will be filtered out</li>
                     </ul>
                     <h3>What Happens After Upload</h3>
                     <ul>
                         <li>Stocks are matched with your portfolio using BSE/NSE codes</li>
-                        <li>Current Amount is displayed alongside matched stocks</li>
+                        <li>Current amount is displayed alongside matched stocks</li>
                         <li>Unmatched stocks are also shown for reference</li>
                     </ul>
                 </div>
