@@ -911,16 +911,24 @@ const App: React.FC = () => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const loadStocks = async () => {
+        const loadData = async () => {
             try {
-                const response = await fetch('/api/portfolio');
-                if (!response.ok) {
+                // Load portfolio data
+                const portfolioResponse = await fetch('/api/portfolio');
+                if (!portfolioResponse.ok) {
                     throw new Error('Failed to fetch portfolio data');
                 }
-                const portfolioData = await response.json();
+                const portfolioData = await portfolioResponse.json();
                 setStocks(portfolioData);
+
+                // Load GridKey data
+                const gridKeyResponse = await fetch('/api/gridkey');
+                if (gridKeyResponse.ok) {
+                    const gridKeyData = await gridKeyResponse.json();
+                    setGridKeyData(gridKeyData);
+                }
             } catch (error) {
-                console.error('Error loading stock data:', error);
+                console.error('Error loading data:', error);
                 // Fallback to empty array
                 setStocks([]);
             } finally {
@@ -928,7 +936,7 @@ const App: React.FC = () => {
             }
         };
 
-        loadStocks();
+        loadData();
     }, []);
 
     const handleDataUploaded = async (newData: Stock[]) => {
@@ -963,9 +971,28 @@ const App: React.FC = () => {
         }
     };
 
-    const handleGridKeyUploaded = (data: GridKeyData[]) => {
-        setGridKeyData(data);
-        setTimeout(() => setPage('table'), 1000);
+    const handleGridKeyUploaded = async (data: GridKeyData[]) => {
+        try {
+            // Save to API
+            const response = await fetch('/api/gridkey', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ data }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to save GridKey data');
+            }
+
+            setGridKeyData(data);
+            setTimeout(() => setPage('table'), 1000);
+        } catch (error) {
+            console.error('Error saving GridKey data:', error);
+            // Still update the UI even if API fails
+            setGridKeyData(data);
+        }
     };
 
     if (loading) {
