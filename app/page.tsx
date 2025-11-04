@@ -119,23 +119,31 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
 
                 // Map new column names to internal field names
                 const columnMapping: Record<string, keyof Stock> = {
+                    'Name': 'name',
                     'Company name': 'name',
                     'BSE Code': 'bseCode',
                     'NSE Code': 'nseCode',
                     'Industry Group': 'industry',
+                    'Current Price': 'currentPrice',
                     'Current Price (Rs)': 'currentPrice',
+                    'Return over 1 Day (%)': 'return1D',
                     '1-Day Return (%)': 'return1D',
+                    'Return over 5 Days (%)': 'return1W',
                     '1-Week Return (%)': 'return1W',
+                    'Return over 1 Month (%)': 'return1M',
                     '1-Month Return (%)': 'return1M',
+                    'Return over 3 Months (%)': 'return3M',
                     '3-Month Return (%)': 'return3M',
+                    'Return over 6 Months (%)': 'return6M',
                     '6-Month Return (%)': 'return6M',
+                    'Return over 1 Year (%)': 'return1Y',
                     '1-Year Return (%)': 'return1Y'
                 };
 
                 const requiredCsvHeaders = [
-                    'Company name', 'BSE Code', 'NSE Code', 'Current Price (Rs)',
-                    '1-Day Return (%)', '1-Week Return (%)', '1-Month Return (%)',
-                    '3-Month Return (%)', '6-Month Return (%)', '1-Year Return (%)'
+                    'Name', 'BSE Code', 'NSE Code', 'Current Price',
+                    'Return over 1 Day (%)', 'Return over 5 Days (%)', 'Return over 1 Month (%)',
+                    'Return over 3 Months (%)', 'Return over 6 Months (%)', 'Return over 1 Year (%)'
                 ];
 
                 const missingHeaders = requiredCsvHeaders.filter(h => !header.includes(h));
@@ -202,7 +210,7 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                     <h3>File Requirements</h3>
                     <ul>
                         <li>Must be a valid CSV file</li>
-                        <li>Must contain the following header columns: <code>Company name, BSE Code, NSE Code, Current Price (Rs), 1-Day Return (%), 1-Week Return (%), 1-Month Return (%), 3-Month Return (%), 6-Month Return (%), 1-Year Return (%)</code></li>
+                        <li>Must contain the following header columns: <code>Name, BSE Code, NSE Code, Current Price, Return over 1 Day (%), Return over 5 Days (%), Return over 1 Month (%), Return over 3 Months (%), Return over 6 Months (%), Return over 1 Year (%)</code></li>
                         <li>Industry Group column is ignored if present</li>
                         <li>Numeric columns can be empty for N/A values.</li>
                     </ul>
