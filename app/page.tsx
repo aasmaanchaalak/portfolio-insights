@@ -41,7 +41,10 @@ const allToggleableColumns = [
     { key: 'currentPrice', label: 'Price' },
     ...perfColumns,
     { key: 'remarks', label: 'Remarks' },
+    { key: 'assignedTo', label: 'Assigned To' },
 ];
+
+const TEAM_MEMBERS = ['Deepak', 'Aditya', 'Tushar', 'Aayush', 'Daksh', 'Siddhartha'];
 
 const HeatmapCell: React.FC<{ value: number | null }> = ({ value }) => (
     <div
@@ -174,12 +177,14 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
         minPrice: '',
         maxPrice: '',
         remarksSearch: '',
+        assignedTo: 'All',
     });
 
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [showFilterPopover, setShowFilterPopover] = useState(false);
     const [editingRemark, setEditingRemark] = useState<string | null>(null);
     const [remarkValue, setRemarkValue] = useState<string>('');
+    const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
 
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
         key: 'name',
@@ -236,6 +241,30 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
         setRemarkValue('');
     };
 
+    const handleAssignmentChange = async (stock: Stock, assignedTo: string) => {
+        const code = stock.nseCode || stock.bseCode;
+        if (!code) return;
+
+        try {
+            const response = await fetch('/api/assignments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, assignedTo: assignedTo || null })
+            });
+
+            if (response.ok) {
+                // Update local stocks array
+                const updatedStocks = stocks.map(s =>
+                    s.name === stock.name ? { ...s, assignedTo: assignedTo || null } : s
+                );
+                onStocksUpdate(updatedStocks);
+                setEditingAssignment(null);
+            }
+        } catch (error) {
+            console.error('Error saving assignment:', error);
+        }
+    };
+
     const requestSort = (key: SortKey) => {
         let direction: SortDirection = 'ascending';
         if (sortConfig.key === key && sortConfig.direction === 'ascending') {
@@ -289,6 +318,14 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
             );
         }
 
+        if (filters.assignedTo !== 'All') {
+            if (filters.assignedTo === 'Unassigned') {
+                filtered = filtered.filter(s => !s.assignedTo);
+            } else {
+                filtered = filtered.filter(s => s.assignedTo === filters.assignedTo);
+            }
+        }
+
         filtered.sort((a, b) => {
             const aValue = a[sortConfig.key];
             const bValue = b[sortConfig.key];
@@ -338,10 +375,13 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
         if (filters.remarksSearch) {
             activeFilters.push({ key: 'remarksSearch', label: `Remarks: "${filters.remarksSearch}"` });
         }
+        if (filters.assignedTo !== 'All') {
+            activeFilters.push({ key: 'assignedTo', label: `Assigned: ${filters.assignedTo}` });
+        }
 
         if (activeFilters.length === 0) return null;
 
-        const defaultValues = { industry: 'All', min1YReturn: '', max1MReturn: '', searchTerm: '', minPrice: '', maxPrice: '', remarksSearch: '' };
+        const defaultValues = { industry: 'All', min1YReturn: '', max1MReturn: '', searchTerm: '', minPrice: '', maxPrice: '', remarksSearch: '', assignedTo: 'All' };
         const clearFilter = (key: keyof typeof filters) => {
             setFilters(prev => ({...prev, [key]: defaultValues[key]}));
         }
@@ -378,6 +418,15 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
                         <label htmlFor="industry">Industry</label>
                         <select id="industry" name="industry" value={filters.industry} onChange={handleFilterChange}>
                             {industries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
+                        </select>
+                    </div>
+
+                    <div className="filter-group">
+                        <label htmlFor="assignedTo">Assigned To</label>
+                        <select id="assignedTo" name="assignedTo" value={filters.assignedTo} onChange={handleFilterChange}>
+                            <option value="All">All</option>
+                            <option value="Unassigned">Unassigned</option>
+                            {TEAM_MEMBERS.map(member => <option key={member} value={member}>{member}</option>)}
                         </select>
                     </div>
 
@@ -514,6 +563,19 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
                                     </button>
                                 </div>
                             </th>}
+                            {visibleColumns['assignedTo'] && <th onClick={() => requestSort('assignedTo' as SortKey)}>
+                                <div className="th-content">
+                                    <span>Assigned To <SortIndicator columnKey={'assignedTo' as SortKey} /></span>
+                                    <button
+                                        className="hide-column-btn"
+                                        aria-label="Hide Assigned To column"
+                                        title="Hide Assigned To column"
+                                        onClick={(e) => { e.stopPropagation(); toggleColumn('assignedTo'); }}
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            </th>}
                         </tr>
                     </thead>
                     <tbody>
@@ -557,6 +619,18 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
                                             {stock.remarks || <span className="remark-placeholder">Add remark...</span>}
                                         </div>
                                     )}
+                                </td>}
+                                {visibleColumns['assignedTo'] && <td className="assignment-cell">
+                                    <select
+                                        value={stock.assignedTo || ''}
+                                        onChange={(e) => handleAssignmentChange(stock, e.target.value)}
+                                        className="assignment-select"
+                                    >
+                                        <option value="">Unassigned</option>
+                                        {TEAM_MEMBERS.map(member => (
+                                            <option key={member} value={member}>{member}</option>
+                                        ))}
+                                    </select>
                                 </td>}
                             </tr>
                         ))}

@@ -16,4 +16,5 @@ export interface Stock {
   return6M: number | null;
   return1Y: number | null;
   remarks?: string | null;
+  assignedTo?: string | null;
 }

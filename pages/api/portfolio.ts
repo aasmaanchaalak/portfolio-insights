@@ -3,6 +3,7 @@ import { connectRedis } from '../../lib/redis';
 
 const PORTFOLIO_KEY = 'portfolio:data';
 const REMARKS_KEY_PREFIX = 'remarks:';
+const ASSIGNMENT_KEY_PREFIX = 'assignment:';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -20,10 +21,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const portfolioData = JSON.parse(data);
 
         // Fetch remarks and merge them with portfolio data
-        const keys = await redis.keys(`${REMARKS_KEY_PREFIX}*`);
+        const remarksKeys = await redis.keys(`${REMARKS_KEY_PREFIX}*`);
         const remarksMap: Record<string, string> = {};
 
-        for (const key of keys) {
+        for (const key of remarksKeys) {
           const code = key.replace(REMARKS_KEY_PREFIX, '');
           const value = await redis.get(key);
           if (value) {
@@ -31,12 +32,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         }
 
-        // Merge remarks into portfolio data based on nseCode or bseCode
+        // Fetch assignments and merge them with portfolio data
+        const assignmentKeys = await redis.keys(`${ASSIGNMENT_KEY_PREFIX}*`);
+        const assignmentsMap: Record<string, string> = {};
+
+        for (const key of assignmentKeys) {
+          const code = key.replace(ASSIGNMENT_KEY_PREFIX, '');
+          const value = await redis.get(key);
+          if (value) {
+            assignmentsMap[code] = value;
+          }
+        }
+
+        // Merge remarks and assignments into portfolio data based on nseCode or bseCode
         const enrichedData = portfolioData.map((stock: any) => {
           const code = stock.nseCode || stock.bseCode;
           return {
             ...stock,
-            remarks: code && remarksMap[code] ? remarksMap[code] : null
+            remarks: code && remarksMap[code] ? remarksMap[code] : null,
+            assignedTo: code && assignmentsMap[code] ? assignmentsMap[code] : null
           };
         });
 
@@ -65,7 +79,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         }
 
-        // Process portfolio data and save remarks if included
+        // Process portfolio data and save remarks and assignments if included
         const cleanedData = portfolioData.map((stock: any) => {
           const code = stock.nseCode || stock.bseCode;
 
@@ -84,9 +98,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             }
           }
 
-          // Remove remarks from the stock data before storing in portfolio
-          const { remarks, ...stockWithoutRemarks } = stock;
-          return stockWithoutRemarks;
+          // If assignments are provided in the upload, save them to Redis
+          if (code && stock.assignedTo !== undefined) {
+            if (stock.assignedTo === null || stock.assignedTo === '') {
+              // Delete assignment if empty
+              redis.del(`${ASSIGNMENT_KEY_PREFIX}${code}`).catch(err =>
+                console.error('Error deleting assignment:', err)
+              );
+            } else {
+              // Save the assignment
+              redis.set(`${ASSIGNMENT_KEY_PREFIX}${code}`, stock.assignedTo).catch(err =>
+                console.error('Error saving assignment:', err)
+              );
+            }
+          }
+
+          // Remove remarks and assignments from the stock data before storing in portfolio
+          const { remarks, assignedTo, ...stockWithoutExtras } = stock;
+          return stockWithoutExtras;
         });
 
         await redis.set(PORTFOLIO_KEY, JSON.stringify(cleanedData));
