@@ -1050,6 +1050,8 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         { key: 'investedAmount', label: 'Invested Amount' },
         { key: 'currentPrice', label: 'Current Price' },
         { key: 'calculatedAmount', label: 'Current Amount' },
+        { key: 'absoluteGain', label: 'Absolute Gain' },
+        { key: 'gainPercentage', label: 'Gain %' },
         { key: 'weightage', label: 'Weightage %' },
         { key: 'return1D', label: '1D %' },
         { key: 'return1W', label: '1W %' },
@@ -1095,11 +1097,17 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             const currentPrice = matchedStock?.currentPrice || null;
             const calculatedAmount = (item.quantity && currentPrice) ? item.quantity * currentPrice : null;
             const investedAmount = (item.quantity && item.averageBuyPrice) ? item.quantity * item.averageBuyPrice : null;
+            const absoluteGain = (calculatedAmount !== null && investedAmount !== null) ? calculatedAmount - investedAmount : null;
+            const gainPercentage = (investedAmount !== null && investedAmount !== 0 && absoluteGain !== null)
+                ? (absoluteGain / investedAmount) * 100
+                : null;
             return {
                 ...item,
                 currentPrice,
                 calculatedAmount,
                 investedAmount,
+                absoluteGain,
+                gainPercentage,
                 // Add all portfolio fields
                 industry: matchedStock?.industry || null,
                 return1D: matchedStock?.return1D || null,
@@ -1368,6 +1376,16 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         <span>Current Amount <SortIndicator columnKey="calculatedAmount" /></span>
                                     </div>
                                 </th>}
+                                {visibleColumns['absoluteGain'] && <th className="text-right" onClick={() => requestSort('absoluteGain')}>
+                                    <div className="th-content">
+                                        <span>Absolute Gain <SortIndicator columnKey="absoluteGain" /></span>
+                                    </div>
+                                </th>}
+                                {visibleColumns['gainPercentage'] && <th className="text-right" onClick={() => requestSort('gainPercentage')}>
+                                    <div className="th-content">
+                                        <span>Gain % <SortIndicator columnKey="gainPercentage" /></span>
+                                    </div>
+                                </th>}
                                 {visibleColumns['weightage'] && <th className="text-right" onClick={() => requestSort('weightage')}>
                                     <div className="th-content">
                                         <span>Weightage % <SortIndicator columnKey="weightage" /></span>
@@ -1432,6 +1450,12 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                     {visibleColumns['investedAmount'] && <td className="text-right">{(item as any).investedAmount !== null && (item as any).investedAmount !== undefined ? `₹${(item as any).investedAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
                                     {visibleColumns['currentPrice'] && <td className="text-right">{(item as any).currentPrice !== null && (item as any).currentPrice !== undefined ? `₹${(item as any).currentPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
                                     {visibleColumns['calculatedAmount'] && <td className="text-right current-amount-cell">{(item as any).calculatedAmount !== null && (item as any).calculatedAmount !== undefined ? `₹${(item as any).calculatedAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
+                                    {visibleColumns['absoluteGain'] && <td className="text-right" style={{ color: (item as any).absoluteGain !== null ? ((item as any).absoluteGain >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>
+                                        {(item as any).absoluteGain !== null && (item as any).absoluteGain !== undefined ? `₹${(item as any).absoluteGain.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}
+                                    </td>}
+                                    {visibleColumns['gainPercentage'] && <td className="text-right" style={{ color: (item as any).gainPercentage !== null ? ((item as any).gainPercentage >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit', fontWeight: 500 }}>
+                                        {(item as any).gainPercentage !== null && (item as any).gainPercentage !== undefined ? `${(item as any).gainPercentage.toFixed(2)}%` : 'N/A'}
+                                    </td>}
                                     {visibleColumns['weightage'] && <td className="text-right weightage-cell">{(item as any).weightage !== null ? `${((item as any).weightage).toFixed(2)}%` : 'N/A'}</td>}
                                     {visibleColumns['return1D'] && <td className="heatmap-td"><HeatmapCell value={(item as any).return1D} /></td>}
                                     {visibleColumns['return1W'] && <td className="heatmap-td"><HeatmapCell value={(item as any).return1W} /></td>}
