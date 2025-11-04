@@ -1044,6 +1044,34 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     });
     const [showFilterPopover, setShowFilterPopover] = useState(false);
 
+    const allInsightsColumns = [
+        { key: 'quantity', label: 'Quantity' },
+        { key: 'averageBuyPrice', label: 'Avg Buy Price' },
+        { key: 'investedAmount', label: 'Invested Amount' },
+        { key: 'currentPrice', label: 'Current Price' },
+        { key: 'calculatedAmount', label: 'Current Amount' },
+        { key: 'weightage', label: 'Weightage %' },
+        { key: 'return1D', label: '1D %' },
+        { key: 'return1W', label: '1W %' },
+        { key: 'return1M', label: '1M %' },
+        { key: 'return3M', label: '3M %' },
+        { key: 'return6M', label: '6M %' },
+        { key: 'return1Y', label: '1Y %' },
+        { key: 'remarks', label: 'Remarks' },
+        { key: 'assignedTo', label: 'Assigned To' },
+    ];
+
+    const initialVisibleColumns = allInsightsColumns.reduce((acc, col) => {
+        acc[col.key] = true;
+        return acc;
+    }, {} as Record<string, boolean>);
+
+    const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(initialVisibleColumns);
+
+    const toggleColumn = (key: string) => {
+        setVisibleColumns(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
     const requestSort = (key: string) => {
         let direction: 'ascending' | 'descending' = 'ascending';
         if (sortConfig.key === key && sortConfig.direction === 'ascending') {
@@ -1261,7 +1289,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                         <div className="popover-backdrop" onClick={() => setShowFilterPopover(false)}>
                             <div className="popover-content" onClick={e => e.stopPropagation()}>
                                 <div className="popover-header">
-                                    <h3>Filter Options</h3>
+                                    <h3>Filter & View Options</h3>
                                     <button className="close-btn" onClick={() => setShowFilterPopover(false)}>×</button>
                                 </div>
                                 <div className="popover-body">
@@ -1284,6 +1312,23 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                             onChange={handleFilterChange}
                                         />
                                     </div>
+
+                                    <div className="column-toggles-container">
+                                        <label>Show/Hide Columns</label>
+                                        <div className="column-toggles">
+                                            {allInsightsColumns.map(col => (
+                                                <div key={col.key} className="toggle-group">
+                                                    <input
+                                                        type="checkbox"
+                                                        id={`toggle-${col.key}`}
+                                                        checked={!!visibleColumns[col.key]}
+                                                        onChange={() => toggleColumn(col.key)}
+                                                    />
+                                                    <label htmlFor={`toggle-${col.key}`}>{col.label}</label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1298,76 +1343,76 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         <span>Stock Name <SortIndicator columnKey="scripName" /></span>
                                     </div>
                                 </th>
-                                <th className="text-right" onClick={() => requestSort('quantity')}>
+                                {visibleColumns['quantity'] && <th className="text-right" onClick={() => requestSort('quantity')}>
                                     <div className="th-content">
                                         <span>Quantity <SortIndicator columnKey="quantity" /></span>
                                     </div>
-                                </th>
-                                <th className="text-right avg-buy-price-col" onClick={() => requestSort('averageBuyPrice')}>
+                                </th>}
+                                {visibleColumns['averageBuyPrice'] && <th className="text-right avg-buy-price-col" onClick={() => requestSort('averageBuyPrice')}>
                                     <div className="th-content">
                                         <span>Avg Buy Price <SortIndicator columnKey="averageBuyPrice" /></span>
                                     </div>
-                                </th>
-                                <th className="text-right" onClick={() => requestSort('investedAmount')}>
+                                </th>}
+                                {visibleColumns['investedAmount'] && <th className="text-right" onClick={() => requestSort('investedAmount')}>
                                     <div className="th-content">
                                         <span>Invested Amount <SortIndicator columnKey="investedAmount" /></span>
                                     </div>
-                                </th>
-                                <th className="text-right" onClick={() => requestSort('currentPrice')}>
+                                </th>}
+                                {visibleColumns['currentPrice'] && <th className="text-right" onClick={() => requestSort('currentPrice')}>
                                     <div className="th-content">
                                         <span>Current Price <SortIndicator columnKey="currentPrice" /></span>
                                     </div>
-                                </th>
-                                <th className="text-right" onClick={() => requestSort('calculatedAmount')}>
+                                </th>}
+                                {visibleColumns['calculatedAmount'] && <th className="text-right" onClick={() => requestSort('calculatedAmount')}>
                                     <div className="th-content">
                                         <span>Current Amount <SortIndicator columnKey="calculatedAmount" /></span>
                                     </div>
-                                </th>
-                                <th className="text-right" onClick={() => requestSort('weightage')}>
+                                </th>}
+                                {visibleColumns['weightage'] && <th className="text-right" onClick={() => requestSort('weightage')}>
                                     <div className="th-content">
                                         <span>Weightage % <SortIndicator columnKey="weightage" /></span>
                                     </div>
-                                </th>
-                                <th className="text-right" onClick={() => requestSort('return1D')}>
+                                </th>}
+                                {visibleColumns['return1D'] && <th className="text-right" onClick={() => requestSort('return1D')}>
                                     <div className="th-content">
                                         <span>1D % <SortIndicator columnKey="return1D" /></span>
                                     </div>
-                                </th>
-                                <th className="text-right" onClick={() => requestSort('return1W')}>
+                                </th>}
+                                {visibleColumns['return1W'] && <th className="text-right" onClick={() => requestSort('return1W')}>
                                     <div className="th-content">
                                         <span>1W % <SortIndicator columnKey="return1W" /></span>
                                     </div>
-                                </th>
-                                <th className="text-right" onClick={() => requestSort('return1M')}>
+                                </th>}
+                                {visibleColumns['return1M'] && <th className="text-right" onClick={() => requestSort('return1M')}>
                                     <div className="th-content">
                                         <span>1M % <SortIndicator columnKey="return1M" /></span>
                                     </div>
-                                </th>
-                                <th className="text-right" onClick={() => requestSort('return3M')}>
+                                </th>}
+                                {visibleColumns['return3M'] && <th className="text-right" onClick={() => requestSort('return3M')}>
                                     <div className="th-content">
                                         <span>3M % <SortIndicator columnKey="return3M" /></span>
                                     </div>
-                                </th>
-                                <th className="text-right" onClick={() => requestSort('return6M')}>
+                                </th>}
+                                {visibleColumns['return6M'] && <th className="text-right" onClick={() => requestSort('return6M')}>
                                     <div className="th-content">
                                         <span>6M % <SortIndicator columnKey="return6M" /></span>
                                     </div>
-                                </th>
-                                <th className="text-right" onClick={() => requestSort('return1Y')}>
+                                </th>}
+                                {visibleColumns['return1Y'] && <th className="text-right" onClick={() => requestSort('return1Y')}>
                                     <div className="th-content">
                                         <span>1Y % <SortIndicator columnKey="return1Y" /></span>
                                     </div>
-                                </th>
-                                <th onClick={() => requestSort('remarks')}>
+                                </th>}
+                                {visibleColumns['remarks'] && <th onClick={() => requestSort('remarks')}>
                                     <div className="th-content">
                                         <span>Remarks <SortIndicator columnKey="remarks" /></span>
                                     </div>
-                                </th>
-                                <th onClick={() => requestSort('assignedTo')}>
+                                </th>}
+                                {visibleColumns['assignedTo'] && <th onClick={() => requestSort('assignedTo')}>
                                     <div className="th-content">
                                         <span>Assigned To <SortIndicator columnKey="assignedTo" /></span>
                                     </div>
-                                </th>
+                                </th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -1382,19 +1427,19 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                             item.scripName
                                         )}
                                     </td>
-                                    <td className="text-right">{item.quantity !== null && item.quantity !== undefined ? item.quantity.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : 'N/A'}</td>
-                                    <td className="text-right avg-buy-price-col">{item.averageBuyPrice !== null && item.averageBuyPrice !== undefined ? `₹${item.averageBuyPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
-                                    <td className="text-right">{(item as any).investedAmount !== null && (item as any).investedAmount !== undefined ? `₹${(item as any).investedAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
-                                    <td className="text-right">{(item as any).currentPrice !== null && (item as any).currentPrice !== undefined ? `₹${(item as any).currentPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
-                                    <td className="text-right current-amount-cell">{(item as any).calculatedAmount !== null && (item as any).calculatedAmount !== undefined ? `₹${(item as any).calculatedAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
-                                    <td className="text-right weightage-cell">{(item as any).weightage !== null ? `${((item as any).weightage).toFixed(2)}%` : 'N/A'}</td>
-                                    <td className="heatmap-td"><HeatmapCell value={(item as any).return1D} /></td>
-                                    <td className="heatmap-td"><HeatmapCell value={(item as any).return1W} /></td>
-                                    <td className="heatmap-td"><HeatmapCell value={(item as any).return1M} /></td>
-                                    <td className="heatmap-td"><HeatmapCell value={(item as any).return3M} /></td>
-                                    <td className="heatmap-td"><HeatmapCell value={(item as any).return6M} /></td>
-                                    <td className="heatmap-td"><HeatmapCell value={(item as any).return1Y} /></td>
-                                    <td className="remarks-cell">
+                                    {visibleColumns['quantity'] && <td className="text-right">{item.quantity !== null && item.quantity !== undefined ? item.quantity.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : 'N/A'}</td>}
+                                    {visibleColumns['averageBuyPrice'] && <td className="text-right avg-buy-price-col">{item.averageBuyPrice !== null && item.averageBuyPrice !== undefined ? `₹${item.averageBuyPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
+                                    {visibleColumns['investedAmount'] && <td className="text-right">{(item as any).investedAmount !== null && (item as any).investedAmount !== undefined ? `₹${(item as any).investedAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
+                                    {visibleColumns['currentPrice'] && <td className="text-right">{(item as any).currentPrice !== null && (item as any).currentPrice !== undefined ? `₹${(item as any).currentPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
+                                    {visibleColumns['calculatedAmount'] && <td className="text-right current-amount-cell">{(item as any).calculatedAmount !== null && (item as any).calculatedAmount !== undefined ? `₹${(item as any).calculatedAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
+                                    {visibleColumns['weightage'] && <td className="text-right weightage-cell">{(item as any).weightage !== null ? `${((item as any).weightage).toFixed(2)}%` : 'N/A'}</td>}
+                                    {visibleColumns['return1D'] && <td className="heatmap-td"><HeatmapCell value={(item as any).return1D} /></td>}
+                                    {visibleColumns['return1W'] && <td className="heatmap-td"><HeatmapCell value={(item as any).return1W} /></td>}
+                                    {visibleColumns['return1M'] && <td className="heatmap-td"><HeatmapCell value={(item as any).return1M} /></td>}
+                                    {visibleColumns['return3M'] && <td className="heatmap-td"><HeatmapCell value={(item as any).return3M} /></td>}
+                                    {visibleColumns['return6M'] && <td className="heatmap-td"><HeatmapCell value={(item as any).return6M} /></td>}
+                                    {visibleColumns['return1Y'] && <td className="heatmap-td"><HeatmapCell value={(item as any).return1Y} /></td>}
+                                    {visibleColumns['remarks'] && <td className="remarks-cell">
                                         {editingRemark === (item.nseCode || item.bseCode || item.scripName) ? (
                                             <div className="remark-edit">
                                                 <input
@@ -1415,8 +1460,8 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                                 {(item as any).remarks || <span className="remark-placeholder">Add remark...</span>}
                                             </div>
                                         )}
-                                    </td>
-                                    <td className="assignment-cell">
+                                    </td>}
+                                    {visibleColumns['assignedTo'] && <td className="assignment-cell">
                                         <select
                                             value={(item as any).assignedTo || ''}
                                             onChange={(e) => handleAssignmentChange(item, e.target.value)}
@@ -1427,7 +1472,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                                 <option key={member} value={member}>{member}</option>
                                             ))}
                                         </select>
-                                    </td>
+                                    </td>}
                                 </tr>
                             ))}
                         </tbody>
