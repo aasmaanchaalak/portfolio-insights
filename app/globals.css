@@ -794,3 +794,22 @@ a:hover {
 .confirm-delete-btn:hover {
   background-color: #c82333;
 }
+
+/* GridKey Table Styles */
+.gridkey-table-container {
+  margin-top: 2rem;
+}
+
+.gridkey-table-container h2 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  color: var(--primary-text-color);
+}
+
+.stock-table .matched-row {
+  background-color: var(--positive-color-weak);
+}
+
+.stock-table .unmatched-row {
+  background-color: var(--negative-color-weak);
+}

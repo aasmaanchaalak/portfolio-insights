@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Stock } from '../types';
+import { Stock, GridKeyData } from '../types';
 
 type SortKey = keyof Stock;
 type SortDirection = 'ascending' | 'descending';
@@ -698,8 +698,170 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
 };
 
 
+const GridKeyPage: React.FC<{ stocks: Stock[] }> = ({ stocks }) => {
+    const [file, setFile] = useState<File | null>(null);
+    const [status, setStatus] = useState('');
+    const [error, setError] = useState('');
+    const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
+    const [mappedData, setMappedData] = useState<Array<GridKeyData & { matchedStock?: Stock }>>([]);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            setFile(e.target.files[0]);
+            setStatus('');
+            setError('');
+        }
+    };
+
+    const processFile = () => {
+        if (!file) {
+            setError('Please select a file first.');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const csvText = event.target?.result as string;
+                const lines = csvText.trim().split('\n');
+                const header = lines[0].split(',').map(h => h.trim());
+
+                const requiredHeaders = ['Scrip Name', 'BSE Code', 'NSE Symbol', 'Current Amount'];
+                const missingHeaders = requiredHeaders.filter(h => !header.includes(h));
+                if (missingHeaders.length > 0) {
+                    throw new Error(`Missing required CSV columns: ${missingHeaders.join(', ')}`);
+                }
+
+                const data: GridKeyData[] = lines.slice(1).map((line) => {
+                    const values = line.split(',').map(v => v.trim());
+                    const scripName = values[header.indexOf('Scrip Name')] || '';
+                    const bseCode = values[header.indexOf('BSE Code')] || null;
+                    const nseCode = values[header.indexOf('NSE Symbol')] || null;
+                    const currentAmountStr = values[header.indexOf('Current Amount')];
+                    const currentAmount = currentAmountStr ? parseFloat(currentAmountStr) : null;
+
+                    return {
+                        scripName,
+                        bseCode: bseCode && bseCode !== '' ? bseCode : null,
+                        nseCode: nseCode && nseCode !== '' ? nseCode : null,
+                        currentAmount
+                    };
+                });
+
+                // Filter out stocks with no BSE or NSE code
+                const filtered = data.filter(item => item.bseCode || item.nseCode);
+
+                // Map to portfolio stocks
+                const mapped = filtered.map(gridItem => {
+                    const matchedStock = stocks.find(stock => {
+                        if (gridItem.nseCode && stock.nseCode) {
+                            return stock.nseCode.toLowerCase() === gridItem.nseCode.toLowerCase();
+                        }
+                        if (gridItem.bseCode && stock.bseCode) {
+                            return stock.bseCode.toLowerCase() === gridItem.bseCode.toLowerCase();
+                        }
+                        return false;
+                    });
+
+                    return {
+                        ...gridItem,
+                        matchedStock
+                    };
+                });
+
+                setGridKeyData(filtered);
+                setMappedData(mapped);
+                setStatus(`Processed ${mapped.length} stocks (${mapped.filter(m => m.matchedStock).length} matched with portfolio)`);
+                setError('');
+            } catch (e: any) {
+                setError(`Error parsing file: ${e.message}`);
+                setStatus('');
+            }
+        };
+
+        reader.onerror = () => {
+            setError('Failed to read the file.');
+            setStatus('');
+        };
+
+        reader.readAsText(file);
+    };
+
+    return (
+        <div className="upload-container">
+            <header className="main-header">
+                <h1>GridKey Data Upload</h1>
+                <p>Upload GridKey CSV file to map holdings to your portfolio.</p>
+            </header>
+            <div className="upload-content">
+                <div className="upload-instructions">
+                    <h3>File Requirements</h3>
+                    <ul>
+                        <li>Must be a valid CSV file</li>
+                        <li>Must contain: <code>Scrip Name, BSE Code, NSE Symbol, Current Amount</code></li>
+                        <li>Stocks without BSE/NSE codes will be filtered out</li>
+                    </ul>
+                    <h3>What Happens After Upload</h3>
+                    <ul>
+                        <li>Stocks are matched with your portfolio using BSE/NSE codes</li>
+                        <li>Current Amount is displayed alongside matched stocks</li>
+                        <li>Unmatched stocks are also shown for reference</li>
+                    </ul>
+                </div>
+
+                <div className="upload-action-area">
+                    <div className="filter-group">
+                        <label htmlFor="gridkey-file-upload">CSV File</label>
+                        <input type="file" id="gridkey-file-upload" accept=".csv" onChange={handleFileChange} />
+                    </div>
+                    <button className="process-btn" onClick={processFile} disabled={!file}>
+                        Process File
+                    </button>
+                    {status && <div className="status-message success">{status}</div>}
+                    {error && <div className="status-message error">{error}</div>}
+                </div>
+            </div>
+
+            {mappedData.length > 0 && (
+                <div className="gridkey-table-container">
+                    <h2>Mapped GridKey Data</h2>
+                    <div className="stock-table-container">
+                        <table className="stock-table">
+                            <thead>
+                                <tr>
+                                    <th>Scrip Name</th>
+                                    <th>BSE Code</th>
+                                    <th>NSE Symbol</th>
+                                    <th>Current Amount</th>
+                                    <th>Portfolio Match</th>
+                                    <th>Industry</th>
+                                    <th>Current Price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {mappedData.map((item, idx) => (
+                                    <tr key={idx} className={item.matchedStock ? 'matched-row' : 'unmatched-row'}>
+                                        <td>{item.scripName}</td>
+                                        <td>{item.bseCode || 'N/A'}</td>
+                                        <td>{item.nseCode || 'N/A'}</td>
+                                        <td className="text-right">{formatValue(item.currentAmount)}</td>
+                                        <td>{item.matchedStock ? item.matchedStock.name : '⚠️ Not Found'}</td>
+                                        <td>{item.matchedStock?.industry || 'N/A'}</td>
+                                        <td className="text-right">{item.matchedStock ? formatValue(item.matchedStock.currentPrice) : 'N/A'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+
 const App: React.FC = () => {
-    const [page, setPage] = useState<'table' | 'upload'>('table');
+    const [page, setPage] = useState<'table' | 'upload' | 'gridkey'>('table');
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -761,10 +923,12 @@ const App: React.FC = () => {
             <nav className="main-nav">
                 <button className={page === 'table' ? 'active' : ''} onClick={() => setPage('table')}>Portfolio View</button>
                 <button className={page === 'upload' ? 'active' : ''} onClick={() => setPage('upload')}>Upload Data</button>
+                <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>
             </nav>
             <main>
                 {page === 'table' && <PortfolioTable stocks={stocks} onStocksUpdate={setStocks} />}
                 {page === 'upload' && <UploadPage onDataUploaded={handleDataUploaded} />}
+                {page === 'gridkey' && <GridKeyPage stocks={stocks} />}
             </main>
         </>
     );

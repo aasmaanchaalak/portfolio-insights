@@ -18,3 +18,10 @@ export interface Stock {
   remarks?: string | null;
   assignedTo?: string | null;
 }
+
+export interface GridKeyData {
+  scripName: string;
+  bseCode: string | null;
+  nseCode: string | null;
+  currentAmount: number | null;
+}
