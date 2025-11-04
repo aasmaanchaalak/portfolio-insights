@@ -555,6 +555,84 @@ a:hover {
 }
 
 
+/* Remarks Column Styles */
+.stock-table .remarks-cell {
+  min-width: 200px;
+  max-width: 300px;
+  white-space: normal;
+  padding: 0;
+}
+
+.remark-display {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  transition: background-color 0.2s;
+}
+
+.remark-display:hover {
+  background-color: var(--surface-color);
+}
+
+.remark-placeholder {
+  color: var(--secondary-text-color);
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.remark-edit {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  align-items: center;
+}
+
+.remark-edit input {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid var(--accent-color);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background-color: var(--background-color);
+  color: var(--primary-text-color);
+}
+
+.remark-edit input:focus {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 1px;
+}
+
+.remark-edit .save-btn,
+.remark-edit .cancel-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+  font-size: 1rem;
+  line-height: 1;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.remark-edit .save-btn {
+  color: var(--success-color);
+}
+
+.remark-edit .save-btn:hover {
+  background-color: var(--positive-color-weak);
+}
+
+.remark-edit .cancel-btn {
+  color: var(--error-color);
+}
+
+.remark-edit .cancel-btn:hover {
+  background-color: var(--negative-color-weak);
+}
+
 /* Smaller screens adjustments */
 @media (max-width: 767px) {
   .stock-table th,
@@ -569,5 +647,9 @@ a:hover {
   .action-bar {
       flex-direction: column;
       align-items: stretch;
+  }
+
+  .stock-table .remarks-cell {
+    min-width: 150px;
   }
 }

@@ -40,6 +40,7 @@ const allToggleableColumns = [
     { key: 'industry', label: 'Industry' },
     { key: 'currentPrice', label: 'Price' },
     ...perfColumns,
+    { key: 'remarks', label: 'Remarks' },
 ];
 
 const HeatmapCell: React.FC<{ value: number | null }> = ({ value }) => (
@@ -134,11 +135,13 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                     <ul>
                         <li>Must be a valid CSV file</li>
                         <li>Must contain the following header columns: <code>name, bseCode, nseCode, industry, currentPrice, return1D, return1M, return1W, return3M, return6M, return1Y</code></li>
+                        <li>Optional column: <code>remarks</code> (any text notes for each stock)</li>
                         <li>Numeric columns can be empty for N/A values.</li>
                     </ul>
                     <h3>What Happens After Upload</h3>
                     <ul>
                         <li>Your portfolio data will be updated in the app immediately.</li>
+                        <li>Remarks are saved per NSE/BSE code and persist across uploads.</li>
                         <li>Data is automatically saved to the server.</li>
                         <li>No manual file management required!</li>
                     </ul>
@@ -161,7 +164,7 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
 };
 
 
-const PortfolioTable: React.FC<{ stocks: Stock[] }> = ({ stocks }) => {
+const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void }> = ({ stocks, onStocksUpdate }) => {
     const industries = useMemo(() => ['All', ...Array.from(new Set(stocks.map(s => s.industry))).sort()], [stocks]);
     const [filters, setFilters] = useState({
         industry: 'All',
@@ -171,9 +174,11 @@ const PortfolioTable: React.FC<{ stocks: Stock[] }> = ({ stocks }) => {
         minPrice: '',
         maxPrice: '',
     });
-    
+
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [showFilterPopover, setShowFilterPopover] = useState(false);
+    const [editingRemark, setEditingRemark] = useState<string | null>(null);
+    const [remarkValue, setRemarkValue] = useState<string>('');
 
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
         key: 'name',
@@ -194,6 +199,40 @@ const PortfolioTable: React.FC<{ stocks: Stock[] }> = ({ stocks }) => {
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFilters(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleRemarkEdit = (stockName: string, currentRemark: string | null | undefined) => {
+        setEditingRemark(stockName);
+        setRemarkValue(currentRemark || '');
+    };
+
+    const handleRemarkSave = async (stock: Stock) => {
+        const code = stock.nseCode || stock.bseCode;
+        if (!code) return;
+
+        try {
+            const response = await fetch('/api/remarks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, remark: remarkValue })
+            });
+
+            if (response.ok) {
+                // Update local stocks array
+                const updatedStocks = stocks.map(s =>
+                    s.name === stock.name ? { ...s, remarks: remarkValue || null } : s
+                );
+                onStocksUpdate(updatedStocks);
+                setEditingRemark(null);
+            }
+        } catch (error) {
+            console.error('Error saving remark:', error);
+        }
+    };
+
+    const handleRemarkCancel = () => {
+        setEditingRemark(null);
+        setRemarkValue('');
     };
 
     const requestSort = (key: SortKey) => {
@@ -448,6 +487,19 @@ const PortfolioTable: React.FC<{ stocks: Stock[] }> = ({ stocks }) => {
                                     </div>
                                 </th>
                             ))}
+                            {visibleColumns['remarks'] && <th onClick={() => requestSort('remarks' as SortKey)}>
+                                <div className="th-content">
+                                    <span>Remarks <SortIndicator columnKey={'remarks' as SortKey} /></span>
+                                    <button
+                                        className="hide-column-btn"
+                                        aria-label="Hide Remarks column"
+                                        title="Hide Remarks column"
+                                        onClick={(e) => { e.stopPropagation(); toggleColumn('remarks'); }}
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            </th>}
                         </tr>
                     </thead>
                     <tbody>
@@ -470,6 +522,28 @@ const PortfolioTable: React.FC<{ stocks: Stock[] }> = ({ stocks }) => {
                                         <HeatmapCell value={stock[col.key] as number | null} />
                                     </td>
                                 ))}
+                                {visibleColumns['remarks'] && <td className="remarks-cell">
+                                    {editingRemark === stock.name ? (
+                                        <div className="remark-edit">
+                                            <input
+                                                type="text"
+                                                value={remarkValue}
+                                                onChange={(e) => setRemarkValue(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') handleRemarkSave(stock);
+                                                    if (e.key === 'Escape') handleRemarkCancel();
+                                                }}
+                                                autoFocus
+                                            />
+                                            <button onClick={() => handleRemarkSave(stock)} className="save-btn">✓</button>
+                                            <button onClick={handleRemarkCancel} className="cancel-btn">✕</button>
+                                        </div>
+                                    ) : (
+                                        <div className="remark-display" onClick={() => handleRemarkEdit(stock.name, stock.remarks)}>
+                                            {stock.remarks || <span className="remark-placeholder">Add remark...</span>}
+                                        </div>
+                                    )}
+                                </td>}
                             </tr>
                         ))}
                     </tbody>
@@ -545,7 +619,7 @@ const App: React.FC = () => {
                 <button className={page === 'upload' ? 'active' : ''} onClick={() => setPage('upload')}>Upload Data</button>
             </nav>
             <main>
-                {page === 'table' && <PortfolioTable stocks={stocks} />}
+                {page === 'table' && <PortfolioTable stocks={stocks} onStocksUpdate={setStocks} />}
                 {page === 'upload' && <UploadPage onDataUploaded={handleDataUploaded} />}
             </main>
         </>
