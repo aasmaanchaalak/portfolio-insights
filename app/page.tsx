@@ -126,24 +126,30 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                     'Industry Group': 'industry',
                     'Current Price': 'currentPrice',
                     'Current Price (Rs)': 'currentPrice',
+                    'Return over 1 Day': 'return1D',
                     'Return over 1 Day (%)': 'return1D',
                     '1-Day Return (%)': 'return1D',
+                    'Return over 1 Week': 'return1W',
                     'Return over 5 Days (%)': 'return1W',
                     '1-Week Return (%)': 'return1W',
+                    'Return over 1 Month': 'return1M',
                     'Return over 1 Month (%)': 'return1M',
                     '1-Month Return (%)': 'return1M',
+                    'Return over 3 Months': 'return3M',
                     'Return over 3 Months (%)': 'return3M',
                     '3-Month Return (%)': 'return3M',
+                    'Return over 6 Months': 'return6M',
                     'Return over 6 Months (%)': 'return6M',
                     '6-Month Return (%)': 'return6M',
+                    'Return over 1 Year': 'return1Y',
                     'Return over 1 Year (%)': 'return1Y',
                     '1-Year Return (%)': 'return1Y'
                 };
 
                 const requiredCsvHeaders = [
                     'Name', 'BSE Code', 'NSE Code', 'Current Price',
-                    'Return over 1 Day (%)', 'Return over 5 Days (%)', 'Return over 1 Month (%)',
-                    'Return over 3 Months (%)', 'Return over 6 Months (%)', 'Return over 1 Year (%)'
+                    'Return over 1 Day', 'Return over 1 Week', 'Return over 1 Month',
+                    'Return over 3 Months', 'Return over 6 Months', 'Return over 1 Year'
                 ];
 
                 const missingHeaders = requiredCsvHeaders.filter(h => !header.includes(h));
@@ -210,7 +216,7 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                     <h3>File Requirements</h3>
                     <ul>
                         <li>Must be a valid CSV file</li>
-                        <li>Must contain the following header columns: <code>Name, BSE Code, NSE Code, Current Price, Return over 1 Day (%), Return over 5 Days (%), Return over 1 Month (%), Return over 3 Months (%), Return over 6 Months (%), Return over 1 Year (%)</code></li>
+                        <li>Must contain the following header columns: <code>Name, BSE Code, NSE Code, Current Price, Return over 1 Day, Return over 1 Week, Return over 1 Month, Return over 3 Months, Return over 6 Months, Return over 1 Year</code></li>
                         <li>Industry Group column is ignored if present</li>
                         <li>Numeric columns can be empty for N/A values.</li>
                     </ul>
@@ -920,11 +926,20 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
                     const currentAmount = cleanAmount ? parseFloat(cleanAmount) : null;
 
                     // Optional fields for quantity and average buy price
-                    const quantityStr = header.includes('Quantity') ? values[header.indexOf('Quantity')] : null;
+                    const quantityColIndex = header.findIndex(h =>
+                        h === 'Quantity' || h === 'quantity' || h.toLowerCase().includes('quantity')
+                    );
+                    const quantityStr = quantityColIndex >= 0 ? values[quantityColIndex] : null;
                     const cleanQuantity = quantityStr ? quantityStr.replace(/,/g, '') : null;
                     const quantity = cleanQuantity ? parseFloat(cleanQuantity) : null;
 
-                    const avgBuyPriceStr = header.includes('Average buy price') ? values[header.indexOf('Average buy price')] : null;
+                    const avgBuyPriceColIndex = header.findIndex(h =>
+                        h === 'Average buy price' ||
+                        h === 'Avg. buy price' ||
+                        h === 'Average Buy Price' ||
+                        h.toLowerCase().includes('avg') && h.toLowerCase().includes('buy') && h.toLowerCase().includes('price')
+                    );
+                    const avgBuyPriceStr = avgBuyPriceColIndex >= 0 ? values[avgBuyPriceColIndex] : null;
                     const cleanAvgBuyPrice = avgBuyPriceStr ? avgBuyPriceStr.replace(/,/g, '') : null;
                     const averageBuyPrice = cleanAvgBuyPrice ? parseFloat(cleanAvgBuyPrice) : null;
 
@@ -998,13 +1013,13 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
 };
 
 
-const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[] }> = ({ gridKeyData }) => {
-    const [sortConfig, setSortConfig] = useState<{ key: keyof GridKeyData; direction: 'ascending' | 'descending' }>({
+const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = ({ gridKeyData, stocks }) => {
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' }>({
         key: 'scripName',
         direction: 'ascending',
     });
 
-    const requestSort = (key: keyof GridKeyData) => {
+    const requestSort = (key: string) => {
         let direction: 'ascending' | 'descending' = 'ascending';
         if (sortConfig.key === key && sortConfig.direction === 'ascending') {
             direction = 'descending';
@@ -1012,11 +1027,30 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[] }> = ({ gridK
         setSortConfig({ key, direction });
     };
 
+    // Enrich GridKey data with current price from portfolio stocks
+    const enrichedData = useMemo(() => {
+        return gridKeyData.map(item => {
+            const matchedStock = stocks.find(stock => {
+                if (item.nseCode && stock.nseCode) {
+                    return item.nseCode.toLowerCase() === stock.nseCode.toLowerCase();
+                }
+                if (item.bseCode && stock.bseCode) {
+                    return item.bseCode.toLowerCase() === stock.bseCode.toLowerCase();
+                }
+                return false;
+            });
+            return {
+                ...item,
+                currentPrice: matchedStock?.currentPrice || null
+            };
+        });
+    }, [gridKeyData, stocks]);
+
     const sortedData = useMemo(() => {
-        const sorted = [...gridKeyData];
+        const sorted = [...enrichedData];
         sorted.sort((a, b) => {
-            const aValue = a[sortConfig.key];
-            const bValue = b[sortConfig.key];
+            const aValue = (a as any)[sortConfig.key];
+            const bValue = (b as any)[sortConfig.key];
 
             if (aValue === null || aValue === undefined) return 1;
             if (bValue === null || bValue === undefined) return -1;
@@ -1030,9 +1064,9 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[] }> = ({ gridK
             return 0;
         });
         return sorted;
-    }, [gridKeyData, sortConfig]);
+    }, [enrichedData, sortConfig]);
 
-    const SortIndicator: React.FC<{ columnKey: keyof GridKeyData }> = ({ columnKey }) => {
+    const SortIndicator: React.FC<{ columnKey: string }> = ({ columnKey }) => {
         if (sortConfig.key !== columnKey) return null;
         return <span className="sort-indicator">{sortConfig.direction === 'ascending' ? '▲' : '▼'}</span>;
     };
@@ -1078,6 +1112,11 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[] }> = ({ gridK
                                         <span>Average Buy Price <SortIndicator columnKey="averageBuyPrice" /></span>
                                     </div>
                                 </th>
+                                <th className="text-right" onClick={() => requestSort('currentPrice')}>
+                                    <div className="th-content">
+                                        <span>Current Price <SortIndicator columnKey="currentPrice" /></span>
+                                    </div>
+                                </th>
                                 <th className="text-right" onClick={() => requestSort('currentAmount')}>
                                     <div className="th-content">
                                         <span>Current Amount <SortIndicator columnKey="currentAmount" /></span>
@@ -1099,6 +1138,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[] }> = ({ gridK
                                     </td>
                                     <td className="text-right">{item.quantity !== null && item.quantity !== undefined ? item.quantity.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : 'N/A'}</td>
                                     <td className="text-right">{item.averageBuyPrice !== null && item.averageBuyPrice !== undefined ? `₹${item.averageBuyPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
+                                    <td className="text-right">{(item as any).currentPrice !== null && (item as any).currentPrice !== undefined ? `₹${(item as any).currentPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
                                     <td className="text-right current-amount-cell">{item.currentAmount !== null && item.currentAmount !== undefined ? `₹${item.currentAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
                                 </tr>
                             ))}
@@ -1220,7 +1260,7 @@ const App: React.FC = () => {
             </nav>
             <main>
                 {page === 'table' && <PortfolioTable stocks={stocks} onStocksUpdate={setStocks} gridKeyData={gridKeyData} />}
-                {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} />}
+                {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={stocks} />}
                 {page === 'upload' && <UploadPage onDataUploaded={handleDataUploaded} />}
                 {page === 'gridkey' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}
             </main>
