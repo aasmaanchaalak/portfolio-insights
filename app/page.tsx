@@ -40,6 +40,7 @@ const allToggleableColumns = [
     { key: 'industry', label: 'Industry' },
     { key: 'currentPrice', label: 'Price' },
     { key: 'currentAmount', label: 'Current Amount' },
+    { key: 'weightage', label: 'Weightage %' },
     ...perfColumns,
     { key: 'remarks', label: 'Remarks' },
     { key: 'assignedTo', label: 'Assigned To' },
@@ -205,7 +206,7 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
 const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void; gridKeyData: GridKeyData[] }> = ({ stocks, onStocksUpdate, gridKeyData }) => {
     const industries = useMemo(() => ['All', ...Array.from(new Set(stocks.map(s => s.industry))).sort()], [stocks]);
 
-    // Map GridKey amounts to stocks
+    // Map GridKey amounts to stocks and calculate total portfolio value
     const stocksWithAmounts = useMemo(() => {
         return stocks.map(stock => {
             const gridKeyMatch = gridKeyData.find(gk => {
@@ -223,6 +224,28 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
             };
         });
     }, [stocks, gridKeyData]);
+
+    // Calculate total portfolio value
+    const totalPortfolioValue = useMemo(() => {
+        return stocksWithAmounts.reduce((total, stock) => {
+            const amount = (stock as any).currentAmount;
+            return total + (amount || 0);
+        }, 0);
+    }, [stocksWithAmounts]);
+
+    // Calculate weightage for each stock
+    const stocksWithWeightage = useMemo(() => {
+        return stocksWithAmounts.map(stock => {
+            const amount = (stock as any).currentAmount;
+            const weightage = totalPortfolioValue > 0 && amount
+                ? (amount / totalPortfolioValue) * 100
+                : null;
+            return {
+                ...stock,
+                weightage
+            };
+        });
+    }, [stocksWithAmounts, totalPortfolioValue]);
     const [filters, setFilters] = useState({
         industry: 'All',
         min1YReturn: '',
@@ -359,7 +382,7 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
     };
 
     const filteredAndSortedStocks = useMemo(() => {
-        let filtered = [...stocksWithAmounts];
+        let filtered = [...stocksWithWeightage];
 
         if (filters.searchTerm) {
             filtered = filtered.filter(s => s.name.toLowerCase().includes(filters.searchTerm.toLowerCase()));
@@ -430,7 +453,7 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
         });
 
         return filtered;
-    }, [filters, sortConfig, stocksWithAmounts]);
+    }, [filters, sortConfig, stocksWithWeightage]);
     
     const SortIndicator: React.FC<{ columnKey: SortKey }> = ({ columnKey }) => {
         if (sortConfig.key !== columnKey) return null;
@@ -567,6 +590,12 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
             <header className="main-header">
                 <h1>Portfolio Insights</h1>
                 <p>Analyze stock performance with advanced sorting and filtering.</p>
+                {totalPortfolioValue > 0 && (
+                    <div className="portfolio-summary">
+                        <span className="portfolio-label">Total Portfolio Value:</span>
+                        <span className="portfolio-value">₹{totalPortfolioValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+                    </div>
+                )}
             </header>
 
             <ActiveFilters />
@@ -633,6 +662,19 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
                                     </button>
                                 </div>
                             </th>}
+                            {visibleColumns['weightage'] && <th className="text-right" onClick={() => requestSort('weightage' as SortKey)}>
+                                <div className="th-content">
+                                    <span>Weightage % <SortIndicator columnKey={'weightage' as SortKey} /></span>
+                                    <button
+                                        className="hide-column-btn"
+                                        aria-label="Hide Weightage column"
+                                        title="Hide Weightage column"
+                                        onClick={(e) => { e.stopPropagation(); toggleColumn('weightage'); }}
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            </th>}
                             {perfColumns.map(col => (
                                 visibleColumns[col.key] && <th key={col.key} className="text-right" onClick={() => requestSort(col.key)}>
                                     <div className="th-content">
@@ -692,6 +734,9 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
                                 {visibleColumns['industry'] && <td className="industry-col">{stock.industry}</td>}
                                 {visibleColumns['currentPrice'] && <td className="text-right">{formatValue(stock.currentPrice)}</td>}
                                 {visibleColumns['currentAmount'] && <td className="text-right current-amount-cell">{formatValue((stock as any).currentAmount)}</td>}
+                                {visibleColumns['weightage'] && <td className="text-right weightage-cell">
+                                    {(stock as any).weightage !== null ? `${((stock as any).weightage).toFixed(2)}%` : 'N/A'}
+                                </td>}
                                 {perfColumns.map(col => (
                                     visibleColumns[col.key] &&
                                     <td key={col.key} className="heatmap-td">

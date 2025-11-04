@@ -819,3 +819,33 @@ a:hover {
   font-weight: 500;
   color: var(--accent-color);
 }
+
+/* Portfolio Summary Styles */
+.portfolio-summary {
+  margin-top: 1rem;
+  padding: 1rem 1.5rem;
+  background-color: var(--surface-color);
+  border: 2px solid var(--accent-color);
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.portfolio-label {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--secondary-text-color);
+}
+
+.portfolio-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent-color);
+}
+
+/* Weightage Column Styles */
+.stock-table .weightage-cell {
+  font-weight: 500;
+  color: var(--success-color);
+}
