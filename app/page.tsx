@@ -117,12 +117,28 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
 
                 const header = parseCSVLine(lines[0]);
 
-                const requiredHeaders: (keyof Stock)[] = [
-                    'name', 'bseCode', 'nseCode', 'industry', 'currentPrice',
-                    'return1D', 'return1M', 'return1W', 'return3M', 'return6M', 'return1Y'
+                // Map new column names to internal field names
+                const columnMapping: Record<string, keyof Stock> = {
+                    'Company name': 'name',
+                    'BSE Code': 'bseCode',
+                    'NSE Code': 'nseCode',
+                    'Industry Group': 'industry',
+                    'Current Price (Rs)': 'currentPrice',
+                    '1-Day Return (%)': 'return1D',
+                    '1-Week Return (%)': 'return1W',
+                    '1-Month Return (%)': 'return1M',
+                    '3-Month Return (%)': 'return3M',
+                    '6-Month Return (%)': 'return6M',
+                    '1-Year Return (%)': 'return1Y'
+                };
+
+                const requiredCsvHeaders = [
+                    'Company name', 'BSE Code', 'NSE Code', 'Current Price (Rs)',
+                    '1-Day Return (%)', '1-Week Return (%)', '1-Month Return (%)',
+                    '3-Month Return (%)', '6-Month Return (%)', '1-Year Return (%)'
                 ];
 
-                const missingHeaders = requiredHeaders.filter(h => !header.includes(h));
+                const missingHeaders = requiredCsvHeaders.filter(h => !header.includes(h));
                 if (missingHeaders.length > 0) {
                     throw new Error(`Missing required CSV columns: ${missingHeaders.join(', ')}`);
                 }
@@ -130,17 +146,30 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                 const data: Stock[] = lines.slice(1).map((line, lineIndex) => {
                     const values = parseCSVLine(line);
                     const entry: Partial<Stock> = {};
-                    header.forEach((key, index) => {
+
+                    header.forEach((csvColumn, index) => {
+                        // Skip Industry Group column
+                        if (csvColumn === 'Industry Group') {
+                            return;
+                        }
+
+                        const internalKey = columnMapping[csvColumn];
+                        if (!internalKey) return;
+
                         let value = values[index] ? values[index].trim() : null;
 
-                        if (['currentPrice', 'return1D', 'return1M', 'return1W', 'return3M', 'return6M', 'return1Y'].includes(key)) {
+                        if (['currentPrice', 'return1D', 'return1M', 'return1W', 'return3M', 'return6M', 'return1Y'].includes(internalKey)) {
                              // Remove any commas from numbers (e.g., "1,234.56" -> "1234.56")
                              const cleanValue = value ? value.replace(/,/g, '') : null;
-                             (entry as any)[key] = (cleanValue === null || cleanValue === '') ? null : parseFloat(cleanValue);
+                             (entry as any)[internalKey] = (cleanValue === null || cleanValue === '') ? null : parseFloat(cleanValue);
                         } else {
-                             (entry as any)[key] = (value === null || value === '') ? null : value;
+                             (entry as any)[internalKey] = (value === null || value === '') ? null : value;
                         }
                     });
+
+                    // Set industry to null since we're ignoring Industry Group
+                    entry.industry = null;
+
                     return entry as Stock;
                 });
 
@@ -173,14 +202,14 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                     <h3>File Requirements</h3>
                     <ul>
                         <li>Must be a valid CSV file</li>
-                        <li>Must contain the following header columns: <code>name, bseCode, nseCode, industry, currentPrice, return1D, return1M, return1W, return3M, return6M, return1Y</code></li>
-                        <li>Optional column: <code>remarks</code> (any text notes for each stock)</li>
+                        <li>Must contain the following header columns: <code>Company name, BSE Code, NSE Code, Current Price (Rs), 1-Day Return (%), 1-Week Return (%), 1-Month Return (%), 3-Month Return (%), 6-Month Return (%), 1-Year Return (%)</code></li>
+                        <li>Industry Group column is ignored if present</li>
                         <li>Numeric columns can be empty for N/A values.</li>
                     </ul>
                     <h3>What Happens After Upload</h3>
                     <ul>
                         <li>Your portfolio data will be updated in the app immediately.</li>
-                        <li>Remarks are saved per NSE/BSE code and persist across uploads.</li>
+                        <li>Remarks and assignments are saved per NSE/BSE code and persist across uploads.</li>
                         <li>Data is automatically saved to the server.</li>
                         <li>No manual file management required!</li>
                     </ul>
