@@ -1068,10 +1068,32 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         return acc;
     }, {} as Record<string, boolean>);
 
-    const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(initialVisibleColumns);
+    // Load column preferences from localStorage
+    const loadColumnPreferences = () => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('portfolioInsightsColumns');
+            if (saved) {
+                try {
+                    return JSON.parse(saved);
+                } catch (e) {
+                    return initialVisibleColumns;
+                }
+            }
+        }
+        return initialVisibleColumns;
+    };
+
+    const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(loadColumnPreferences);
 
     const toggleColumn = (key: string) => {
-        setVisibleColumns(prev => ({ ...prev, [key]: !prev[key] }));
+        setVisibleColumns(prev => {
+            const updated = { ...prev, [key]: !prev[key] };
+            // Save to localStorage
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('portfolioInsightsColumns', JSON.stringify(updated));
+            }
+            return updated;
+        });
     };
 
     const requestSort = (key: string) => {
