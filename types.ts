@@ -7,7 +7,7 @@ export interface Stock {
   name: string;
   bseCode: string | null;
   nseCode: string | null;
-  industry: string;
+  industry: string | null;
   currentPrice: number | null;
   return1D: number | null;
   return1M: number | null;

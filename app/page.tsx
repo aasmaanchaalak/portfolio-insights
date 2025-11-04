@@ -233,7 +233,7 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
 
 
 const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void; gridKeyData: GridKeyData[] }> = ({ stocks, onStocksUpdate, gridKeyData }) => {
-    const industries = useMemo(() => ['All', ...Array.from(new Set(stocks.map(s => s.industry))).sort()], [stocks]);
+    const industries = useMemo(() => ['All', ...Array.from(new Set(stocks.map(s => s.industry).filter(ind => ind !== null))).sort()], [stocks]);
 
     // Map GridKey amounts to stocks and calculate total portfolio value
     const stocksWithAmounts = useMemo(() => {
