@@ -39,6 +39,7 @@ const perfColumns: { key: keyof Stock; label: string }[] = [
 const allToggleableColumns = [
     { key: 'industry', label: 'Industry' },
     { key: 'currentPrice', label: 'Price' },
+    { key: 'currentAmount', label: 'Current Amount' },
     ...perfColumns,
     { key: 'remarks', label: 'Remarks' },
     { key: 'assignedTo', label: 'Assigned To' },
@@ -201,8 +202,27 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
 };
 
 
-const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void }> = ({ stocks, onStocksUpdate }) => {
+const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void; gridKeyData: GridKeyData[] }> = ({ stocks, onStocksUpdate, gridKeyData }) => {
     const industries = useMemo(() => ['All', ...Array.from(new Set(stocks.map(s => s.industry))).sort()], [stocks]);
+
+    // Map GridKey amounts to stocks
+    const stocksWithAmounts = useMemo(() => {
+        return stocks.map(stock => {
+            const gridKeyMatch = gridKeyData.find(gk => {
+                if (gk.nseCode && stock.nseCode) {
+                    return gk.nseCode.toLowerCase() === stock.nseCode.toLowerCase();
+                }
+                if (gk.bseCode && stock.bseCode) {
+                    return gk.bseCode.toLowerCase() === stock.bseCode.toLowerCase();
+                }
+                return false;
+            });
+            return {
+                ...stock,
+                currentAmount: gridKeyMatch?.currentAmount || null
+            };
+        });
+    }, [stocks, gridKeyData]);
     const [filters, setFilters] = useState({
         industry: 'All',
         min1YReturn: '',
@@ -339,7 +359,7 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
     };
 
     const filteredAndSortedStocks = useMemo(() => {
-        let filtered = [...stocks];
+        let filtered = [...stocksWithAmounts];
 
         if (filters.searchTerm) {
             filtered = filtered.filter(s => s.name.toLowerCase().includes(filters.searchTerm.toLowerCase()));
@@ -410,7 +430,7 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
         });
 
         return filtered;
-    }, [filters, sortConfig, stocks]);
+    }, [filters, sortConfig, stocksWithAmounts]);
     
     const SortIndicator: React.FC<{ columnKey: SortKey }> = ({ columnKey }) => {
         if (sortConfig.key !== columnKey) return null;
@@ -600,6 +620,19 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
                                     </button>
                                 </div>
                             </th>}
+                            {visibleColumns['currentAmount'] && <th className="text-right" onClick={() => requestSort('currentAmount' as SortKey)}>
+                                <div className="th-content">
+                                    <span>Current Amount <SortIndicator columnKey={'currentAmount' as SortKey} /></span>
+                                    <button
+                                        className="hide-column-btn"
+                                        aria-label="Hide Current Amount column"
+                                        title="Hide Current Amount column"
+                                        onClick={(e) => { e.stopPropagation(); toggleColumn('currentAmount'); }}
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            </th>}
                             {perfColumns.map(col => (
                                 visibleColumns[col.key] && <th key={col.key} className="text-right" onClick={() => requestSort(col.key)}>
                                     <div className="th-content">
@@ -658,6 +691,7 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
                                 </td>
                                 {visibleColumns['industry'] && <td className="industry-col">{stock.industry}</td>}
                                 {visibleColumns['currentPrice'] && <td className="text-right">{formatValue(stock.currentPrice)}</td>}
+                                {visibleColumns['currentAmount'] && <td className="text-right current-amount-cell">{formatValue((stock as any).currentAmount)}</td>}
                                 {perfColumns.map(col => (
                                     visibleColumns[col.key] &&
                                     <td key={col.key} className="heatmap-td">
@@ -732,12 +766,10 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
 };
 
 
-const GridKeyPage: React.FC<{ stocks: Stock[] }> = ({ stocks }) => {
+const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }> = ({ onGridKeyUploaded }) => {
     const [file, setFile] = useState<File | null>(null);
     const [status, setStatus] = useState('');
     const [error, setError] = useState('');
-    const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
-    const [mappedData, setMappedData] = useState<Array<GridKeyData & { matchedStock?: Stock }>>([]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -816,27 +848,8 @@ const GridKeyPage: React.FC<{ stocks: Stock[] }> = ({ stocks }) => {
                 // Filter out stocks with no BSE or NSE code
                 const filtered = data.filter(item => item.bseCode || item.nseCode);
 
-                // Map to portfolio stocks
-                const mapped = filtered.map(gridItem => {
-                    const matchedStock = stocks.find(stock => {
-                        if (gridItem.nseCode && stock.nseCode) {
-                            return stock.nseCode.toLowerCase() === gridItem.nseCode.toLowerCase();
-                        }
-                        if (gridItem.bseCode && stock.bseCode) {
-                            return stock.bseCode.toLowerCase() === gridItem.bseCode.toLowerCase();
-                        }
-                        return false;
-                    });
-
-                    return {
-                        ...gridItem,
-                        matchedStock
-                    };
-                });
-
-                setGridKeyData(filtered);
-                setMappedData(mapped);
-                setStatus(`Processed ${mapped.length} stocks (${mapped.filter(m => m.matchedStock).length} matched with portfolio)`);
+                onGridKeyUploaded(filtered);
+                setStatus(`GridKey data uploaded successfully! ${filtered.length} stocks processed. View Portfolio View to see current amounts.`);
                 setError('');
             } catch (e: any) {
                 setError(`Error parsing file: ${e.message}`);
@@ -886,40 +899,6 @@ const GridKeyPage: React.FC<{ stocks: Stock[] }> = ({ stocks }) => {
                     {error && <div className="status-message error">{error}</div>}
                 </div>
             </div>
-
-            {mappedData.length > 0 && (
-                <div className="gridkey-table-container">
-                    <h2>Mapped GridKey Data</h2>
-                    <div className="stock-table-container">
-                        <table className="stock-table">
-                            <thead>
-                                <tr>
-                                    <th>Scrip Name</th>
-                                    <th>BSE Code</th>
-                                    <th>NSE Symbol</th>
-                                    <th>Current Amount</th>
-                                    <th>Portfolio Match</th>
-                                    <th>Industry</th>
-                                    <th>Current Price</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {mappedData.map((item, idx) => (
-                                    <tr key={idx} className={item.matchedStock ? 'matched-row' : 'unmatched-row'}>
-                                        <td>{item.scripName}</td>
-                                        <td>{item.bseCode || 'N/A'}</td>
-                                        <td>{item.nseCode || 'N/A'}</td>
-                                        <td className="text-right">{formatValue(item.currentAmount)}</td>
-                                        <td>{item.matchedStock ? item.matchedStock.name : '⚠️ Not Found'}</td>
-                                        <td>{item.matchedStock?.industry || 'N/A'}</td>
-                                        <td className="text-right">{item.matchedStock ? formatValue(item.matchedStock.currentPrice) : 'N/A'}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
@@ -928,6 +907,7 @@ const GridKeyPage: React.FC<{ stocks: Stock[] }> = ({ stocks }) => {
 const App: React.FC = () => {
     const [page, setPage] = useState<'table' | 'upload' | 'gridkey'>('table');
     const [stocks, setStocks] = useState<Stock[]>([]);
+    const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -983,6 +963,11 @@ const App: React.FC = () => {
         }
     };
 
+    const handleGridKeyUploaded = (data: GridKeyData[]) => {
+        setGridKeyData(data);
+        setTimeout(() => setPage('table'), 1000);
+    };
+
     if (loading) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -999,9 +984,9 @@ const App: React.FC = () => {
                 <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>
             </nav>
             <main>
-                {page === 'table' && <PortfolioTable stocks={stocks} onStocksUpdate={setStocks} />}
+                {page === 'table' && <PortfolioTable stocks={stocks} onStocksUpdate={setStocks} gridKeyData={gridKeyData} />}
                 {page === 'upload' && <UploadPage onDataUploaded={handleDataUploaded} />}
-                {page === 'gridkey' && <GridKeyPage stocks={stocks} />}
+                {page === 'gridkey' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}
             </main>
         </>
     );

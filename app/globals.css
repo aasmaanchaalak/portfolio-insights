@@ -813,3 +813,9 @@ a:hover {
 .stock-table .unmatched-row {
   background-color: var(--negative-color-weak);
 }
+
+/* Current Amount Column Styles */
+.stock-table .current-amount-cell {
+  font-weight: 500;
+  color: var(--accent-color);
+}
