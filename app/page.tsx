@@ -1196,6 +1196,16 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         <span>1Y % <SortIndicator columnKey="return1Y" /></span>
                                     </div>
                                 </th>
+                                <th onClick={() => requestSort('remarks')}>
+                                    <div className="th-content">
+                                        <span>Remarks <SortIndicator columnKey="remarks" /></span>
+                                    </div>
+                                </th>
+                                <th onClick={() => requestSort('assignedTo')}>
+                                    <div className="th-content">
+                                        <span>Assigned To <SortIndicator columnKey="assignedTo" /></span>
+                                    </div>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1221,6 +1231,8 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                     <td className="heatmap-td"><HeatmapCell value={(item as any).return3M} /></td>
                                     <td className="heatmap-td"><HeatmapCell value={(item as any).return6M} /></td>
                                     <td className="heatmap-td"><HeatmapCell value={(item as any).return1Y} /></td>
+                                    <td className="remarks-cell">{(item as any).remarks || '-'}</td>
+                                    <td className="assignment-cell">{(item as any).assignedTo || '-'}</td>
                                 </tr>
                             ))}
                         </tbody>
