@@ -81,10 +81,42 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
             try {
                 const csvText = event.target?.result as string;
                 const lines = csvText.trim().split('\n');
-                const header = lines[0].split(',').map(h => h.trim());
-                
+
+                // Helper function to parse CSV line with proper quote handling
+                const parseCSVLine = (line: string): string[] => {
+                    const result: string[] = [];
+                    let current = '';
+                    let inQuotes = false;
+
+                    for (let i = 0; i < line.length; i++) {
+                        const char = line[i];
+                        const nextChar = line[i + 1];
+
+                        if (char === '"') {
+                            if (inQuotes && nextChar === '"') {
+                                // Escaped quote
+                                current += '"';
+                                i++;
+                            } else {
+                                // Toggle quote state
+                                inQuotes = !inQuotes;
+                            }
+                        } else if (char === ',' && !inQuotes) {
+                            // End of field
+                            result.push(current.trim());
+                            current = '';
+                        } else {
+                            current += char;
+                        }
+                    }
+                    result.push(current.trim());
+                    return result;
+                };
+
+                const header = parseCSVLine(lines[0]);
+
                 const requiredHeaders: (keyof Stock)[] = [
-                    'name', 'bseCode', 'nseCode', 'industry', 'currentPrice', 
+                    'name', 'bseCode', 'nseCode', 'industry', 'currentPrice',
                     'return1D', 'return1M', 'return1W', 'return3M', 'return6M', 'return1Y'
                 ];
 
@@ -92,15 +124,17 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                 if (missingHeaders.length > 0) {
                     throw new Error(`Missing required CSV columns: ${missingHeaders.join(', ')}`);
                 }
-                
+
                 const data: Stock[] = lines.slice(1).map((line, lineIndex) => {
-                    const values = line.split(',');
+                    const values = parseCSVLine(line);
                     const entry: Partial<Stock> = {};
                     header.forEach((key, index) => {
                         let value = values[index] ? values[index].trim() : null;
-                        
+
                         if (['currentPrice', 'return1D', 'return1M', 'return1W', 'return3M', 'return6M', 'return1Y'].includes(key)) {
-                             (entry as any)[key] = (value === null || value === '') ? null : parseFloat(value);
+                             // Remove any commas from numbers (e.g., "1,234.56" -> "1234.56")
+                             const cleanValue = value ? value.replace(/,/g, '') : null;
+                             (entry as any)[key] = (cleanValue === null || cleanValue === '') ? null : parseFloat(cleanValue);
                         } else {
                              (entry as any)[key] = (value === null || value === '') ? null : value;
                         }
@@ -724,7 +758,36 @@ const GridKeyPage: React.FC<{ stocks: Stock[] }> = ({ stocks }) => {
             try {
                 const csvText = event.target?.result as string;
                 const lines = csvText.trim().split('\n');
-                const header = lines[0].split(',').map(h => h.trim());
+
+                // Helper function to parse CSV line with proper quote handling
+                const parseCSVLine = (line: string): string[] => {
+                    const result: string[] = [];
+                    let current = '';
+                    let inQuotes = false;
+
+                    for (let i = 0; i < line.length; i++) {
+                        const char = line[i];
+                        const nextChar = line[i + 1];
+
+                        if (char === '"') {
+                            if (inQuotes && nextChar === '"') {
+                                current += '"';
+                                i++;
+                            } else {
+                                inQuotes = !inQuotes;
+                            }
+                        } else if (char === ',' && !inQuotes) {
+                            result.push(current.trim());
+                            current = '';
+                        } else {
+                            current += char;
+                        }
+                    }
+                    result.push(current.trim());
+                    return result;
+                };
+
+                const header = parseCSVLine(lines[0]);
 
                 const requiredHeaders = ['Scrip Name', 'BSE Code', 'NSE Symbol', 'Current Amount'];
                 const missingHeaders = requiredHeaders.filter(h => !header.includes(h));
@@ -733,12 +796,14 @@ const GridKeyPage: React.FC<{ stocks: Stock[] }> = ({ stocks }) => {
                 }
 
                 const data: GridKeyData[] = lines.slice(1).map((line) => {
-                    const values = line.split(',').map(v => v.trim());
+                    const values = parseCSVLine(line);
                     const scripName = values[header.indexOf('Scrip Name')] || '';
                     const bseCode = values[header.indexOf('BSE Code')] || null;
                     const nseCode = values[header.indexOf('NSE Symbol')] || null;
                     const currentAmountStr = values[header.indexOf('Current Amount')];
-                    const currentAmount = currentAmountStr ? parseFloat(currentAmountStr) : null;
+                    // Remove commas from amount (e.g., "1,234.56" -> "1234.56")
+                    const cleanAmount = currentAmountStr ? currentAmountStr.replace(/,/g, '') : null;
+                    const currentAmount = cleanAmount ? parseFloat(cleanAmount) : null;
 
                     return {
                         scripName,
