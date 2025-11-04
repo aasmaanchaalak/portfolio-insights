@@ -1029,11 +1029,14 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
 };
 
 
-const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = ({ gridKeyData, stocks }) => {
+const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void }> = ({ gridKeyData, stocks, onStocksUpdate }) => {
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' }>({
         key: 'scripName',
         direction: 'ascending',
     });
+    const [editingRemark, setEditingRemark] = useState<string | null>(null);
+    const [remarkValue, setRemarkValue] = useState<string>('');
+    const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
 
     const requestSort = (key: string) => {
         let direction: 'ascending' | 'descending' = 'ascending';
@@ -1112,6 +1115,71 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     const SortIndicator: React.FC<{ columnKey: string }> = ({ columnKey }) => {
         if (sortConfig.key !== columnKey) return null;
         return <span className="sort-indicator">{sortConfig.direction === 'ascending' ? '▲' : '▼'}</span>;
+    };
+
+    const handleRemarkEdit = (item: any, currentRemark: string | null | undefined) => {
+        const key = item.nseCode || item.bseCode || item.scripName;
+        setEditingRemark(key);
+        setRemarkValue(currentRemark || '');
+    };
+
+    const handleRemarkSave = async (item: any) => {
+        const code = item.nseCode || item.bseCode;
+        if (!code) return;
+
+        try {
+            const response = await fetch('/api/remarks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, remark: remarkValue })
+            });
+
+            if (response.ok) {
+                // Find and update the matching stock
+                const updatedStocks = stocks.map(s => {
+                    if ((s.nseCode && s.nseCode === item.nseCode) || (s.bseCode && s.bseCode === item.bseCode)) {
+                        return { ...s, remarks: remarkValue || null };
+                    }
+                    return s;
+                });
+                onStocksUpdate(updatedStocks);
+                setEditingRemark(null);
+            }
+        } catch (error) {
+            console.error('Error saving remark:', error);
+        }
+    };
+
+    const handleRemarkCancel = () => {
+        setEditingRemark(null);
+        setRemarkValue('');
+    };
+
+    const handleAssignmentChange = async (item: any, assignedTo: string) => {
+        const code = item.nseCode || item.bseCode;
+        if (!code) return;
+
+        try {
+            const response = await fetch('/api/assignments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, assignedTo: assignedTo || null })
+            });
+
+            if (response.ok) {
+                // Find and update the matching stock
+                const updatedStocks = stocks.map(s => {
+                    if ((s.nseCode && s.nseCode === item.nseCode) || (s.bseCode && s.bseCode === item.bseCode)) {
+                        return { ...s, assignedTo: assignedTo || null };
+                    }
+                    return s;
+                });
+                onStocksUpdate(updatedStocks);
+                setEditingAssignment(null);
+            }
+        } catch (error) {
+            console.error('Error saving assignment:', error);
+        }
     };
 
     return (
@@ -1231,8 +1299,40 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                     <td className="heatmap-td"><HeatmapCell value={(item as any).return3M} /></td>
                                     <td className="heatmap-td"><HeatmapCell value={(item as any).return6M} /></td>
                                     <td className="heatmap-td"><HeatmapCell value={(item as any).return1Y} /></td>
-                                    <td className="remarks-cell">{(item as any).remarks || '-'}</td>
-                                    <td className="assignment-cell">{(item as any).assignedTo || '-'}</td>
+                                    <td className="remarks-cell">
+                                        {editingRemark === (item.nseCode || item.bseCode || item.scripName) ? (
+                                            <div className="remark-edit">
+                                                <input
+                                                    type="text"
+                                                    value={remarkValue}
+                                                    onChange={(e) => setRemarkValue(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') handleRemarkSave(item);
+                                                        if (e.key === 'Escape') handleRemarkCancel();
+                                                    }}
+                                                    autoFocus
+                                                />
+                                                <button onClick={() => handleRemarkSave(item)} className="save-btn">✓</button>
+                                                <button onClick={handleRemarkCancel} className="cancel-btn">✕</button>
+                                            </div>
+                                        ) : (
+                                            <div className="remark-display" onClick={() => handleRemarkEdit(item, (item as any).remarks)}>
+                                                {(item as any).remarks || <span className="remark-placeholder">Add remark...</span>}
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td className="assignment-cell">
+                                        <select
+                                            value={(item as any).assignedTo || ''}
+                                            onChange={(e) => handleAssignmentChange(item, e.target.value)}
+                                            className="assignment-select"
+                                        >
+                                            <option value="">Unassigned</option>
+                                            {TEAM_MEMBERS.map(member => (
+                                                <option key={member} value={member}>{member}</option>
+                                            ))}
+                                        </select>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
@@ -1245,7 +1345,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
 
 
 const App: React.FC = () => {
-    const [page, setPage] = useState<'table' | 'upload' | 'gridkey' | 'insights'>('table');
+    const [page, setPage] = useState<'insights' | 'upload' | 'gridkey'>('insights');
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [loading, setLoading] = useState(true);
@@ -1346,14 +1446,12 @@ const App: React.FC = () => {
     return (
         <>
             <nav className="main-nav">
-                <button className={page === 'table' ? 'active' : ''} onClick={() => setPage('table')}>Portfolio View</button>
                 <button className={page === 'insights' ? 'active' : ''} onClick={() => setPage('insights')}>Portfolio Insights</button>
                 <button className={page === 'upload' ? 'active' : ''} onClick={() => setPage('upload')}>Upload Data</button>
                 <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>
             </nav>
             <main>
-                {page === 'table' && <PortfolioTable stocks={stocks} onStocksUpdate={setStocks} gridKeyData={gridKeyData} />}
-                {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={stocks} />}
+                {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={stocks} onStocksUpdate={setStocks} />}
                 {page === 'upload' && <UploadPage onDataUploaded={handleDataUploaded} />}
                 {page === 'gridkey' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}
             </main>
