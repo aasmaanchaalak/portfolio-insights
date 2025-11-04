@@ -1052,7 +1052,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         setSortConfig({ key, direction });
     };
 
-    // Enrich GridKey data with all stock data from portfolio and calculate current amount
+    // Enrich GridKey data with all stock data from portfolio and calculate amounts
     const enrichedData = useMemo(() => {
         return gridKeyData.map(item => {
             const matchedStock = stocks.find(stock => {
@@ -1066,10 +1066,12 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             });
             const currentPrice = matchedStock?.currentPrice || null;
             const calculatedAmount = (item.quantity && currentPrice) ? item.quantity * currentPrice : null;
+            const investedAmount = (item.quantity && item.averageBuyPrice) ? item.quantity * item.averageBuyPrice : null;
             return {
                 ...item,
                 currentPrice,
                 calculatedAmount,
+                investedAmount,
                 // Add all portfolio fields
                 industry: matchedStock?.industry || null,
                 return1D: matchedStock?.return1D || null,
@@ -1306,6 +1308,11 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         <span>Avg Buy Price <SortIndicator columnKey="averageBuyPrice" /></span>
                                     </div>
                                 </th>
+                                <th className="text-right" onClick={() => requestSort('investedAmount')}>
+                                    <div className="th-content">
+                                        <span>Invested Amount <SortIndicator columnKey="investedAmount" /></span>
+                                    </div>
+                                </th>
                                 <th className="text-right" onClick={() => requestSort('currentPrice')}>
                                     <div className="th-content">
                                         <span>Current Price <SortIndicator columnKey="currentPrice" /></span>
@@ -1377,6 +1384,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                     </td>
                                     <td className="text-right">{item.quantity !== null && item.quantity !== undefined ? item.quantity.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : 'N/A'}</td>
                                     <td className="text-right avg-buy-price-col">{item.averageBuyPrice !== null && item.averageBuyPrice !== undefined ? `₹${item.averageBuyPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
+                                    <td className="text-right">{(item as any).investedAmount !== null && (item as any).investedAmount !== undefined ? `₹${(item as any).investedAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
                                     <td className="text-right">{(item as any).currentPrice !== null && (item as any).currentPrice !== undefined ? `₹${(item as any).currentPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
                                     <td className="text-right current-amount-cell">{(item as any).calculatedAmount !== null && (item as any).calculatedAmount !== undefined ? `₹${(item as any).calculatedAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
                                     <td className="text-right weightage-cell">{(item as any).weightage !== null ? `${((item as any).weightage).toFixed(2)}%` : 'N/A'}</td>
