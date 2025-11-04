@@ -888,7 +888,7 @@ const App: React.FC = () => {
 
     const handleDataUploaded = async (newData: Stock[]) => {
         try {
-            // Update via Service
+            // Update via API
             const response = await fetch('/api/portfolio', {
                 method: 'POST',
                 headers: {
@@ -901,11 +901,19 @@ const App: React.FC = () => {
                 throw new Error('Failed to update portfolio data');
             }
 
-            setStocks(newData);
+            // Reload data from API to get remarks and assignments merged
+            const getResponse = await fetch('/api/portfolio');
+            if (getResponse.ok) {
+                const fullData = await getResponse.json();
+                setStocks(fullData);
+            } else {
+                setStocks(newData);
+            }
+
             setTimeout(() => setPage('table'), 500);
         } catch (error) {
             console.error('Error updating portfolio data:', error);
-            // Still update the UI even if Service fails
+            // Still update the UI even if API fails
             setStocks(newData);
         }
     };
