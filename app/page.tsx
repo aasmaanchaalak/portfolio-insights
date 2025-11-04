@@ -173,6 +173,7 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
         searchTerm: '',
         minPrice: '',
         maxPrice: '',
+        remarksSearch: '',
     });
 
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -260,7 +261,7 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
                 filtered = filtered.filter(s => s.currentPrice !== null && s.currentPrice >= min);
             }
         }
-        
+
         if (filters.maxPrice !== '') {
             const max = parseFloat(filters.maxPrice);
             if (!isNaN(max)) {
@@ -274,12 +275,18 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
                 filtered = filtered.filter(s => s.return1Y !== null && s.return1Y >= minReturn);
             }
         }
-        
+
         if (filters.max1MReturn !== '') {
             const maxReturn = parseFloat(filters.max1MReturn);
             if (!isNaN(maxReturn)) {
                 filtered = filtered.filter(s => s.return1M !== null && s.return1M <= maxReturn);
             }
+        }
+
+        if (filters.remarksSearch) {
+            filtered = filtered.filter(s =>
+                s.remarks && s.remarks.toLowerCase().includes(filters.remarksSearch.toLowerCase())
+            );
         }
 
         filtered.sort((a, b) => {
@@ -328,10 +335,13 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
         if (filters.max1MReturn) {
             activeFilters.push({ key: 'max1MReturn', label: `Max 1M Return: ${filters.max1MReturn}%` });
         }
+        if (filters.remarksSearch) {
+            activeFilters.push({ key: 'remarksSearch', label: `Remarks: "${filters.remarksSearch}"` });
+        }
 
         if (activeFilters.length === 0) return null;
-        
-        const defaultValues = { industry: 'All', min1YReturn: '', max1MReturn: '', searchTerm: '', minPrice: '', maxPrice: '' };
+
+        const defaultValues = { industry: 'All', min1YReturn: '', max1MReturn: '', searchTerm: '', minPrice: '', maxPrice: '', remarksSearch: '' };
         const clearFilter = (key: keyof typeof filters) => {
             setFilters(prev => ({...prev, [key]: defaultValues[key]}));
         }
@@ -394,6 +404,10 @@ const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock
                              <div className="filter-group">
                                 <label htmlFor="max1MReturn">Max 1-Month Return (%)</label>
                                 <input type="number" id="max1MReturn" name="max1MReturn" placeholder="e.g. -10" value={filters.max1MReturn} onChange={handleFilterChange} />
+                            </div>
+                            <div className="filter-group">
+                                <label htmlFor="remarksSearch">Search Remarks</label>
+                                <input type="text" id="remarksSearch" name="remarksSearch" placeholder="Search in remarks..." value={filters.remarksSearch} onChange={handleFilterChange} />
                             </div>
                         </div>
                     )}
