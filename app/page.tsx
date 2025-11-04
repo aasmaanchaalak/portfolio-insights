@@ -1043,7 +1043,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         setSortConfig({ key, direction });
     };
 
-    // Enrich GridKey data with current price from portfolio stocks and calculate current amount
+    // Enrich GridKey data with all stock data from portfolio and calculate current amount
     const enrichedData = useMemo(() => {
         return gridKeyData.map(item => {
             const matchedStock = stocks.find(stock => {
@@ -1060,13 +1060,37 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             return {
                 ...item,
                 currentPrice,
-                calculatedAmount
+                calculatedAmount,
+                // Add all portfolio fields
+                industry: matchedStock?.industry || null,
+                return1D: matchedStock?.return1D || null,
+                return1W: matchedStock?.return1W || null,
+                return1M: matchedStock?.return1M || null,
+                return3M: matchedStock?.return3M || null,
+                return6M: matchedStock?.return6M || null,
+                return1Y: matchedStock?.return1Y || null,
+                remarks: matchedStock?.remarks || null,
+                assignedTo: matchedStock?.assignedTo || null
             };
         });
     }, [gridKeyData, stocks]);
 
+    // Calculate total and add weightage
+    const totalCurrentAmount = useMemo(() => {
+        return enrichedData.reduce((total, item) => total + ((item as any).calculatedAmount || 0), 0);
+    }, [enrichedData]);
+
+    const enrichedDataWithWeightage = useMemo(() => {
+        return enrichedData.map(item => ({
+            ...item,
+            weightage: totalCurrentAmount > 0 && (item as any).calculatedAmount
+                ? ((item as any).calculatedAmount / totalCurrentAmount) * 100
+                : null
+        }));
+    }, [enrichedData, totalCurrentAmount]);
+
     const sortedData = useMemo(() => {
-        const sorted = [...enrichedData];
+        const sorted = [...enrichedDataWithWeightage];
         sorted.sort((a, b) => {
             const aValue = (a as any)[sortConfig.key];
             const bValue = (b as any)[sortConfig.key];
@@ -1083,16 +1107,12 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             return 0;
         });
         return sorted;
-    }, [enrichedData, sortConfig]);
+    }, [enrichedDataWithWeightage, sortConfig]);
 
     const SortIndicator: React.FC<{ columnKey: string }> = ({ columnKey }) => {
         if (sortConfig.key !== columnKey) return null;
         return <span className="sort-indicator">{sortConfig.direction === 'ascending' ? '▲' : '▼'}</span>;
     };
-
-    const totalCurrentAmount = useMemo(() => {
-        return enrichedData.reduce((total, item) => total + ((item as any).calculatedAmount || 0), 0);
-    }, [enrichedData]);
 
     return (
         <>
@@ -1126,9 +1146,9 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         <span>Quantity <SortIndicator columnKey="quantity" /></span>
                                     </div>
                                 </th>
-                                <th className="text-right" onClick={() => requestSort('averageBuyPrice')}>
+                                <th className="text-right avg-buy-price-col" onClick={() => requestSort('averageBuyPrice')}>
                                     <div className="th-content">
-                                        <span>Average Buy Price <SortIndicator columnKey="averageBuyPrice" /></span>
+                                        <span>Avg Buy Price <SortIndicator columnKey="averageBuyPrice" /></span>
                                     </div>
                                 </th>
                                 <th className="text-right" onClick={() => requestSort('currentPrice')}>
@@ -1139,6 +1159,41 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                 <th className="text-right" onClick={() => requestSort('calculatedAmount')}>
                                     <div className="th-content">
                                         <span>Current Amount <SortIndicator columnKey="calculatedAmount" /></span>
+                                    </div>
+                                </th>
+                                <th className="text-right" onClick={() => requestSort('weightage')}>
+                                    <div className="th-content">
+                                        <span>Weightage % <SortIndicator columnKey="weightage" /></span>
+                                    </div>
+                                </th>
+                                <th className="text-right" onClick={() => requestSort('return1D')}>
+                                    <div className="th-content">
+                                        <span>1D % <SortIndicator columnKey="return1D" /></span>
+                                    </div>
+                                </th>
+                                <th className="text-right" onClick={() => requestSort('return1W')}>
+                                    <div className="th-content">
+                                        <span>1W % <SortIndicator columnKey="return1W" /></span>
+                                    </div>
+                                </th>
+                                <th className="text-right" onClick={() => requestSort('return1M')}>
+                                    <div className="th-content">
+                                        <span>1M % <SortIndicator columnKey="return1M" /></span>
+                                    </div>
+                                </th>
+                                <th className="text-right" onClick={() => requestSort('return3M')}>
+                                    <div className="th-content">
+                                        <span>3M % <SortIndicator columnKey="return3M" /></span>
+                                    </div>
+                                </th>
+                                <th className="text-right" onClick={() => requestSort('return6M')}>
+                                    <div className="th-content">
+                                        <span>6M % <SortIndicator columnKey="return6M" /></span>
+                                    </div>
+                                </th>
+                                <th className="text-right" onClick={() => requestSort('return1Y')}>
+                                    <div className="th-content">
+                                        <span>1Y % <SortIndicator columnKey="return1Y" /></span>
                                     </div>
                                 </th>
                             </tr>
@@ -1156,9 +1211,16 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         )}
                                     </td>
                                     <td className="text-right">{item.quantity !== null && item.quantity !== undefined ? item.quantity.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : 'N/A'}</td>
-                                    <td className="text-right">{item.averageBuyPrice !== null && item.averageBuyPrice !== undefined ? `₹${item.averageBuyPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
+                                    <td className="text-right avg-buy-price-col">{item.averageBuyPrice !== null && item.averageBuyPrice !== undefined ? `₹${item.averageBuyPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
                                     <td className="text-right">{(item as any).currentPrice !== null && (item as any).currentPrice !== undefined ? `₹${(item as any).currentPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
                                     <td className="text-right current-amount-cell">{(item as any).calculatedAmount !== null && (item as any).calculatedAmount !== undefined ? `₹${(item as any).calculatedAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>
+                                    <td className="text-right weightage-cell">{(item as any).weightage !== null ? `${((item as any).weightage).toFixed(2)}%` : 'N/A'}</td>
+                                    <td className="heatmap-td"><HeatmapCell value={(item as any).return1D} /></td>
+                                    <td className="heatmap-td"><HeatmapCell value={(item as any).return1W} /></td>
+                                    <td className="heatmap-td"><HeatmapCell value={(item as any).return1M} /></td>
+                                    <td className="heatmap-td"><HeatmapCell value={(item as any).return3M} /></td>
+                                    <td className="heatmap-td"><HeatmapCell value={(item as any).return6M} /></td>
+                                    <td className="heatmap-td"><HeatmapCell value={(item as any).return1Y} /></td>
                                 </tr>
                             ))}
                         </tbody>

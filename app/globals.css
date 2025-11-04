@@ -864,3 +864,10 @@ a:hover {
   color: var(--secondary-text-color);
   text-align: center;
 }
+
+/* Portfolio Insights Table Column Widths */
+.stock-table .avg-buy-price-col {
+  width: 140px;
+  max-width: 140px;
+  white-space: nowrap;
+}
