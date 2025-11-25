@@ -865,6 +865,88 @@ a:hover {
   text-align: center;
 }
 
+/* Authentication Styles */
+.auth-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--surface-color) 0%, var(--background-color) 100%);
+  padding: 2rem;
+}
+
+.auth-card {
+  background-color: var(--background-color);
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  padding: 3rem;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.auth-card h1 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  color: var(--primary-text-color);
+  text-align: center;
+}
+
+.auth-card p {
+  color: var(--secondary-text-color);
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.auth-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.password-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 1rem;
+  background-color: var(--surface-color);
+  color: var(--primary-text-color);
+  transition: border-color 0.2s;
+}
+
+.password-input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.password-error {
+  color: var(--error-color);
+  font-size: 0.875rem;
+  text-align: center;
+  margin-top: -0.5rem;
+}
+
+.password-submit {
+  padding: 0.875rem 1.5rem;
+  background-color: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.password-submit:hover {
+  background-color: var(--accent-hover-color);
+}
+
+.password-submit:active {
+  transform: translateY(1px);
+}
+
 /* Portfolio Insights Table Column Widths */
 .stock-table .avg-buy-price-col {
   width: 140px;
@@ -884,4 +966,51 @@ a:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Trend Badge Styles */
+.trend-cell {
+  text-align: center;
+  padding: 0.75rem 1rem;
+}
+
+.trend-badge {
+  display: inline-block;
+  padding: 0.375rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.trend-strong-uptrend {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.trend-uptrend {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  border: 1px solid #c8e6c9;
+}
+
+.trend-neutral {
+  background-color: #e9ecef;
+  color: #495057;
+  border: 1px solid #dee2e6;
+}
+
+.trend-downtrend {
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeeba;
+}
+
+.trend-strong-downtrend {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
 }

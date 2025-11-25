@@ -22,6 +22,29 @@ const getPerfColor = (value: number | null): string => {
   return 'transparent';
 };
 
+type TrendType = 'Strong Uptrend' | 'Uptrend' | 'Downtrend' | 'Strong Downtrend' | 'Neutral' | null;
+
+const calculateTrend = (stock: Stock): TrendType => {
+  // Check if we have enough data
+  const returns = [stock.return1W, stock.return1M, stock.return3M, stock.return6M];
+  const validReturns = returns.filter(r => r !== null && r !== undefined) as number[];
+
+  if (validReturns.length < 2) return null;
+
+  // Count positive and negative returns
+  const positiveCount = validReturns.filter(r => r > 0).length;
+  const negativeCount = validReturns.filter(r => r < 0).length;
+  const avgReturn = validReturns.reduce((sum, r) => sum + r, 0) / validReturns.length;
+
+  // Strong trends require consistent direction across periods
+  if (positiveCount >= 3 && avgReturn > 5) return 'Strong Uptrend';
+  if (positiveCount >= 2 && avgReturn > 2) return 'Uptrend';
+  if (negativeCount >= 3 && avgReturn < -5) return 'Strong Downtrend';
+  if (negativeCount >= 2 && avgReturn < -2) return 'Downtrend';
+
+  return 'Neutral';
+};
+
 const formatValue = (value: number | null, suffix = '') => {
     if (value === null || value === undefined) return 'N/A';
     return `${value}${suffix}`;
@@ -1041,6 +1064,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         searchTerm: '',
         assignedTo: 'All',
         remarksSearch: '',
+        trend: 'All',
     });
     const [showFilterPopover, setShowFilterPopover] = useState(false);
 
@@ -1053,6 +1077,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         { key: 'absoluteGain', label: 'Absolute Gain' },
         { key: 'gainPercentage', label: 'Gain %' },
         { key: 'weightage', label: 'Weightage %' },
+        { key: 'trend', label: 'Trend' },
         { key: 'return1D', label: '1D %' },
         { key: 'return1W', label: '1W %' },
         { key: 'return1M', label: '1M %' },
@@ -1123,6 +1148,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             const gainPercentage = (investedAmount !== null && investedAmount !== 0 && absoluteGain !== null)
                 ? (absoluteGain / investedAmount) * 100
                 : null;
+            const trend = matchedStock ? calculateTrend(matchedStock) : null;
             return {
                 ...item,
                 currentPrice,
@@ -1130,6 +1156,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                 investedAmount,
                 absoluteGain,
                 gainPercentage,
+                trend,
                 // Add all portfolio fields
                 industry: matchedStock?.industry || null,
                 return1D: matchedStock?.return1D || null,
@@ -1187,6 +1214,11 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             filtered = filtered.filter(item =>
                 (item as any).remarks && (item as any).remarks.toLowerCase().includes(filters.remarksSearch.toLowerCase())
             );
+        }
+
+        // Apply trend filter
+        if (filters.trend !== 'All') {
+            filtered = filtered.filter(item => (item as any).trend === filters.trend);
         }
 
         // Sort
@@ -1324,6 +1356,17 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                 </div>
                                 <div className="popover-body">
                                     <div className="filter-group">
+                                        <label htmlFor="trend">Trend</label>
+                                        <select id="trend" name="trend" value={filters.trend} onChange={handleFilterChange}>
+                                            <option value="All">All Trends</option>
+                                            <option value="Strong Uptrend">Strong Uptrend</option>
+                                            <option value="Uptrend">Uptrend</option>
+                                            <option value="Neutral">Neutral</option>
+                                            <option value="Downtrend">Downtrend</option>
+                                            <option value="Strong Downtrend">Strong Downtrend</option>
+                                        </select>
+                                    </div>
+                                    <div className="filter-group">
                                         <label htmlFor="assignedTo">Assigned To</label>
                                         <select id="assignedTo" name="assignedTo" value={filters.assignedTo} onChange={handleFilterChange}>
                                             <option value="All">All</option>
@@ -1413,6 +1456,11 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         <span>Weightage % <SortIndicator columnKey="weightage" /></span>
                                     </div>
                                 </th>}
+                                {visibleColumns['trend'] && <th onClick={() => requestSort('trend')}>
+                                    <div className="th-content">
+                                        <span>Trend <SortIndicator columnKey="trend" /></span>
+                                    </div>
+                                </th>}
                                 {visibleColumns['return1D'] && <th className="text-right" onClick={() => requestSort('return1D')}>
                                     <div className="th-content">
                                         <span>1D % <SortIndicator columnKey="return1D" /></span>
@@ -1479,6 +1527,13 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         {(item as any).gainPercentage !== null && (item as any).gainPercentage !== undefined ? `${(item as any).gainPercentage.toFixed(2)}%` : 'N/A'}
                                     </td>}
                                     {visibleColumns['weightage'] && <td className="text-right weightage-cell">{(item as any).weightage !== null ? `${((item as any).weightage).toFixed(2)}%` : 'N/A'}</td>}
+                                    {visibleColumns['trend'] && <td className="trend-cell">
+                                        {(item as any).trend ? (
+                                            <span className={`trend-badge trend-${(item as any).trend.toLowerCase().replace(/\s+/g, '-')}`}>
+                                                {(item as any).trend}
+                                            </span>
+                                        ) : 'N/A'}
+                                    </td>}
                                     {visibleColumns['return1D'] && <td className="heatmap-td"><HeatmapCell value={(item as any).return1D} /></td>}
                                     {visibleColumns['return1W'] && <td className="heatmap-td"><HeatmapCell value={(item as any).return1W} /></td>}
                                     {visibleColumns['return1M'] && <td className="heatmap-td"><HeatmapCell value={(item as any).return1M} /></td>}
@@ -1536,6 +1591,35 @@ const App: React.FC = () => {
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [passwordInput, setPasswordInput] = useState('');
+    const [passwordError, setPasswordError] = useState('');
+
+    const CORRECT_PASSWORD = 'saguncapital321';
+
+    // Check if user is already authenticated
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const authenticated = localStorage.getItem('portfolioAuth');
+            if (authenticated === 'true') {
+                setIsAuthenticated(true);
+            }
+        }
+    }, []);
+
+    const handlePasswordSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (passwordInput === CORRECT_PASSWORD) {
+            setIsAuthenticated(true);
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('portfolioAuth', 'true');
+            }
+            setPasswordError('');
+        } else {
+            setPasswordError('Incorrect password. Please try again.');
+            setPasswordInput('');
+        }
+    };
 
     useEffect(() => {
         const loadData = async () => {
@@ -1621,6 +1705,31 @@ const App: React.FC = () => {
             setGridKeyData(data);
         }
     };
+
+    if (!isAuthenticated) {
+        return (
+            <div className="auth-container">
+                <div className="auth-card">
+                    <h1>Portfolio Insights</h1>
+                    <p>Please enter the password to access the application</p>
+                    <form onSubmit={handlePasswordSubmit}>
+                        <input
+                            type="password"
+                            value={passwordInput}
+                            onChange={(e) => setPasswordInput(e.target.value)}
+                            placeholder="Enter password"
+                            autoFocus
+                            className="password-input"
+                        />
+                        {passwordError && <div className="password-error">{passwordError}</div>}
+                        <button type="submit" className="password-submit">
+                            Access Portfolio
+                        </button>
+                    </form>
+                </div>
+            </div>
+        );
+    }
 
     if (loading) {
         return (
