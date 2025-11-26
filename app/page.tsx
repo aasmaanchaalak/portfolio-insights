@@ -1057,9 +1057,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         key: 'scripName',
         direction: 'ascending',
     });
-    const [editingRemark, setEditingRemark] = useState<string | null>(null);
     const [remarkValue, setRemarkValue] = useState<string>('');
-    const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
     const [filters, setFilters] = useState({
         searchTerm: '',
         assignedTo: 'All',
@@ -1067,6 +1065,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         trend: 'All',
     });
     const [showFilterPopover, setShowFilterPopover] = useState(false);
+    const [remarksModalData, setRemarksModalData] = useState<any>(null);
 
     const allInsightsColumns = [
         { key: 'quantity', label: 'Quantity' },
@@ -1245,14 +1244,20 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         return <span className="sort-indicator">{sortConfig.direction === 'ascending' ? '▲' : '▼'}</span>;
     };
 
-    const handleRemarkEdit = (item: any, currentRemark: string | null | undefined) => {
-        const key = item.nseCode || item.bseCode || item.scripName;
-        setEditingRemark(key);
-        setRemarkValue(currentRemark || '');
+    const handleStockNameClick = (item: any) => {
+        setRemarksModalData(item);
+        setRemarkValue(item.remarks || '');
     };
 
-    const handleRemarkSave = async (item: any) => {
-        const code = item.nseCode || item.bseCode;
+    const handleCloseRemarksModal = () => {
+        setRemarksModalData(null);
+        setRemarkValue('');
+    };
+
+    const handleRemarkSave = async () => {
+        if (!remarksModalData) return;
+
+        const code = remarksModalData.nseCode || remarksModalData.bseCode;
         if (!code) return;
 
         try {
@@ -1265,22 +1270,17 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             if (response.ok) {
                 // Find and update the matching stock
                 const updatedStocks = stocks.map(s => {
-                    if ((s.nseCode && s.nseCode === item.nseCode) || (s.bseCode && s.bseCode === item.bseCode)) {
+                    if ((s.nseCode && s.nseCode === remarksModalData.nseCode) || (s.bseCode && s.bseCode === remarksModalData.bseCode)) {
                         return { ...s, remarks: remarkValue || null };
                     }
                     return s;
                 });
                 onStocksUpdate(updatedStocks);
-                setEditingRemark(null);
+                handleCloseRemarksModal();
             }
         } catch (error) {
             console.error('Error saving remark:', error);
         }
-    };
-
-    const handleRemarkCancel = () => {
-        setEditingRemark(null);
-        setRemarkValue('');
     };
 
     const handleAssignmentChange = async (item: any, assignedTo: string) => {
@@ -1303,7 +1303,6 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                     return s;
                 });
                 onStocksUpdate(updatedStocks);
-                setEditingAssignment(null);
             }
         } catch (error) {
             console.error('Error saving assignment:', error);
@@ -1507,13 +1506,13 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                             {filteredAndSortedData.map((item, index) => (
                                 <tr key={`${item.scripName}-${index}`}>
                                     <td className="stock-name-col" title={item.scripName}>
-                                        {item.nseCode || item.bseCode ? (
-                                            <a href={`https://www.screener.in/company/${item.nseCode || item.bseCode}/`} target="_blank" rel="noopener noreferrer">
-                                                {item.scripName}
-                                            </a>
-                                        ) : (
-                                            item.scripName
-                                        )}
+                                        <span
+                                            className="stock-name-clickable"
+                                            onClick={() => handleStockNameClick(item)}
+                                            title="Click to view/edit remarks"
+                                        >
+                                            {item.scripName}
+                                        </span>
                                     </td>
                                     {visibleColumns['quantity'] && <td className="text-right">{item.quantity !== null && item.quantity !== undefined ? item.quantity.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : 'N/A'}</td>}
                                     {visibleColumns['averageBuyPrice'] && <td className="text-right avg-buy-price-col">{item.averageBuyPrice !== null && item.averageBuyPrice !== undefined ? `₹${item.averageBuyPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
@@ -1541,26 +1540,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                     {visibleColumns['return6M'] && <td className="heatmap-td"><HeatmapCell value={(item as any).return6M} /></td>}
                                     {visibleColumns['return1Y'] && <td className="heatmap-td"><HeatmapCell value={(item as any).return1Y} /></td>}
                                     {visibleColumns['remarks'] && <td className="remarks-cell">
-                                        {editingRemark === (item.nseCode || item.bseCode || item.scripName) ? (
-                                            <div className="remark-edit">
-                                                <input
-                                                    type="text"
-                                                    value={remarkValue}
-                                                    onChange={(e) => setRemarkValue(e.target.value)}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') handleRemarkSave(item);
-                                                        if (e.key === 'Escape') handleRemarkCancel();
-                                                    }}
-                                                    autoFocus
-                                                />
-                                                <button onClick={() => handleRemarkSave(item)} className="save-btn">✓</button>
-                                                <button onClick={handleRemarkCancel} className="cancel-btn">✕</button>
-                                            </div>
-                                        ) : (
-                                            <div className="remark-display" onClick={() => handleRemarkEdit(item, (item as any).remarks)}>
-                                                {(item as any).remarks || <span className="remark-placeholder">Add remark...</span>}
-                                            </div>
-                                        )}
+                                        {(item as any).remarks || '-'}
                                     </td>}
                                     {visibleColumns['assignedTo'] && <td className="assignment-cell">
                                         <select
@@ -1580,6 +1560,61 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                     </table>
                 </div>
                 </>
+            )}
+
+            {remarksModalData && (
+                <div className="remarks-modal-backdrop" onClick={handleCloseRemarksModal}>
+                    <div className="remarks-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="remarks-modal-header">
+                            <h3>{remarksModalData.scripName}</h3>
+                            <button className="close-btn" onClick={handleCloseRemarksModal}>×</button>
+                        </div>
+                        <div className="remarks-modal-body">
+                            <div className="stock-info">
+                                <div className="stock-info-row">
+                                    <span className="label">NSE Code:</span>
+                                    <span className="value">{remarksModalData.nseCode || 'N/A'}</span>
+                                </div>
+                                <div className="stock-info-row">
+                                    <span className="label">BSE Code:</span>
+                                    <span className="value">{remarksModalData.bseCode || 'N/A'}</span>
+                                </div>
+                                <div className="stock-info-row">
+                                    <span className="label">Current Price:</span>
+                                    <span className="value">
+                                        {remarksModalData.currentPrice !== null ? `₹${remarksModalData.currentPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}
+                                    </span>
+                                </div>
+                                {remarksModalData.nseCode || remarksModalData.bseCode ? (
+                                    <div className="stock-info-row">
+                                        <a
+                                            href={`https://www.screener.in/company/${remarksModalData.nseCode || remarksModalData.bseCode}/`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="screener-link"
+                                        >
+                                            View on Screener.in →
+                                        </a>
+                                    </div>
+                                ) : null}
+                            </div>
+                            <div className="remarks-section">
+                                <label htmlFor="remarks-textarea">Remarks</label>
+                                <textarea
+                                    id="remarks-textarea"
+                                    value={remarkValue}
+                                    onChange={(e) => setRemarkValue(e.target.value)}
+                                    placeholder="Add your remarks here..."
+                                    rows={6}
+                                />
+                            </div>
+                        </div>
+                        <div className="remarks-modal-footer">
+                            <button className="cancel-modal-btn" onClick={handleCloseRemarksModal}>Cancel</button>
+                            <button className="save-modal-btn" onClick={handleRemarkSave}>Save Remarks</button>
+                        </div>
+                    </div>
+                </div>
             )}
         </>
     );
