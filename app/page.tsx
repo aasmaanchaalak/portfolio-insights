@@ -1126,6 +1126,18 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         remarksSearch: '',
         trend: 'All',
     });
+    const [rangeFilters, setRangeFilters] = useState({
+        gainPercentageMin: '',
+        gainPercentageMax: '',
+        profitGrowthMin: '',
+        profitGrowthMax: '',
+        salesGrowthMin: '',
+        salesGrowthMax: '',
+        peMin: '',
+        peMax: '',
+        weightageMin: '',
+        weightageMax: '',
+    });
     const [showFilterPopover, setShowFilterPopover] = useState(false);
     const [remarksModalData, setRemarksModalData] = useState<any>(null);
 
@@ -1282,6 +1294,26 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         setFilters(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleRangeFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setRangeFilters(prev => ({ ...prev, [name]: value }));
+    };
+
+    const clearRangeFilters = () => {
+        setRangeFilters({
+            gainPercentageMin: '',
+            gainPercentageMax: '',
+            profitGrowthMin: '',
+            profitGrowthMax: '',
+            salesGrowthMin: '',
+            salesGrowthMax: '',
+            peMin: '',
+            peMax: '',
+            weightageMin: '',
+            weightageMax: '',
+        });
+    };
+
     const filteredAndSortedData = useMemo(() => {
         let filtered = [...enrichedDataWithWeightage];
 
@@ -1313,6 +1345,53 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             filtered = filtered.filter(item => (item as any).trend === filters.trend);
         }
 
+        // Apply range filters
+        filtered = filtered.filter(item => {
+            const data = item as any;
+
+            // Gain Percentage filter
+            if (rangeFilters.gainPercentageMin !== '' && data.gainPercentage !== null) {
+                if (data.gainPercentage < parseFloat(rangeFilters.gainPercentageMin)) return false;
+            }
+            if (rangeFilters.gainPercentageMax !== '' && data.gainPercentage !== null) {
+                if (data.gainPercentage > parseFloat(rangeFilters.gainPercentageMax)) return false;
+            }
+
+            // Profit Growth filter
+            if (rangeFilters.profitGrowthMin !== '' && data.yoyQuarterlyProfitGrowth !== null) {
+                if (data.yoyQuarterlyProfitGrowth < parseFloat(rangeFilters.profitGrowthMin)) return false;
+            }
+            if (rangeFilters.profitGrowthMax !== '' && data.yoyQuarterlyProfitGrowth !== null) {
+                if (data.yoyQuarterlyProfitGrowth > parseFloat(rangeFilters.profitGrowthMax)) return false;
+            }
+
+            // Sales Growth filter
+            if (rangeFilters.salesGrowthMin !== '' && data.yoyQuarterlySalesGrowth !== null) {
+                if (data.yoyQuarterlySalesGrowth < parseFloat(rangeFilters.salesGrowthMin)) return false;
+            }
+            if (rangeFilters.salesGrowthMax !== '' && data.yoyQuarterlySalesGrowth !== null) {
+                if (data.yoyQuarterlySalesGrowth > parseFloat(rangeFilters.salesGrowthMax)) return false;
+            }
+
+            // P/E filter
+            if (rangeFilters.peMin !== '' && data.priceToEarning !== null) {
+                if (data.priceToEarning < parseFloat(rangeFilters.peMin)) return false;
+            }
+            if (rangeFilters.peMax !== '' && data.priceToEarning !== null) {
+                if (data.priceToEarning > parseFloat(rangeFilters.peMax)) return false;
+            }
+
+            // Weightage filter
+            if (rangeFilters.weightageMin !== '' && data.weightage !== null) {
+                if (data.weightage < parseFloat(rangeFilters.weightageMin)) return false;
+            }
+            if (rangeFilters.weightageMax !== '' && data.weightage !== null) {
+                if (data.weightage > parseFloat(rangeFilters.weightageMax)) return false;
+            }
+
+            return true;
+        });
+
         // Sort
         filtered.sort((a, b) => {
             const aValue = (a as any)[sortConfig.key];
@@ -1330,7 +1409,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             return 0;
         });
         return filtered;
-    }, [enrichedDataWithWeightage, sortConfig, filters]);
+    }, [enrichedDataWithWeightage, sortConfig, filters, rangeFilters]);
 
     const SortIndicator: React.FC<{ columnKey: string }> = ({ columnKey }) => {
         if (sortConfig.key !== columnKey) return null;
@@ -1476,6 +1555,115 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                             value={filters.remarksSearch}
                                             onChange={handleFilterChange}
                                         />
+                                    </div>
+
+                                    <div className="range-filters-container">
+                                        <div className="range-filter-header">
+                                            <label>Range Filters (Min-Max)</label>
+                                            <button className="clear-ranges-btn" onClick={clearRangeFilters}>Clear All</button>
+                                        </div>
+                                        <div className="range-filters">
+                                            <div className="range-filter-group">
+                                                <label>Gain %</label>
+                                                <div className="range-inputs">
+                                                    <input
+                                                        type="number"
+                                                        name="gainPercentageMin"
+                                                        placeholder="Min"
+                                                        value={rangeFilters.gainPercentageMin}
+                                                        onChange={handleRangeFilterChange}
+                                                    />
+                                                    <span>to</span>
+                                                    <input
+                                                        type="number"
+                                                        name="gainPercentageMax"
+                                                        placeholder="Max"
+                                                        value={rangeFilters.gainPercentageMax}
+                                                        onChange={handleRangeFilterChange}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="range-filter-group">
+                                                <label>Profit Growth %</label>
+                                                <div className="range-inputs">
+                                                    <input
+                                                        type="number"
+                                                        name="profitGrowthMin"
+                                                        placeholder="Min"
+                                                        value={rangeFilters.profitGrowthMin}
+                                                        onChange={handleRangeFilterChange}
+                                                    />
+                                                    <span>to</span>
+                                                    <input
+                                                        type="number"
+                                                        name="profitGrowthMax"
+                                                        placeholder="Max"
+                                                        value={rangeFilters.profitGrowthMax}
+                                                        onChange={handleRangeFilterChange}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="range-filter-group">
+                                                <label>Sales Growth %</label>
+                                                <div className="range-inputs">
+                                                    <input
+                                                        type="number"
+                                                        name="salesGrowthMin"
+                                                        placeholder="Min"
+                                                        value={rangeFilters.salesGrowthMin}
+                                                        onChange={handleRangeFilterChange}
+                                                    />
+                                                    <span>to</span>
+                                                    <input
+                                                        type="number"
+                                                        name="salesGrowthMax"
+                                                        placeholder="Max"
+                                                        value={rangeFilters.salesGrowthMax}
+                                                        onChange={handleRangeFilterChange}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="range-filter-group">
+                                                <label>P/E Ratio</label>
+                                                <div className="range-inputs">
+                                                    <input
+                                                        type="number"
+                                                        name="peMin"
+                                                        placeholder="Min"
+                                                        value={rangeFilters.peMin}
+                                                        onChange={handleRangeFilterChange}
+                                                    />
+                                                    <span>to</span>
+                                                    <input
+                                                        type="number"
+                                                        name="peMax"
+                                                        placeholder="Max"
+                                                        value={rangeFilters.peMax}
+                                                        onChange={handleRangeFilterChange}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="range-filter-group">
+                                                <label>Weightage %</label>
+                                                <div className="range-inputs">
+                                                    <input
+                                                        type="number"
+                                                        name="weightageMin"
+                                                        placeholder="Min"
+                                                        value={rangeFilters.weightageMin}
+                                                        onChange={handleRangeFilterChange}
+                                                    />
+                                                    <span>to</span>
+                                                    <input
+                                                        type="number"
+                                                        name="weightageMax"
+                                                        placeholder="Max"
+                                                        value={rangeFilters.weightageMax}
+                                                        onChange={handleRangeFilterChange}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div className="column-toggles-container">
