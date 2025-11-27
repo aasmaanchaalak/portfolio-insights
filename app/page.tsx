@@ -80,6 +80,67 @@ const HeatmapCell: React.FC<{ value: number | null }> = ({ value }) => (
     </div>
 );
 
+const Sparkline: React.FC<{ data: (number | null)[] }> = ({ data }) => {
+    const width = 100;
+    const height = 30;
+    const strokeWidth = 1.5;
+
+    // Filter out null/undefined values
+    const validDataPoints = data
+        .map((value, index) => ({ value, index }))
+        .filter(d => d.value !== null && typeof d.value !== 'undefined');
+
+    // Need at least 2 points to draw a line
+    if (validDataPoints.length < 2) {
+        return (
+            <div className="sparkline-container" style={{ width, height, color: 'var(--secondary-text-color)' }}>
+                N/A
+            </div>
+        );
+    }
+
+    const values = validDataPoints.map(d => d.value as number);
+
+    // Calculate min/max for scaling
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min === 0 ? 1 : max - min;
+
+    // Generate SVG points
+    const points = validDataPoints.map(d => {
+        // Map index to x coordinate
+        const x = (d.index / (data.length - 1)) * (width - strokeWidth) + (strokeWidth / 2);
+
+        // Map value to y coordinate (inverted because SVG y=0 is top)
+        const y = (height - strokeWidth) - ((d.value! - min) / range) * (height - strokeWidth) + (strokeWidth / 2);
+
+        return `${x.toFixed(2)},${y.toFixed(2)}`;
+    }).join(' ');
+
+    // Determine color based on trend direction
+    const firstValue = values[0];
+    const lastValue = values[values.length - 1];
+    let strokeColor = 'var(--secondary-text-color)';
+
+    if (lastValue > firstValue) strokeColor = 'var(--positive-color-strong)';
+    if (lastValue < firstValue) strokeColor = 'var(--negative-color-strong)';
+
+    return (
+        <div className="sparkline-container">
+            <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet">
+                <polyline
+                    fill="none"
+                    stroke={strokeColor}
+                    strokeWidth={strokeWidth}
+                    points={points}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                />
+            </svg>
+        </div>
+    );
+};
+
 
 const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onDataUploaded }) => {
     const [file, setFile] = useState<File | null>(null);
@@ -1077,6 +1138,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         { key: 'absoluteGain', label: 'Absolute Gain' },
         { key: 'gainPercentage', label: 'Gain %' },
         { key: 'weightage', label: 'Weightage %' },
+        { key: 'sparkline', label: 'Trend Chart' },
         { key: 'industryGroup', label: 'Industry Group' },
         { key: 'industry', label: 'Industry' },
         { key: 'priceToEarning', label: 'P/E' },
@@ -1154,6 +1216,26 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                 ? (absoluteGain / investedAmount) * 100
                 : null;
             const trend = matchedStock ? calculateTrend(matchedStock) : null;
+
+            // Calculate sparkline data (synthetic historical trend)
+            const todayValue = 100;
+            const returnPeriods = [
+                matchedStock?.return1Y,
+                matchedStock?.return6M,
+                matchedStock?.return3M,
+                matchedStock?.return1M,
+                matchedStock?.return1W,
+                matchedStock?.return1D
+            ];
+
+            const historicalValues = returnPeriods.map(returnValue => {
+                if (returnValue === null || returnValue === undefined) return null;
+                const growthFactor = 1 + returnValue / 100;
+                return growthFactor > 0 ? todayValue / growthFactor : null;
+            });
+
+            const sparklineData = [...historicalValues, todayValue];
+
             return {
                 ...item,
                 currentPrice,
@@ -1162,6 +1244,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                 absoluteGain,
                 gainPercentage,
                 trend,
+                sparklineData,
                 // Add all portfolio fields
                 industryGroup: matchedStock?.industryGroup || null,
                 industry: matchedStock?.industry || null,
@@ -1465,6 +1548,11 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         <span>Weightage % <SortIndicator columnKey="weightage" /></span>
                                     </div>
                                 </th>}
+                                {visibleColumns['sparkline'] && <th>
+                                    <div className="th-content">
+                                        <span>Trend Chart</span>
+                                    </div>
+                                </th>}
                                 {visibleColumns['industryGroup'] && <th onClick={() => requestSort('industryGroup')}>
                                     <div className="th-content">
                                         <span>Industry Group <SortIndicator columnKey="industryGroup" /></span>
@@ -1561,6 +1649,9 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         {(item as any).gainPercentage !== null && (item as any).gainPercentage !== undefined ? `${(item as any).gainPercentage.toFixed(2)}%` : 'N/A'}
                                     </td>}
                                     {visibleColumns['weightage'] && <td className="text-right weightage-cell">{(item as any).weightage !== null ? `${((item as any).weightage).toFixed(2)}%` : 'N/A'}</td>}
+                                    {visibleColumns['sparkline'] && <td className="sparkline-td">
+                                        <Sparkline data={(item as any).sparklineData || []} />
+                                    </td>}
                                     {visibleColumns['industryGroup'] && <td>{(item as any).industryGroup || 'N/A'}</td>}
                                     {visibleColumns['industry'] && <td>{(item as any).industry || 'N/A'}</td>}
                                     {visibleColumns['priceToEarning'] && <td className="text-right">{(item as any).priceToEarning !== null && (item as any).priceToEarning !== undefined ? (item as any).priceToEarning.toFixed(2) : 'N/A'}</td>}

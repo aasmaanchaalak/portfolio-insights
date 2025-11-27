@@ -1276,3 +1276,22 @@ a:hover {
 .save-modal-btn:active {
   transform: translateY(1px);
 }
+
+/* Sparkline Styles */
+.sparkline-container {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100px;
+  min-height: 30px;
+}
+
+.sparkline-td {
+  padding: 0.5rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.sparkline-container svg {
+  display: block;
+}
