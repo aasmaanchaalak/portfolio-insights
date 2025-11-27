@@ -1140,6 +1140,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     });
     const [showFilterPopover, setShowFilterPopover] = useState(false);
     const [remarksModalData, setRemarksModalData] = useState<any>(null);
+    const [columnFilterOpen, setColumnFilterOpen] = useState<string | null>(null);
 
     const allInsightsColumns = [
         { key: 'quantity', label: 'Quantity' },
@@ -1314,6 +1315,38 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         });
     };
 
+    const toggleColumnFilter = (columnKey: string) => {
+        setColumnFilterOpen(prev => prev === columnKey ? null : columnKey);
+    };
+
+    const clearColumnFilter = (columnKey: string) => {
+        const minKey = `${columnKey}Min` as keyof typeof rangeFilters;
+        const maxKey = `${columnKey}Max` as keyof typeof rangeFilters;
+        setRangeFilters(prev => ({
+            ...prev,
+            [minKey]: '',
+            [maxKey]: ''
+        }));
+    };
+
+    const hasColumnFilter = (columnKey: string): boolean => {
+        const minKey = `${columnKey}Min` as keyof typeof rangeFilters;
+        const maxKey = `${columnKey}Max` as keyof typeof rangeFilters;
+        return rangeFilters[minKey] !== '' || rangeFilters[maxKey] !== '';
+    };
+
+    // Map column keys to range filter keys
+    const getFilterKeys = (columnKey: string): { min: keyof typeof rangeFilters; max: keyof typeof rangeFilters} | null => {
+        const mapping: Record<string, { min: keyof typeof rangeFilters; max: keyof typeof rangeFilters }> = {
+            'gainPercentage': { min: 'gainPercentageMin', max: 'gainPercentageMax' },
+            'yoyQuarterlyProfitGrowth': { min: 'profitGrowthMin', max: 'profitGrowthMax' },
+            'yoyQuarterlySalesGrowth': { min: 'salesGrowthMin', max: 'salesGrowthMax' },
+            'priceToEarning': { min: 'peMin', max: 'peMax' },
+            'weightage': { min: 'weightageMin', max: 'weightageMax' },
+        };
+        return mapping[columnKey] || null;
+    };
+
     const filteredAndSortedData = useMemo(() => {
         let filtered = [...enrichedDataWithWeightage];
 
@@ -1414,6 +1447,43 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     const SortIndicator: React.FC<{ columnKey: string }> = ({ columnKey }) => {
         if (sortConfig.key !== columnKey) return null;
         return <span className="sort-indicator">{sortConfig.direction === 'ascending' ? '▲' : '▼'}</span>;
+    };
+
+    const ColumnFilterPopup: React.FC<{ columnKey: string }> = ({ columnKey }) => {
+        const filterKeys = getFilterKeys(columnKey);
+        if (!filterKeys) return null;
+
+        return (
+            <div className="column-filter-popup" onClick={(e) => e.stopPropagation()}>
+                <div className="column-filter-content">
+                    <div className="column-filter-header">
+                        <span>Filter Range</span>
+                        <button className="close-filter-btn" onClick={() => setColumnFilterOpen(null)}>×</button>
+                    </div>
+                    <div className="column-filter-inputs">
+                        <input
+                            type="number"
+                            placeholder="Min"
+                            name={filterKeys.min}
+                            value={rangeFilters[filterKeys.min]}
+                            onChange={handleRangeFilterChange}
+                        />
+                        <span>to</span>
+                        <input
+                            type="number"
+                            placeholder="Max"
+                            name={filterKeys.max}
+                            value={rangeFilters[filterKeys.max]}
+                            onChange={handleRangeFilterChange}
+                        />
+                    </div>
+                    <div className="column-filter-actions">
+                        <button className="clear-filter-btn" onClick={() => clearColumnFilter(columnKey)}>Clear</button>
+                        <button className="apply-filter-btn" onClick={() => setColumnFilterOpen(null)}>Apply</button>
+                    </div>
+                </div>
+            </div>
+        );
     };
 
     const handleStockNameClick = (item: any) => {
@@ -1557,115 +1627,6 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         />
                                     </div>
 
-                                    <div className="range-filters-container">
-                                        <div className="range-filter-header">
-                                            <label>Range Filters (Min-Max)</label>
-                                            <button className="clear-ranges-btn" onClick={clearRangeFilters}>Clear All</button>
-                                        </div>
-                                        <div className="range-filters">
-                                            <div className="range-filter-group">
-                                                <label>Gain %</label>
-                                                <div className="range-inputs">
-                                                    <input
-                                                        type="number"
-                                                        name="gainPercentageMin"
-                                                        placeholder="Min"
-                                                        value={rangeFilters.gainPercentageMin}
-                                                        onChange={handleRangeFilterChange}
-                                                    />
-                                                    <span>to</span>
-                                                    <input
-                                                        type="number"
-                                                        name="gainPercentageMax"
-                                                        placeholder="Max"
-                                                        value={rangeFilters.gainPercentageMax}
-                                                        onChange={handleRangeFilterChange}
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="range-filter-group">
-                                                <label>Profit Growth %</label>
-                                                <div className="range-inputs">
-                                                    <input
-                                                        type="number"
-                                                        name="profitGrowthMin"
-                                                        placeholder="Min"
-                                                        value={rangeFilters.profitGrowthMin}
-                                                        onChange={handleRangeFilterChange}
-                                                    />
-                                                    <span>to</span>
-                                                    <input
-                                                        type="number"
-                                                        name="profitGrowthMax"
-                                                        placeholder="Max"
-                                                        value={rangeFilters.profitGrowthMax}
-                                                        onChange={handleRangeFilterChange}
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="range-filter-group">
-                                                <label>Sales Growth %</label>
-                                                <div className="range-inputs">
-                                                    <input
-                                                        type="number"
-                                                        name="salesGrowthMin"
-                                                        placeholder="Min"
-                                                        value={rangeFilters.salesGrowthMin}
-                                                        onChange={handleRangeFilterChange}
-                                                    />
-                                                    <span>to</span>
-                                                    <input
-                                                        type="number"
-                                                        name="salesGrowthMax"
-                                                        placeholder="Max"
-                                                        value={rangeFilters.salesGrowthMax}
-                                                        onChange={handleRangeFilterChange}
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="range-filter-group">
-                                                <label>P/E Ratio</label>
-                                                <div className="range-inputs">
-                                                    <input
-                                                        type="number"
-                                                        name="peMin"
-                                                        placeholder="Min"
-                                                        value={rangeFilters.peMin}
-                                                        onChange={handleRangeFilterChange}
-                                                    />
-                                                    <span>to</span>
-                                                    <input
-                                                        type="number"
-                                                        name="peMax"
-                                                        placeholder="Max"
-                                                        value={rangeFilters.peMax}
-                                                        onChange={handleRangeFilterChange}
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="range-filter-group">
-                                                <label>Weightage %</label>
-                                                <div className="range-inputs">
-                                                    <input
-                                                        type="number"
-                                                        name="weightageMin"
-                                                        placeholder="Min"
-                                                        value={rangeFilters.weightageMin}
-                                                        onChange={handleRangeFilterChange}
-                                                    />
-                                                    <span>to</span>
-                                                    <input
-                                                        type="number"
-                                                        name="weightageMax"
-                                                        placeholder="Max"
-                                                        value={rangeFilters.weightageMax}
-                                                        onChange={handleRangeFilterChange}
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
                                     <div className="column-toggles-container">
                                         <label>Show/Hide Columns</label>
                                         <div className="column-toggles">
@@ -1726,14 +1687,42 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         <span>Absolute Gain <SortIndicator columnKey="absoluteGain" /></span>
                                     </div>
                                 </th>}
-                                {visibleColumns['gainPercentage'] && <th className="text-right" onClick={() => requestSort('gainPercentage')}>
+                                {visibleColumns['gainPercentage'] && <th className="text-right filterable-column">
                                     <div className="th-content">
-                                        <span>Gain % <SortIndicator columnKey="gainPercentage" /></span>
+                                        <span onClick={() => requestSort('gainPercentage')}>Gain % <SortIndicator columnKey="gainPercentage" /></span>
+                                        <div className="filter-icon-wrapper">
+                                            <button
+                                                className={`filter-icon-btn ${hasColumnFilter('gainPercentage') ? 'active' : ''}`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleColumnFilter('gainPercentage');
+                                                }}
+                                            >
+                                                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                                    <path d="M6 10.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z"/>
+                                                </svg>
+                                            </button>
+                                            {columnFilterOpen === 'gainPercentage' && <ColumnFilterPopup columnKey="gainPercentage" />}
+                                        </div>
                                     </div>
                                 </th>}
-                                {visibleColumns['weightage'] && <th className="text-right" onClick={() => requestSort('weightage')}>
+                                {visibleColumns['weightage'] && <th className="text-right filterable-column">
                                     <div className="th-content">
-                                        <span>Weightage % <SortIndicator columnKey="weightage" /></span>
+                                        <span onClick={() => requestSort('weightage')}>Weightage % <SortIndicator columnKey="weightage" /></span>
+                                        <div className="filter-icon-wrapper">
+                                            <button
+                                                className={`filter-icon-btn ${hasColumnFilter('weightage') ? 'active' : ''}`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleColumnFilter('weightage');
+                                                }}
+                                            >
+                                                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                                    <path d="M6 10.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z"/>
+                                                </svg>
+                                            </button>
+                                            {columnFilterOpen === 'weightage' && <ColumnFilterPopup columnKey="weightage" />}
+                                        </div>
                                     </div>
                                 </th>}
                                 {visibleColumns['sparkline'] && <th>
@@ -1751,19 +1740,61 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         <span>Industry <SortIndicator columnKey="industry" /></span>
                                     </div>
                                 </th>}
-                                {visibleColumns['priceToEarning'] && <th className="text-right" onClick={() => requestSort('priceToEarning')}>
+                                {visibleColumns['priceToEarning'] && <th className="text-right filterable-column">
                                     <div className="th-content">
-                                        <span>P/E <SortIndicator columnKey="priceToEarning" /></span>
+                                        <span onClick={() => requestSort('priceToEarning')}>P/E <SortIndicator columnKey="priceToEarning" /></span>
+                                        <div className="filter-icon-wrapper">
+                                            <button
+                                                className={`filter-icon-btn ${hasColumnFilter('priceToEarning') ? 'active' : ''}`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleColumnFilter('priceToEarning');
+                                                }}
+                                            >
+                                                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                                    <path d="M6 10.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z"/>
+                                                </svg>
+                                            </button>
+                                            {columnFilterOpen === 'priceToEarning' && <ColumnFilterPopup columnKey="priceToEarning" />}
+                                        </div>
                                     </div>
                                 </th>}
-                                {visibleColumns['yoyQuarterlyProfitGrowth'] && <th className="text-right" onClick={() => requestSort('yoyQuarterlyProfitGrowth')}>
+                                {visibleColumns['yoyQuarterlyProfitGrowth'] && <th className="text-right filterable-column">
                                     <div className="th-content">
-                                        <span>Profit Growth % <SortIndicator columnKey="yoyQuarterlyProfitGrowth" /></span>
+                                        <span onClick={() => requestSort('yoyQuarterlyProfitGrowth')}>Profit Growth % <SortIndicator columnKey="yoyQuarterlyProfitGrowth" /></span>
+                                        <div className="filter-icon-wrapper">
+                                            <button
+                                                className={`filter-icon-btn ${hasColumnFilter('yoyQuarterlyProfitGrowth') ? 'active' : ''}`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleColumnFilter('yoyQuarterlyProfitGrowth');
+                                                }}
+                                            >
+                                                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                                    <path d="M6 10.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z"/>
+                                                </svg>
+                                            </button>
+                                            {columnFilterOpen === 'yoyQuarterlyProfitGrowth' && <ColumnFilterPopup columnKey="yoyQuarterlyProfitGrowth" />}
+                                        </div>
                                     </div>
                                 </th>}
-                                {visibleColumns['yoyQuarterlySalesGrowth'] && <th className="text-right" onClick={() => requestSort('yoyQuarterlySalesGrowth')}>
+                                {visibleColumns['yoyQuarterlySalesGrowth'] && <th className="text-right filterable-column">
                                     <div className="th-content">
-                                        <span>Sales Growth % <SortIndicator columnKey="yoyQuarterlySalesGrowth" /></span>
+                                        <span onClick={() => requestSort('yoyQuarterlySalesGrowth')}>Sales Growth % <SortIndicator columnKey="yoyQuarterlySalesGrowth" /></span>
+                                        <div className="filter-icon-wrapper">
+                                            <button
+                                                className={`filter-icon-btn ${hasColumnFilter('yoyQuarterlySalesGrowth') ? 'active' : ''}`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleColumnFilter('yoyQuarterlySalesGrowth');
+                                                }}
+                                            >
+                                                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                                    <path d="M6 10.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z"/>
+                                                </svg>
+                                            </button>
+                                            {columnFilterOpen === 'yoyQuarterlySalesGrowth' && <ColumnFilterPopup columnKey="yoyQuarterlySalesGrowth" />}
+                                        </div>
                                     </div>
                                 </th>}
                                 {visibleColumns['trend'] && <th onClick={() => requestSort('trend')}>
