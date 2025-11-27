@@ -146,9 +146,17 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                     'Company name': 'name',
                     'BSE Code': 'bseCode',
                     'NSE Code': 'nseCode',
-                    'Industry Group': 'industry',
+                    'Industry Group': 'industryGroup',
+                    'Industry': 'industry',
                     'Current Price': 'currentPrice',
                     'Current Price (Rs)': 'currentPrice',
+                    'Price to Earning': 'priceToEarning',
+                    'PE': 'priceToEarning',
+                    'P/E': 'priceToEarning',
+                    'YOY Quarterly profit growth': 'yoyQuarterlyProfitGrowth',
+                    'Quarterly profit growth YOY %': 'yoyQuarterlyProfitGrowth',
+                    'YOY Quarterly sales growth': 'yoyQuarterlySalesGrowth',
+                    'Quarterly sales growth YOY %': 'yoyQuarterlySalesGrowth',
                     'Return over 1day': 'return1D',
                     'Return over 1 Day': 'return1D',
                     'Return over 1 Day (%)': 'return1D',
@@ -176,7 +184,9 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                 };
 
                 const requiredCsvHeaders = [
-                    'Name', 'BSE Code', 'NSE Code', 'Current Price',
+                    'Name', 'BSE Code', 'NSE Code', 'Industry Group', 'Industry',
+                    'Current Price', 'Price to Earning',
+                    'YOY Quarterly profit growth', 'YOY Quarterly sales growth',
                     'Return over 1day', 'Return over 1week', 'Return over 1month',
                     'Return over 3months', 'Return over 6months', 'Return over 1year'
                 ];
@@ -191,17 +201,12 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                     const entry: Partial<Stock> = {};
 
                     header.forEach((csvColumn, index) => {
-                        // Skip Industry Group column
-                        if (csvColumn === 'Industry Group') {
-                            return;
-                        }
-
                         const internalKey = columnMapping[csvColumn];
                         if (!internalKey) return;
 
                         let value = values[index] ? values[index].trim() : null;
 
-                        if (['currentPrice', 'return1D', 'return1M', 'return1W', 'return3M', 'return6M', 'return1Y'].includes(internalKey)) {
+                        if (['currentPrice', 'priceToEarning', 'yoyQuarterlyProfitGrowth', 'yoyQuarterlySalesGrowth', 'return1D', 'return1M', 'return1W', 'return3M', 'return6M', 'return1Y'].includes(internalKey)) {
                              // Remove any commas from numbers (e.g., "1,234.56" -> "1234.56")
                              const cleanValue = value ? value.replace(/,/g, '') : null;
                              (entry as any)[internalKey] = (cleanValue === null || cleanValue === '') ? null : parseFloat(cleanValue);
@@ -209,9 +214,6 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                              (entry as any)[internalKey] = (value === null || value === '') ? null : value;
                         }
                     });
-
-                    // Set industry to null since we're ignoring Industry Group
-                    entry.industry = null;
 
                     return entry as Stock;
                 });
@@ -237,17 +239,16 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
     return (
         <div className="upload-container">
             <header className="main-header">
-                <h1>Upload New Portfolio Data</h1>
-                <p>Upload a CSV file to replace the existing stock data.</p>
+                <h1>Screener Data</h1>
+                <p>Upload CSV file from Screener to update stock data.</p>
             </header>
             <div className="upload-content">
                 <div className="upload-instructions">
                     <h3>File Requirements</h3>
                     <ul>
-                        <li>Must be a valid CSV file</li>
-                        <li>Must contain the following header columns: <code>Name, BSE Code, NSE Code, Current Price, Return over 1day, Return over 1week, Return over 1month, Return over 3months, Return over 6months, Return over 1year</code></li>
-                        <li>Industry Group column is ignored if present</li>
-                        <li>Numeric columns can be empty for N/A values.</li>
+                        <li>Must be a valid CSV file exported from Screener.in</li>
+                        <li>Required columns: <code>Name, BSE Code, NSE Code, Industry Group, Industry, Current Price, Price to Earning, YOY Quarterly profit growth, YOY Quarterly sales growth, Return over 1day, Return over 1week, Return over 1month, Return over 3months, Return over 6months, Return over 1year</code></li>
+                        <li>Numeric columns can be empty for N/A values</li>
                     </ul>
                     <h3>What Happens After Upload</h3>
                     <ul>
@@ -1076,6 +1077,11 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         { key: 'absoluteGain', label: 'Absolute Gain' },
         { key: 'gainPercentage', label: 'Gain %' },
         { key: 'weightage', label: 'Weightage %' },
+        { key: 'industryGroup', label: 'Industry Group' },
+        { key: 'industry', label: 'Industry' },
+        { key: 'priceToEarning', label: 'P/E' },
+        { key: 'yoyQuarterlyProfitGrowth', label: 'Profit Growth %' },
+        { key: 'yoyQuarterlySalesGrowth', label: 'Sales Growth %' },
         { key: 'trend', label: 'Trend' },
         { key: 'return1D', label: '1D %' },
         { key: 'return1W', label: '1W %' },
@@ -1157,7 +1163,11 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                 gainPercentage,
                 trend,
                 // Add all portfolio fields
+                industryGroup: matchedStock?.industryGroup || null,
                 industry: matchedStock?.industry || null,
+                priceToEarning: matchedStock?.priceToEarning || null,
+                yoyQuarterlyProfitGrowth: matchedStock?.yoyQuarterlyProfitGrowth || null,
+                yoyQuarterlySalesGrowth: matchedStock?.yoyQuarterlySalesGrowth || null,
                 return1D: matchedStock?.return1D || null,
                 return1W: matchedStock?.return1W || null,
                 return1M: matchedStock?.return1M || null,
@@ -1455,6 +1465,31 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         <span>Weightage % <SortIndicator columnKey="weightage" /></span>
                                     </div>
                                 </th>}
+                                {visibleColumns['industryGroup'] && <th onClick={() => requestSort('industryGroup')}>
+                                    <div className="th-content">
+                                        <span>Industry Group <SortIndicator columnKey="industryGroup" /></span>
+                                    </div>
+                                </th>}
+                                {visibleColumns['industry'] && <th onClick={() => requestSort('industry')}>
+                                    <div className="th-content">
+                                        <span>Industry <SortIndicator columnKey="industry" /></span>
+                                    </div>
+                                </th>}
+                                {visibleColumns['priceToEarning'] && <th className="text-right" onClick={() => requestSort('priceToEarning')}>
+                                    <div className="th-content">
+                                        <span>P/E <SortIndicator columnKey="priceToEarning" /></span>
+                                    </div>
+                                </th>}
+                                {visibleColumns['yoyQuarterlyProfitGrowth'] && <th className="text-right" onClick={() => requestSort('yoyQuarterlyProfitGrowth')}>
+                                    <div className="th-content">
+                                        <span>Profit Growth % <SortIndicator columnKey="yoyQuarterlyProfitGrowth" /></span>
+                                    </div>
+                                </th>}
+                                {visibleColumns['yoyQuarterlySalesGrowth'] && <th className="text-right" onClick={() => requestSort('yoyQuarterlySalesGrowth')}>
+                                    <div className="th-content">
+                                        <span>Sales Growth % <SortIndicator columnKey="yoyQuarterlySalesGrowth" /></span>
+                                    </div>
+                                </th>}
                                 {visibleColumns['trend'] && <th onClick={() => requestSort('trend')}>
                                     <div className="th-content">
                                         <span>Trend <SortIndicator columnKey="trend" /></span>
@@ -1526,6 +1561,15 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         {(item as any).gainPercentage !== null && (item as any).gainPercentage !== undefined ? `${(item as any).gainPercentage.toFixed(2)}%` : 'N/A'}
                                     </td>}
                                     {visibleColumns['weightage'] && <td className="text-right weightage-cell">{(item as any).weightage !== null ? `${((item as any).weightage).toFixed(2)}%` : 'N/A'}</td>}
+                                    {visibleColumns['industryGroup'] && <td>{(item as any).industryGroup || 'N/A'}</td>}
+                                    {visibleColumns['industry'] && <td>{(item as any).industry || 'N/A'}</td>}
+                                    {visibleColumns['priceToEarning'] && <td className="text-right">{(item as any).priceToEarning !== null && (item as any).priceToEarning !== undefined ? (item as any).priceToEarning.toFixed(2) : 'N/A'}</td>}
+                                    {visibleColumns['yoyQuarterlyProfitGrowth'] && <td className="text-right" style={{ color: (item as any).yoyQuarterlyProfitGrowth !== null ? ((item as any).yoyQuarterlyProfitGrowth >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>
+                                        {(item as any).yoyQuarterlyProfitGrowth !== null && (item as any).yoyQuarterlyProfitGrowth !== undefined ? `${(item as any).yoyQuarterlyProfitGrowth.toFixed(2)}%` : 'N/A'}
+                                    </td>}
+                                    {visibleColumns['yoyQuarterlySalesGrowth'] && <td className="text-right" style={{ color: (item as any).yoyQuarterlySalesGrowth !== null ? ((item as any).yoyQuarterlySalesGrowth >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>
+                                        {(item as any).yoyQuarterlySalesGrowth !== null && (item as any).yoyQuarterlySalesGrowth !== undefined ? `${(item as any).yoyQuarterlySalesGrowth.toFixed(2)}%` : 'N/A'}
+                                    </td>}
                                     {visibleColumns['trend'] && <td className="trend-cell">
                                         {(item as any).trend ? (
                                             <span className={`trend-badge trend-${(item as any).trend.toLowerCase().replace(/\s+/g, '-')}`}>
@@ -1778,7 +1822,7 @@ const App: React.FC = () => {
         <>
             <nav className="main-nav">
                 <button className={page === 'insights' ? 'active' : ''} onClick={() => setPage('insights')}>Portfolio Insights</button>
-                <button className={page === 'upload' ? 'active' : ''} onClick={() => setPage('upload')}>Upload Data</button>
+                <button className={page === 'upload' ? 'active' : ''} onClick={() => setPage('upload')}>Screener Data</button>
                 <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>
             </nav>
             <main>

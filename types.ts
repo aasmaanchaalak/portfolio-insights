@@ -7,8 +7,12 @@ export interface Stock {
   name: string;
   bseCode: string | null;
   nseCode: string | null;
+  industryGroup: string | null;
   industry: string | null;
   currentPrice: number | null;
+  priceToEarning: number | null;
+  yoyQuarterlyProfitGrowth: number | null;
+  yoyQuarterlySalesGrowth: number | null;
   return1D: number | null;
   return1M: number | null;
   return1W: number | null;
