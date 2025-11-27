@@ -1944,8 +1944,288 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
 };
 
 
+const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = ({ gridKeyData, stocks }) => {
+    const [selectedChart, setSelectedChart] = useState<'allocation' | 'performance' | 'growth' | 'sectors'>('allocation');
+
+    // Enrich gridKey data with stock information
+    const enrichedData = useMemo(() => {
+        return gridKeyData.map(item => {
+            const matchedStock = stocks.find(stock => {
+                if (item.nseCode && stock.nseCode) {
+                    return item.nseCode.toLowerCase() === stock.nseCode.toLowerCase();
+                }
+                if (item.bseCode && stock.bseCode) {
+                    return item.bseCode.toLowerCase() === stock.bseCode.toLowerCase();
+                }
+                return false;
+            });
+            const currentPrice = matchedStock?.currentPrice || null;
+            const calculatedAmount = (item.quantity && currentPrice) ? item.quantity * currentPrice : null;
+            const investedAmount = (item.quantity && item.averageBuyPrice) ? item.quantity * item.averageBuyPrice : null;
+            const absoluteGain = (calculatedAmount !== null && investedAmount !== null) ? calculatedAmount - investedAmount : null;
+            const gainPercentage = (investedAmount !== null && investedAmount !== 0 && absoluteGain !== null)
+                ? (absoluteGain / investedAmount) * 100
+                : null;
+            return {
+                ...item,
+                currentPrice,
+                calculatedAmount,
+                investedAmount,
+                absoluteGain,
+                gainPercentage,
+                industryGroup: matchedStock?.industryGroup || null,
+                industry: matchedStock?.industry || null,
+                priceToEarning: matchedStock?.priceToEarning || null,
+                yoyQuarterlyProfitGrowth: matchedStock?.yoyQuarterlyProfitGrowth || null,
+                yoyQuarterlySalesGrowth: matchedStock?.yoyQuarterlySalesGrowth || null,
+            };
+        });
+    }, [gridKeyData, stocks]);
+
+    const totalCurrentAmount = useMemo(() => {
+        return enrichedData.reduce((total, item) => total + ((item as any).calculatedAmount || 0), 0);
+    }, [enrichedData]);
+
+    // Portfolio Allocation Chart (Pie/Bar Chart)
+    const AllocationChart = () => {
+        const top10 = enrichedData
+            .map(item => ({
+                name: item.scripName,
+                value: (item as any).calculatedAmount || 0,
+                percentage: totalCurrentAmount > 0 ? (((item as any).calculatedAmount || 0) / totalCurrentAmount) * 100 : 0
+            }))
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 10);
+
+        const maxValue = Math.max(...top10.map(d => d.value));
+
+        return (
+            <div className="chart-card">
+                <h3>Top 10 Holdings by Value</h3>
+                <div className="bar-chart">
+                    {top10.map((item, index) => (
+                        <div key={index} className="bar-item">
+                            <div className="bar-label">{item.name}</div>
+                            <div className="bar-container">
+                                <div
+                                    className="bar-fill"
+                                    style={{
+                                        width: `${(item.value / maxValue) * 100}%`,
+                                        backgroundColor: `hsl(${210 - index * 20}, 70%, 50%)`
+                                    }}
+                                >
+                                    <span className="bar-value">₹{item.value.toLocaleString('en-IN', { maximumFractionDigits: 0 })} ({item.percentage.toFixed(1)}%)</span>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    // Performance Distribution Chart
+    const PerformanceChart = () => {
+        const ranges = [
+            { label: '< -20%', min: -Infinity, max: -20, count: 0 },
+            { label: '-20% to -10%', min: -20, max: -10, count: 0 },
+            { label: '-10% to 0%', min: -10, max: 0, count: 0 },
+            { label: '0% to 10%', min: 0, max: 10, count: 0 },
+            { label: '10% to 20%', min: 10, max: 20, count: 0 },
+            { label: '20% to 50%', min: 20, max: 50, count: 0 },
+            { label: '> 50%', min: 50, max: Infinity, count: 0 },
+        ];
+
+        enrichedData.forEach(item => {
+            const gain = (item as any).gainPercentage;
+            if (gain !== null && gain !== undefined) {
+                const range = ranges.find(r => gain >= r.min && gain < r.max);
+                if (range) range.count++;
+            }
+        });
+
+        const maxCount = Math.max(...ranges.map(r => r.count));
+
+        return (
+            <div className="chart-card">
+                <h3>Gain/Loss Distribution</h3>
+                <div className="bar-chart">
+                    {ranges.map((range, index) => (
+                        <div key={index} className="bar-item">
+                            <div className="bar-label">{range.label}</div>
+                            <div className="bar-container">
+                                <div
+                                    className="bar-fill"
+                                    style={{
+                                        width: maxCount > 0 ? `${(range.count / maxCount) * 100}%` : '0%',
+                                        backgroundColor: range.min < 0 ? 'var(--error-color)' : 'var(--success-color)'
+                                    }}
+                                >
+                                    <span className="bar-value">{range.count} stocks</span>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    // Growth Metrics Chart
+    const GrowthChart = () => {
+        const stocksWithGrowth = enrichedData
+            .filter(item => {
+                const profit = (item as any).yoyQuarterlyProfitGrowth;
+                const sales = (item as any).yoyQuarterlySalesGrowth;
+                return profit !== null || sales !== null;
+            })
+            .map(item => ({
+                name: item.scripName,
+                profitGrowth: (item as any).yoyQuarterlyProfitGrowth || 0,
+                salesGrowth: (item as any).yoyQuarterlySalesGrowth || 0
+            }))
+            .sort((a, b) => b.profitGrowth - a.profitGrowth)
+            .slice(0, 10);
+
+        return (
+            <div className="chart-card">
+                <h3>Top 10 Stocks by Profit Growth</h3>
+                <div className="scatter-chart">
+                    <div className="scatter-axis-label-y">Sales Growth %</div>
+                    <svg width="100%" height="400" viewBox="0 0 600 400">
+                        {/* Grid lines */}
+                        {[-20, 0, 20, 40, 60].map(y => (
+                            <line key={`h-${y}`} x1="50" x2="580" y1={350 - (y + 30) * 3} y2={350 - (y + 30) * 3} stroke="var(--border-color)" strokeWidth="1" />
+                        ))}
+                        {[-20, 0, 20, 40, 60].map(x => (
+                            <line key={`v-${x}`} x1={50 + (x + 30) * 5.5} x2={50 + (x + 30) * 5.5} y1="20" y2="350" stroke="var(--border-color)" strokeWidth="1" />
+                        ))}
+
+                        {/* Axis labels */}
+                        <line x1="50" x2="580" y1="350" y2="350" stroke="var(--primary-text-color)" strokeWidth="2" />
+                        <line x1="50" x2="50" y1="20" y2="350" stroke="var(--primary-text-color)" strokeWidth="2" />
+
+                        {/* Data points */}
+                        {stocksWithGrowth.map((stock, index) => {
+                            const x = 50 + Math.max(-30, Math.min(60, stock.profitGrowth)) * 5.5 + 165;
+                            const y = 350 - (Math.max(-30, Math.min(60, stock.salesGrowth)) * 3 + 90);
+                            return (
+                                <g key={index}>
+                                    <circle
+                                        cx={x}
+                                        cy={y}
+                                        r="6"
+                                        fill={`hsl(${120 - index * 12}, 70%, 50%)`}
+                                        opacity="0.7"
+                                    />
+                                    <title>{stock.name}: Profit {stock.profitGrowth.toFixed(1)}%, Sales {stock.salesGrowth.toFixed(1)}%</title>
+                                </g>
+                            );
+                        })}
+
+                        {/* Axis numbers */}
+                        <text x="40" y="355" fontSize="12" fill="var(--secondary-text-color)" textAnchor="end">-20</text>
+                        <text x="40" y="265" fontSize="12" fill="var(--secondary-text-color)" textAnchor="end">0</text>
+                        <text x="40" y="175" fontSize="12" fill="var(--secondary-text-color)" textAnchor="end">20</text>
+                        <text x="40" y="85" fontSize="12" fill="var(--secondary-text-color)" textAnchor="end">40</text>
+
+                        <text x="50" y="370" fontSize="12" fill="var(--secondary-text-color)" textAnchor="middle">-20</text>
+                        <text x="215" y="370" fontSize="12" fill="var(--secondary-text-color)" textAnchor="middle">0</text>
+                        <text x="380" y="370" fontSize="12" fill="var(--secondary-text-color)" textAnchor="middle">20</text>
+                        <text x="545" y="370" fontSize="12" fill="var(--secondary-text-color)" textAnchor="middle">40</text>
+                    </svg>
+                    <div className="scatter-axis-label-x">Profit Growth %</div>
+                </div>
+            </div>
+        );
+    };
+
+    // Sector Distribution
+    const SectorChart = () => {
+        const sectorMap: Record<string, number> = {};
+        enrichedData.forEach(item => {
+            const sector = (item as any).industryGroup || 'Unknown';
+            const value = (item as any).calculatedAmount || 0;
+            sectorMap[sector] = (sectorMap[sector] || 0) + value;
+        });
+
+        const sectors = Object.entries(sectorMap)
+            .map(([name, value]) => ({
+                name,
+                value,
+                percentage: totalCurrentAmount > 0 ? (value / totalCurrentAmount) * 100 : 0
+            }))
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 8);
+
+        const maxValue = Math.max(...sectors.map(s => s.value));
+
+        return (
+            <div className="chart-card">
+                <h3>Sector Allocation</h3>
+                <div className="bar-chart">
+                    {sectors.map((sector, index) => (
+                        <div key={index} className="bar-item">
+                            <div className="bar-label">{sector.name}</div>
+                            <div className="bar-container">
+                                <div
+                                    className="bar-fill"
+                                    style={{
+                                        width: `${(sector.value / maxValue) * 100}%`,
+                                        backgroundColor: `hsl(${index * 45}, 65%, 55%)`
+                                    }}
+                                >
+                                    <span className="bar-value">₹{sector.value.toLocaleString('en-IN', { maximumFractionDigits: 0 })} ({sector.percentage.toFixed(1)}%)</span>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    if (gridKeyData.length === 0 || stocks.length === 0) {
+        return (
+            <div className="analysis-page">
+                <header className="main-header">
+                    <h1>Portfolio Analysis</h1>
+                    <p>Visual insights into your portfolio performance and allocation</p>
+                </header>
+                <div className="empty-state">
+                    <p>No data available. Please upload both GridKey data and Screener data first.</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="analysis-page">
+            <header className="main-header">
+                <h1>Portfolio Analysis</h1>
+                <p>Visual insights into your portfolio performance and allocation</p>
+            </header>
+
+            <div className="chart-selector">
+                <button className={selectedChart === 'allocation' ? 'active' : ''} onClick={() => setSelectedChart('allocation')}>Allocation</button>
+                <button className={selectedChart === 'performance' ? 'active' : ''} onClick={() => setSelectedChart('performance')}>Performance</button>
+                <button className={selectedChart === 'growth' ? 'active' : ''} onClick={() => setSelectedChart('growth')}>Growth Metrics</button>
+                <button className={selectedChart === 'sectors' ? 'active' : ''} onClick={() => setSelectedChart('sectors')}>Sectors</button>
+            </div>
+
+            <div className="charts-container">
+                {selectedChart === 'allocation' && <AllocationChart />}
+                {selectedChart === 'performance' && <PerformanceChart />}
+                {selectedChart === 'growth' && <GrowthChart />}
+                {selectedChart === 'sectors' && <SectorChart />}
+            </div>
+        </div>
+    );
+};
+
+
 const App: React.FC = () => {
-    const [page, setPage] = useState<'insights' | 'upload' | 'gridkey'>('insights');
+    const [page, setPage] = useState<'insights' | 'upload' | 'gridkey' | 'analysis'>('insights');
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [loading, setLoading] = useState(true);
@@ -2101,11 +2381,13 @@ const App: React.FC = () => {
         <>
             <nav className="main-nav">
                 <button className={page === 'insights' ? 'active' : ''} onClick={() => setPage('insights')}>Portfolio Insights</button>
+                <button className={page === 'analysis' ? 'active' : ''} onClick={() => setPage('analysis')}>Analysis</button>
                 <button className={page === 'upload' ? 'active' : ''} onClick={() => setPage('upload')}>Screener Data</button>
                 <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>
             </nav>
             <main>
                 {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={stocks} onStocksUpdate={setStocks} />}
+                {page === 'analysis' && <AnalysisPage gridKeyData={gridKeyData} stocks={stocks} />}
                 {page === 'upload' && <UploadPage onDataUploaded={handleDataUploaded} />}
                 {page === 'gridkey' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}
             </main>
