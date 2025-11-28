@@ -19,6 +19,10 @@ export interface Stock {
   return3M: number | null;
   return6M: number | null;
   return1Y: number | null;
+  dma50: number | null;
+  dma200: number | null;
+  downFrom52WeekHigh: number | null;
+  upFrom52WeekLow: number | null;
   remarks?: string | null;
   assignedTo?: string | null;
 }

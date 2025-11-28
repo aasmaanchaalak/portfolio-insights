@@ -1157,6 +1157,10 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         { key: 'priceToEarning', label: 'P/E' },
         { key: 'yoyQuarterlyProfitGrowth', label: 'Profit Growth %' },
         { key: 'yoyQuarterlySalesGrowth', label: 'Sales Growth %' },
+        { key: 'dma50ChangePercent', label: 'Change% from DMA 50' },
+        { key: 'dma200ChangePercent', label: 'Change% from DMA 200' },
+        { key: 'downFrom52WeekHigh', label: 'Down from 52w High' },
+        { key: 'upFrom52WeekLow', label: 'Up from 52w Low' },
         { key: 'trend', label: 'Trend' },
         { key: 'return1D', label: '1D %' },
         { key: 'return1W', label: '1W %' },
@@ -1249,6 +1253,16 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
 
             const sparklineData = [...historicalValues, todayValue];
 
+            // Calculate DMA change percentages
+            const dma50 = matchedStock?.dma50 || null;
+            const dma200 = matchedStock?.dma200 || null;
+            const dma50ChangePercent = (currentPrice !== null && dma50 !== null && dma50 !== 0)
+                ? ((currentPrice - dma50) / dma50) * 100
+                : null;
+            const dma200ChangePercent = (currentPrice !== null && dma200 !== null && dma200 !== 0)
+                ? ((currentPrice - dma200) / dma200) * 100
+                : null;
+
             return {
                 ...item,
                 currentPrice,
@@ -1264,6 +1278,12 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                 priceToEarning: matchedStock?.priceToEarning || null,
                 yoyQuarterlyProfitGrowth: matchedStock?.yoyQuarterlyProfitGrowth || null,
                 yoyQuarterlySalesGrowth: matchedStock?.yoyQuarterlySalesGrowth || null,
+                dma50: dma50,
+                dma200: dma200,
+                dma50ChangePercent: dma50ChangePercent,
+                dma200ChangePercent: dma200ChangePercent,
+                downFrom52WeekHigh: matchedStock?.downFrom52WeekHigh || null,
+                upFrom52WeekLow: matchedStock?.upFrom52WeekLow || null,
                 return1D: matchedStock?.return1D || null,
                 return1W: matchedStock?.return1W || null,
                 return1M: matchedStock?.return1M || null,
@@ -1797,6 +1817,26 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         </div>
                                     </div>
                                 </th>}
+                                {visibleColumns['dma50ChangePercent'] && <th className="text-right" onClick={() => requestSort('dma50ChangePercent')}>
+                                    <div className="th-content">
+                                        <span>Change% from DMA 50 <SortIndicator columnKey="dma50ChangePercent" /></span>
+                                    </div>
+                                </th>}
+                                {visibleColumns['dma200ChangePercent'] && <th className="text-right" onClick={() => requestSort('dma200ChangePercent')}>
+                                    <div className="th-content">
+                                        <span>Change% from DMA 200 <SortIndicator columnKey="dma200ChangePercent" /></span>
+                                    </div>
+                                </th>}
+                                {visibleColumns['downFrom52WeekHigh'] && <th className="text-right" onClick={() => requestSort('downFrom52WeekHigh')}>
+                                    <div className="th-content">
+                                        <span>Down from 52w High <SortIndicator columnKey="downFrom52WeekHigh" /></span>
+                                    </div>
+                                </th>}
+                                {visibleColumns['upFrom52WeekLow'] && <th className="text-right" onClick={() => requestSort('upFrom52WeekLow')}>
+                                    <div className="th-content">
+                                        <span>Up from 52w Low <SortIndicator columnKey="upFrom52WeekLow" /></span>
+                                    </div>
+                                </th>}
                                 {visibleColumns['trend'] && <th onClick={() => requestSort('trend')}>
                                     <div className="th-content">
                                         <span>Trend <SortIndicator columnKey="trend" /></span>
@@ -1879,6 +1919,18 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                     </td>}
                                     {visibleColumns['yoyQuarterlySalesGrowth'] && <td className="text-right" style={{ color: (item as any).yoyQuarterlySalesGrowth !== null ? ((item as any).yoyQuarterlySalesGrowth >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>
                                         {(item as any).yoyQuarterlySalesGrowth !== null && (item as any).yoyQuarterlySalesGrowth !== undefined ? `${(item as any).yoyQuarterlySalesGrowth.toFixed(2)}%` : 'N/A'}
+                                    </td>}
+                                    {visibleColumns['dma50ChangePercent'] && <td className="text-right" style={{ color: (item as any).dma50ChangePercent !== null ? ((item as any).dma50ChangePercent >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>
+                                        {(item as any).dma50ChangePercent !== null && (item as any).dma50ChangePercent !== undefined ? `${(item as any).dma50ChangePercent.toFixed(2)}%` : 'N/A'}
+                                    </td>}
+                                    {visibleColumns['dma200ChangePercent'] && <td className="text-right" style={{ color: (item as any).dma200ChangePercent !== null ? ((item as any).dma200ChangePercent >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>
+                                        {(item as any).dma200ChangePercent !== null && (item as any).dma200ChangePercent !== undefined ? `${(item as any).dma200ChangePercent.toFixed(2)}%` : 'N/A'}
+                                    </td>}
+                                    {visibleColumns['downFrom52WeekHigh'] && <td className="text-right">
+                                        {(item as any).downFrom52WeekHigh !== null && (item as any).downFrom52WeekHigh !== undefined ? `${(item as any).downFrom52WeekHigh.toFixed(2)}%` : 'N/A'}
+                                    </td>}
+                                    {visibleColumns['upFrom52WeekLow'] && <td className="text-right">
+                                        {(item as any).upFrom52WeekLow !== null && (item as any).upFrom52WeekLow !== undefined ? `${(item as any).upFrom52WeekLow.toFixed(2)}%` : 'N/A'}
                                     </td>}
                                     {visibleColumns['trend'] && <td className="trend-cell">
                                         {(item as any).trend ? (
