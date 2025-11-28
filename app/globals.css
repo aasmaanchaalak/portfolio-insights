@@ -1940,3 +1940,166 @@ a:hover {
     font-size: 1.25rem;
   }
 }
+
+/* Sector Rotation Styles */
+.sector-rotation-container {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: 1fr;
+}
+
+.rotation-curve-card {
+  grid-column: 1 / -1;
+}
+
+.rotation-curve-container {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.rotation-curve-svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.rotation-legend {
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.empty-chart-state {
+  padding: 3rem;
+  text-align: center;
+  color: var(--secondary-text-color);
+  background-color: var(--surface-color);
+  border-radius: 8px;
+  border: 2px dashed var(--border-color);
+}
+
+/* Valuation Heatmap Styles */
+.valuation-heatmap-card {
+  grid-column: 1 / -1;
+}
+
+.valuation-heatmap {
+  margin-top: 1rem;
+}
+
+.heatmap-info {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background-color: var(--surface-color);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.heatmap-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--surface-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.heatmap-table thead {
+  background-color: var(--border-color);
+}
+
+.heatmap-table th {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.heatmap-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.heatmap-table tbody tr:hover {
+  background-color: var(--background-color);
+}
+
+.industry-name-cell {
+  font-weight: 500;
+}
+
+.pe-cell {
+  border-radius: 4px;
+  color: white !important;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.valuation-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.valuation-badge.expensive {
+  background-color: #FF6B6B;
+  color: white;
+}
+
+.valuation-badge.cheap {
+  background-color: #51CF66;
+  color: white;
+}
+
+.valuation-badge.neutral {
+  background-color: #FFA500;
+  color: white;
+}
+
+.heatmap-legend {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: var(--surface-color);
+  border-radius: 6px;
+  border-left: 4px solid var(--accent-color);
+}
+
+.heatmap-legend p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-color);
+}
+
+/* Responsive Design for Sector Rotation */
+@media (max-width: 768px) {
+  .rotation-curve-svg {
+    width: 100%;
+    height: auto;
+  }
+
+  .heatmap-table {
+    font-size: 0.875rem;
+  }
+
+  .heatmap-table th,
+  .heatmap-table td {
+    padding: 0.5rem;
+  }
+
+  .valuation-badge {
+    font-size: 0.65rem;
+    padding: 0.2rem 0.5rem;
+  }
+
+  .rotation-legend {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}

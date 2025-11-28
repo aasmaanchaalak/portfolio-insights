@@ -2043,7 +2043,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
 
 
 const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = ({ gridKeyData, stocks }) => {
-    const [selectedChart, setSelectedChart] = useState<'allocation' | 'performance' | 'growth' | 'sectors'>('allocation');
+    const [selectedChart, setSelectedChart] = useState<'allocation' | 'performance' | 'growth' | 'sectors' | 'rotation'>('allocation');
 
     // Enrich gridKey data with stock information
     const enrichedData = useMemo(() => {
@@ -2283,6 +2283,290 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
         );
     };
 
+    // Sector Rotation View
+    const SectorRotationView = () => {
+        // Calculate industry-level metrics by matching stocks with enriched data
+        const industryMetrics: Record<string, {
+            count: number;
+            return1M: number[];
+            return3M: number[];
+            return6M: number[];
+            pe: number[];
+        }> = {};
+
+        enrichedData.forEach(item => {
+            const matchedStock = stocks.find(stock => {
+                if (item.nseCode && stock.nseCode) {
+                    return item.nseCode.toLowerCase() === stock.nseCode.toLowerCase();
+                }
+                if (item.bseCode && stock.bseCode) {
+                    return item.bseCode.toLowerCase() === stock.bseCode.toLowerCase();
+                }
+                return false;
+            });
+
+            if (!matchedStock) return;
+
+            const industry = matchedStock.industry || 'Unknown';
+
+            if (!industryMetrics[industry]) {
+                industryMetrics[industry] = {
+                    count: 0,
+                    return1M: [],
+                    return3M: [],
+                    return6M: [],
+                    pe: []
+                };
+            }
+
+            industryMetrics[industry].count++;
+            if (matchedStock.return1M !== null) industryMetrics[industry].return1M.push(matchedStock.return1M);
+            if (matchedStock.return3M !== null) industryMetrics[industry].return3M.push(matchedStock.return3M);
+            if (matchedStock.return6M !== null) industryMetrics[industry].return6M.push(matchedStock.return6M);
+            if (matchedStock.priceToEarning !== null) industryMetrics[industry].pe.push(matchedStock.priceToEarning);
+        });
+
+        // Calculate averages
+        const industryData = Object.entries(industryMetrics)
+            .map(([industry, metrics]) => {
+                const avgReturn1M = metrics.return1M.length > 0
+                    ? metrics.return1M.reduce((sum, val) => sum + val, 0) / metrics.return1M.length
+                    : null;
+                const avgReturn3M = metrics.return3M.length > 0
+                    ? metrics.return3M.reduce((sum, val) => sum + val, 0) / metrics.return3M.length
+                    : null;
+                const avgReturn6M = metrics.return6M.length > 0
+                    ? metrics.return6M.reduce((sum, val) => sum + val, 0) / metrics.return6M.length
+                    : null;
+                const avgPE = metrics.pe.length > 0
+                    ? metrics.pe.reduce((sum, val) => sum + val, 0) / metrics.pe.length
+                    : null;
+
+                return {
+                    industry,
+                    avgReturn1M,
+                    avgReturn3M,
+                    avgReturn6M,
+                    avgPE,
+                    count: metrics.count
+                };
+            })
+            .filter(d => d.avgReturn1M !== null && d.avgReturn6M !== null);
+
+        // Sector Rotation Curve
+        const RotationCurve = () => {
+            if (industryData.length === 0) {
+                return (
+                    <div className="chart-card">
+                        <h3>Sector Rotation Curve</h3>
+                        <p className="chart-subtitle">1-Month vs 6-Month returns by industry</p>
+                        <div className="empty-chart-state">
+                            <p>No data available with both 1-month and 6-month returns.</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            const svgWidth = 700;
+            const svgHeight = 400;
+            const padding = 60;
+            const chartWidth = svgWidth - 2 * padding;
+            const chartHeight = svgHeight - 2 * padding;
+
+            const allReturns1M = industryData.map(d => d.avgReturn1M!);
+            const allReturns6M = industryData.map(d => d.avgReturn6M!);
+
+            const minX = Math.min(...allReturns6M, 0);
+            const maxX = Math.max(...allReturns6M, 0);
+            const minY = Math.min(...allReturns1M, 0);
+            const maxY = Math.max(...allReturns1M, 0);
+
+            const xRange = maxX - minX;
+            const yRange = maxY - minY;
+
+            const scaleX = (val: number) => padding + ((val - minX) / xRange) * chartWidth;
+            const scaleY = (val: number) => svgHeight - padding - ((val - minY) / yRange) * chartHeight;
+
+            // Create path through all points
+            const pathPoints = industryData.map((d, i) => {
+                const x = scaleX(d.avgReturn6M!);
+                const y = scaleY(d.avgReturn1M!);
+                return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
+            }).join(' ');
+
+            return (
+                <div className="chart-card rotation-curve-card">
+                    <h3>Sector Rotation Curve</h3>
+                    <p className="chart-subtitle">Identifies sectors heating up (top-right) vs cooling down (bottom-left)</p>
+                    <div className="rotation-curve-container">
+                        <svg width={svgWidth} height={svgHeight} className="rotation-curve-svg">
+                            {/* Grid lines */}
+                            <line x1={padding} y1={scaleY(0)} x2={svgWidth - padding} y2={scaleY(0)} stroke="var(--border-color)" strokeWidth="1" />
+                            <line x1={scaleX(0)} y1={padding} x2={scaleX(0)} y2={svgHeight - padding} stroke="var(--border-color)" strokeWidth="1" />
+
+                            {/* Quadrant labels */}
+                            <text x={svgWidth - padding - 80} y={padding + 20} fontSize="11" fill="var(--secondary-text-color)" fontStyle="italic">
+                                Heating Up
+                            </text>
+                            <text x={padding + 10} y={svgHeight - padding - 10} fontSize="11" fill="var(--secondary-text-color)" fontStyle="italic">
+                                Cooling Down
+                            </text>
+
+                            {/* Connecting line */}
+                            <path d={pathPoints} stroke="var(--accent-color)" strokeWidth="2" fill="none" opacity="0.3" />
+
+                            {/* Plot points */}
+                            {industryData.map((d, i) => {
+                                const x = scaleX(d.avgReturn6M!);
+                                const y = scaleY(d.avgReturn1M!);
+                                const color = d.avgReturn1M! > d.avgReturn6M! ? 'var(--success-color)' : 'var(--error-color)';
+
+                                return (
+                                    <g key={i}>
+                                        <circle cx={x} cy={y} r="6" fill={color} opacity="0.8" />
+                                        <text x={x + 10} y={y + 4} fontSize="10" fill="var(--text-color)">
+                                            {d.industry.length > 15 ? d.industry.substring(0, 15) + '...' : d.industry}
+                                        </text>
+                                    </g>
+                                );
+                            })}
+
+                            {/* Axes labels */}
+                            <text x={svgWidth / 2} y={svgHeight - 10} fontSize="12" fill="var(--text-color)" textAnchor="middle" fontWeight="600">
+                                6-Month Return (%)
+                            </text>
+                            <text x={20} y={svgHeight / 2} fontSize="12" fill="var(--text-color)" textAnchor="middle" transform={`rotate(-90 20 ${svgHeight / 2})`} fontWeight="600">
+                                1-Month Return (%)
+                            </text>
+
+                            {/* Axis tick labels */}
+                            <text x={scaleX(minX)} y={svgHeight - padding + 20} fontSize="10" fill="var(--secondary-text-color)" textAnchor="middle">
+                                {minX.toFixed(1)}
+                            </text>
+                            <text x={scaleX(0)} y={svgHeight - padding + 20} fontSize="10" fill="var(--secondary-text-color)" textAnchor="middle">
+                                0
+                            </text>
+                            <text x={scaleX(maxX)} y={svgHeight - padding + 20} fontSize="10" fill="var(--secondary-text-color)" textAnchor="middle">
+                                {maxX.toFixed(1)}
+                            </text>
+
+                            <text x={padding - 10} y={scaleY(minY)} fontSize="10" fill="var(--secondary-text-color)" textAnchor="end">
+                                {minY.toFixed(1)}
+                            </text>
+                            <text x={padding - 10} y={scaleY(0)} fontSize="10" fill="var(--secondary-text-color)" textAnchor="end">
+                                0
+                            </text>
+                            <text x={padding - 10} y={scaleY(maxY)} fontSize="10" fill="var(--secondary-text-color)" textAnchor="end">
+                                {maxY.toFixed(1)}
+                            </text>
+                        </svg>
+                        <div className="rotation-legend">
+                            <div className="legend-item">
+                                <span className="legend-color" style={{ backgroundColor: 'var(--success-color)' }}></span>
+                                <span>Accelerating (1M &gt; 6M)</span>
+                            </div>
+                            <div className="legend-item">
+                                <span className="legend-color" style={{ backgroundColor: 'var(--error-color)' }}></span>
+                                <span>Decelerating (1M &lt; 6M)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Industry Valuation Heatmap
+        const ValuationHeatmap = () => {
+            const industriesWithPE = industryData.filter(d => d.avgPE !== null);
+
+            if (industriesWithPE.length === 0) {
+                return (
+                    <div className="chart-card">
+                        <h3>Industry Valuation Heatmap</h3>
+                        <p className="chart-subtitle">Average P/E ratio by industry</p>
+                        <div className="empty-chart-state">
+                            <p>No P/E data available for industries.</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            const sortedIndustries = [...industriesWithPE].sort((a, b) => (b.avgPE! - a.avgPE!));
+            const avgMarketPE = industriesWithPE.reduce((sum, d) => sum + d.avgPE!, 0) / industriesWithPE.length;
+            const maxPE = Math.max(...industriesWithPE.map(d => d.avgPE!));
+            const minPE = Math.min(...industriesWithPE.map(d => d.avgPE!));
+
+            return (
+                <div className="chart-card valuation-heatmap-card">
+                    <h3>Industry Valuation Heatmap</h3>
+                    <p className="chart-subtitle">P/E comparison - identify overvalued vs undervalued sectors</p>
+                    <div className="valuation-heatmap">
+                        <div className="heatmap-info">
+                            <span><strong>Market Avg P/E:</strong> {avgMarketPE.toFixed(2)}</span>
+                        </div>
+                        <table className="heatmap-table">
+                            <thead>
+                                <tr>
+                                    <th>Industry</th>
+                                    <th>Stocks</th>
+                                    <th>Avg P/E</th>
+                                    <th>vs Market</th>
+                                    <th>Valuation Signal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sortedIndustries.map((d, index) => {
+                                    const vsMarket = ((d.avgPE! - avgMarketPE) / avgMarketPE) * 100;
+                                    const isExpensive = d.avgPE! > avgMarketPE * 1.2;
+                                    const isCheap = d.avgPE! < avgMarketPE * 0.8;
+
+                                    let peColor = '#FFA500'; // Neutral
+                                    let intensity = 0.3;
+
+                                    if (isExpensive) {
+                                        peColor = '#FF6B6B';
+                                        intensity = Math.min(0.9, 0.3 + (d.avgPE! - avgMarketPE) / maxPE);
+                                    } else if (isCheap) {
+                                        peColor = '#51CF66';
+                                        intensity = Math.min(0.9, 0.3 + (avgMarketPE - d.avgPE!) / avgMarketPE);
+                                    }
+
+                                    return (
+                                        <tr key={index}>
+                                            <td className="industry-name-cell">{d.industry}</td>
+                                            <td className="text-center">{d.count}</td>
+                                            <td className="text-center pe-cell" style={{ backgroundColor: peColor, opacity: intensity, fontWeight: 600 }}>
+                                                {d.avgPE!.toFixed(2)}
+                                            </td>
+                                            <td className="text-center" style={{ color: vsMarket >= 0 ? 'var(--error-color)' : 'var(--success-color)', fontWeight: 600 }}>
+                                                {vsMarket >= 0 ? '+' : ''}{vsMarket.toFixed(1)}%
+                                            </td>
+                                            <td className="text-center">
+                                                {isExpensive && <span className="valuation-badge expensive">Expensive</span>}
+                                                {isCheap && <span className="valuation-badge cheap">Cheap</span>}
+                                                {!isExpensive && !isCheap && <span className="valuation-badge neutral">Fair</span>}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                        <div className="heatmap-legend">
+                            <p><strong>Decision Utility:</strong> High 1M returns + Low P/E = Money rotating into undervalued sector (opportunity to increase weightage)</p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        return (
+            <div className="sector-rotation-container">
+                <RotationCurve />
+                <ValuationHeatmap />
+            </div>
+        );
+    };
+
     if (gridKeyData.length === 0 || stocks.length === 0) {
         return (
             <div className="analysis-page">
@@ -2309,6 +2593,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                 <button className={selectedChart === 'performance' ? 'active' : ''} onClick={() => setSelectedChart('performance')}>Performance</button>
                 <button className={selectedChart === 'growth' ? 'active' : ''} onClick={() => setSelectedChart('growth')}>Growth Metrics</button>
                 <button className={selectedChart === 'sectors' ? 'active' : ''} onClick={() => setSelectedChart('sectors')}>Sectors</button>
+                <button className={selectedChart === 'rotation' ? 'active' : ''} onClick={() => setSelectedChart('rotation')}>Sector Rotation</button>
             </div>
 
             <div className="charts-container">
@@ -2316,6 +2601,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                 {selectedChart === 'performance' && <PerformanceChart />}
                 {selectedChart === 'growth' && <GrowthChart />}
                 {selectedChart === 'sectors' && <SectorChart />}
+                {selectedChart === 'rotation' && <SectorRotationView />}
             </div>
         </div>
     );
