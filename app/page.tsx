@@ -1069,11 +1069,15 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
                     };
                 });
 
-                // Filter out stocks with no BSE or NSE code
-                const filtered = data.filter(item => item.bseCode || item.nseCode);
+                // Filter out stocks with no BSE or NSE code, and stocks with only 1 share
+                const filtered = data.filter(item =>
+                    (item.bseCode || item.nseCode) &&
+                    item.quantity !== null &&
+                    item.quantity > 1
+                );
 
                 onGridKeyUploaded(filtered);
-                setStatus(`GridKey data uploaded successfully! ${filtered.length} stocks processed. View Portfolio View to see current amounts.`);
+                setStatus(`GridKey data uploaded successfully! ${filtered.length} stocks processed (1-share holdings excluded). View Portfolio View to see current amounts.`);
                 setError('');
             } catch (e: any) {
                 setError(`Error parsing file: ${e.message}`);
