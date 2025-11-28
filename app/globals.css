@@ -1669,3 +1669,274 @@ a:hover {
 .apply-filter-btn:hover {
   opacity: 0.9;
 }
+
+/* Trend & Momentum Dashboard Styles */
+.trend-momentum-page {
+  padding: 2rem;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.page-header {
+  margin-bottom: 2rem;
+}
+
+.page-header h2 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-color);
+}
+
+.page-description {
+  color: var(--secondary-text-color);
+  font-size: 1rem;
+}
+
+.dashboard-grid {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: 1fr;
+}
+
+.empty-state {
+  background-color: var(--surface-color);
+  border: 2px dashed var(--border-color);
+  border-radius: 12px;
+  padding: 3rem;
+  text-align: center;
+  color: var(--secondary-text-color);
+}
+
+/* Trend Matrix Styles */
+.trend-matrix-card {
+  grid-column: 1 / -1;
+}
+
+.chart-subtitle {
+  color: var(--secondary-text-color);
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.trend-matrix-table-container {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.trend-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--surface-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.trend-matrix-table thead {
+  background-color: var(--border-color);
+}
+
+.trend-matrix-table th {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.trend-matrix-table .th-subtitle {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--secondary-text-color);
+  display: block;
+  margin-top: 0.25rem;
+}
+
+.trend-matrix-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.trend-matrix-table tbody tr:hover {
+  background-color: var(--background-color);
+}
+
+.traffic-light-cell {
+  text-align: center;
+}
+
+.traffic-light {
+  font-size: 1.5rem;
+  display: inline-block;
+}
+
+.traffic-light.green {
+  color: var(--success-color);
+}
+
+.traffic-light.red {
+  color: var(--error-color);
+}
+
+.overall-signal-cell {
+  text-align: center;
+}
+
+.signal-badge {
+  display: inline-block;
+  padding: 0.375rem 0.875rem;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: white;
+  text-align: center;
+}
+
+/* Momentum Chart Styles */
+.momentum-chart-card {
+  grid-column: 1 / -1;
+}
+
+.momentum-bars {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.momentum-bar-item {
+  margin-bottom: 0.75rem;
+}
+
+.momentum-bar-container {
+  position: relative;
+  min-height: 28px;
+}
+
+.momentum-bar-fill {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 0.5rem;
+  min-width: 60px;
+  transition: width 0.3s ease;
+}
+
+.bar-value {
+  color: white;
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Proximity Gauge Styles */
+.proximity-gauge-card {
+  grid-column: 1 / -1;
+}
+
+.proximity-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background-color: var(--surface-color);
+  border-radius: 8px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.proximity-table-container {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.proximity-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--surface-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.proximity-table thead {
+  background-color: var(--border-color);
+}
+
+.proximity-table th {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.proximity-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.proximity-table tbody tr:hover {
+  background-color: var(--background-color);
+}
+
+.zone-badge {
+  display: inline-block;
+  padding: 0.375rem 0.875rem;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: white;
+  text-align: center;
+}
+
+.stock-name-cell {
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+/* Responsive Design for Trend & Momentum Page */
+@media (max-width: 768px) {
+  .trend-momentum-page {
+    padding: 1rem;
+  }
+
+  .page-header h2 {
+    font-size: 1.5rem;
+  }
+
+  .dashboard-grid {
+    gap: 1.5rem;
+  }
+
+  .trend-matrix-table th,
+  .trend-matrix-table td,
+  .proximity-table th,
+  .proximity-table td {
+    padding: 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  .signal-badge,
+  .zone-badge {
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+  }
+
+  .proximity-legend {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .traffic-light {
+    font-size: 1.25rem;
+  }
+}

@@ -2307,8 +2307,305 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
 };
 
 
+const TrendMomentumPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = ({ gridKeyData, stocks }) => {
+    // Enrich gridKey data with stock information and calculate trend indicators
+    const enrichedData = useMemo(() => {
+        return gridKeyData.map(item => {
+            const matchedStock = stocks.find(stock => {
+                if (item.nseCode && stock.nseCode) {
+                    return item.nseCode.toLowerCase() === stock.nseCode.toLowerCase();
+                }
+                if (item.bseCode && stock.bseCode) {
+                    return item.bseCode.toLowerCase() === stock.bseCode.toLowerCase();
+                }
+                return false;
+            });
+
+            const currentPrice = matchedStock?.currentPrice || null;
+            const dma50 = matchedStock?.dma50 || null;
+            const dma200 = matchedStock?.dma200 || null;
+            const return1M = matchedStock?.return1M || null;
+            const return3M = matchedStock?.return3M || null;
+            const return1Y = matchedStock?.return1Y || null;
+
+            // Calculate trend signals
+            const priceAboveDMA50 = currentPrice !== null && dma50 !== null ? currentPrice > dma50 : null;
+            const priceAboveDMA200 = currentPrice !== null && dma200 !== null ? currentPrice > dma200 : null;
+            const goldenCross = dma50 !== null && dma200 !== null ? dma50 > dma200 : null;
+
+            // Calculate DMA 50 proximity percentage
+            const dma50Proximity = currentPrice !== null && dma50 !== null && dma50 !== 0
+                ? ((currentPrice - dma50) / dma50) * 100
+                : null;
+
+            // Determine action zone based on DMA 50 proximity
+            let actionZone = 'N/A';
+            if (dma50Proximity !== null) {
+                if (dma50Proximity < 0) {
+                    actionZone = 'Below DMA 50';
+                } else if (dma50Proximity >= 0 && dma50Proximity <= 5) {
+                    actionZone = 'Buy on Dip';
+                } else if (dma50Proximity > 5 && dma50Proximity <= 30) {
+                    actionZone = 'Normal Range';
+                } else {
+                    actionZone = 'Overextended';
+                }
+            }
+
+            return {
+                ...item,
+                currentPrice,
+                dma50,
+                dma200,
+                return1M,
+                return3M,
+                return1Y,
+                priceAboveDMA50,
+                priceAboveDMA200,
+                goldenCross,
+                dma50Proximity,
+                actionZone
+            };
+        });
+    }, [gridKeyData, stocks]);
+
+    // Filter out items with missing critical data for better visualization
+    const validData = enrichedData.filter(item =>
+        (item as any).currentPrice !== null &&
+        (item as any).dma50 !== null &&
+        (item as any).dma200 !== null
+    );
+
+    // Trend Matrix Component
+    const TrendMatrix = () => {
+        return (
+            <div className="chart-card trend-matrix-card">
+                <h3>Trend Matrix (Technical Signals)</h3>
+                <p className="chart-subtitle">Traffic light indicators for trend strength</p>
+                <div className="trend-matrix-table-container">
+                    <table className="trend-matrix-table">
+                        <thead>
+                            <tr>
+                                <th>Stock</th>
+                                <th>Price &gt; DMA 50<br/><span className="th-subtitle">(Short Term)</span></th>
+                                <th>Price &gt; DMA 200<br/><span className="th-subtitle">(Long Term)</span></th>
+                                <th>DMA 50 &gt; DMA 200<br/><span className="th-subtitle">(Golden Cross)</span></th>
+                                <th>Overall Signal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {validData.map((item, index) => {
+                                const bullishSignals = [
+                                    (item as any).priceAboveDMA50,
+                                    (item as any).priceAboveDMA200,
+                                    (item as any).goldenCross
+                                ].filter(signal => signal === true).length;
+
+                                let overallSignal = 'Bearish';
+                                let overallColor = 'var(--error-color)';
+                                if (bullishSignals === 3) {
+                                    overallSignal = 'Strong Bullish';
+                                    overallColor = 'var(--success-color)';
+                                } else if (bullishSignals === 2) {
+                                    overallSignal = 'Bullish';
+                                    overallColor = '#90EE90';
+                                } else if (bullishSignals === 1) {
+                                    overallSignal = 'Neutral';
+                                    overallColor = '#FFA500';
+                                }
+
+                                return (
+                                    <tr key={index}>
+                                        <td className="stock-name-cell">{item.scripName}</td>
+                                        <td className="traffic-light-cell">
+                                            <span className={`traffic-light ${(item as any).priceAboveDMA50 ? 'green' : 'red'}`}>
+                                                {(item as any).priceAboveDMA50 ? '●' : '●'}
+                                            </span>
+                                        </td>
+                                        <td className="traffic-light-cell">
+                                            <span className={`traffic-light ${(item as any).priceAboveDMA200 ? 'green' : 'red'}`}>
+                                                {(item as any).priceAboveDMA200 ? '●' : '●'}
+                                            </span>
+                                        </td>
+                                        <td className="traffic-light-cell">
+                                            <span className={`traffic-light ${(item as any).goldenCross ? 'green' : 'red'}`}>
+                                                {(item as any).goldenCross ? '●' : '●'}
+                                            </span>
+                                        </td>
+                                        <td className="overall-signal-cell">
+                                            <span className="signal-badge" style={{ backgroundColor: overallColor }}>
+                                                {overallSignal}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
+
+    // Momentum Bar Chart Component
+    const MomentumChart = () => {
+        const sortedByReturn3M = [...validData]
+            .filter(item => (item as any).return3M !== null)
+            .sort((a, b) => ((b as any).return3M || 0) - ((a as any).return3M || 0))
+            .slice(0, 15); // Top 15
+
+        const maxReturn = Math.max(...sortedByReturn3M.map(item => Math.abs((item as any).return3M || 0)));
+
+        return (
+            <div className="chart-card momentum-chart-card">
+                <h3>Momentum Leaders (3-Month Returns)</h3>
+                <p className="chart-subtitle">Top performers leading the rally</p>
+                <div className="bar-chart momentum-bars">
+                    {sortedByReturn3M.map((item, index) => {
+                        const returnValue = (item as any).return3M || 0;
+                        const isPositive = returnValue >= 0;
+                        const barWidth = (Math.abs(returnValue) / maxReturn) * 100;
+
+                        return (
+                            <div key={index} className="bar-item momentum-bar-item">
+                                <div className="bar-label">{item.scripName}</div>
+                                <div className="bar-container momentum-bar-container">
+                                    <div
+                                        className="bar-fill momentum-bar-fill"
+                                        style={{
+                                            width: `${barWidth}%`,
+                                            backgroundColor: isPositive ? 'var(--success-color)' : 'var(--error-color)'
+                                        }}
+                                    >
+                                        <span className="bar-value">{returnValue.toFixed(2)}%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
+
+    // Moving Average Proximity Gauge Component
+    const ProximityGauge = () => {
+        const gaugeData = validData
+            .filter(item => (item as any).dma50Proximity !== null)
+            .map(item => ({
+                name: item.scripName,
+                proximity: (item as any).dma50Proximity,
+                actionZone: (item as any).actionZone,
+                currentPrice: (item as any).currentPrice,
+                dma50: (item as any).dma50
+            }))
+            .sort((a, b) => a.proximity - b.proximity);
+
+        return (
+            <div className="chart-card proximity-gauge-card">
+                <h3>Moving Average Proximity Gauge</h3>
+                <p className="chart-subtitle">Distance from DMA 50 - Trading opportunity zones</p>
+                <div className="proximity-legend">
+                    <div className="legend-item">
+                        <span className="legend-color" style={{ backgroundColor: 'var(--error-color)' }}></span>
+                        <span>Below DMA 50 (Falling Knife)</span>
+                    </div>
+                    <div className="legend-item">
+                        <span className="legend-color" style={{ backgroundColor: '#4CAF50' }}></span>
+                        <span>0-5% Above (Buy on Dip)</span>
+                    </div>
+                    <div className="legend-item">
+                        <span className="legend-color" style={{ backgroundColor: '#2196F3' }}></span>
+                        <span>5-30% Above (Normal Range)</span>
+                    </div>
+                    <div className="legend-item">
+                        <span className="legend-color" style={{ backgroundColor: '#FFA500' }}></span>
+                        <span>&gt;30% Above (Overextended)</span>
+                    </div>
+                </div>
+                <div className="proximity-table-container">
+                    <table className="proximity-table">
+                        <thead>
+                            <tr>
+                                <th>Stock</th>
+                                <th>Current Price</th>
+                                <th>DMA 50</th>
+                                <th>Distance %</th>
+                                <th>Action Zone</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {gaugeData.map((item, index) => {
+                                let zoneColor = '#2196F3'; // Normal Range
+                                if (item.proximity < 0) {
+                                    zoneColor = 'var(--error-color)'; // Below
+                                } else if (item.proximity <= 5) {
+                                    zoneColor = '#4CAF50'; // Buy on Dip
+                                } else if (item.proximity > 30) {
+                                    zoneColor = '#FFA500'; // Overextended
+                                }
+
+                                return (
+                                    <tr key={index}>
+                                        <td className="stock-name-cell">{item.name}</td>
+                                        <td className="text-right">₹{item.currentPrice.toFixed(2)}</td>
+                                        <td className="text-right">₹{item.dma50.toFixed(2)}</td>
+                                        <td className="text-right" style={{
+                                            color: item.proximity >= 0 ? 'var(--success-color)' : 'var(--error-color)',
+                                            fontWeight: 600
+                                        }}>
+                                            {item.proximity.toFixed(2)}%
+                                        </td>
+                                        <td>
+                                            <span className="zone-badge" style={{ backgroundColor: zoneColor }}>
+                                                {item.actionZone}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
+
+    if (validData.length === 0) {
+        return (
+            <div className="trend-momentum-page">
+                <div className="page-header">
+                    <h2>Trend & Momentum Dashboard</h2>
+                    <p className="page-description">Technical analysis for entry and exit decisions</p>
+                </div>
+                <div className="empty-state">
+                    <p>No data available. Please ensure your portfolio has DMA 50 and DMA 200 values.</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="trend-momentum-page">
+            <div className="page-header">
+                <h2>Trend & Momentum Dashboard</h2>
+                <p className="page-description">
+                    Technical analysis to identify entry/exit opportunities based on moving averages and momentum
+                </p>
+            </div>
+
+            <div className="dashboard-grid">
+                <TrendMatrix />
+                <MomentumChart />
+                <ProximityGauge />
+            </div>
+        </div>
+    );
+};
+
+
 const App: React.FC = () => {
-    const [page, setPage] = useState<'insights' | 'upload' | 'gridkey' | 'analysis'>('insights');
+    const [page, setPage] = useState<'insights' | 'upload' | 'gridkey' | 'analysis' | 'momentum'>('insights');
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [loading, setLoading] = useState(true);
@@ -2465,12 +2762,14 @@ const App: React.FC = () => {
             <nav className="main-nav">
                 <button className={page === 'insights' ? 'active' : ''} onClick={() => setPage('insights')}>Portfolio Insights</button>
                 <button className={page === 'analysis' ? 'active' : ''} onClick={() => setPage('analysis')}>Analysis</button>
+                <button className={page === 'momentum' ? 'active' : ''} onClick={() => setPage('momentum')}>Trend & Momentum</button>
                 <button className={page === 'upload' ? 'active' : ''} onClick={() => setPage('upload')}>Screener Data</button>
                 <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>
             </nav>
             <main>
                 {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={stocks} onStocksUpdate={setStocks} />}
                 {page === 'analysis' && <AnalysisPage gridKeyData={gridKeyData} stocks={stocks} />}
+                {page === 'momentum' && <TrendMomentumPage gridKeyData={gridKeyData} stocks={stocks} />}
                 {page === 'upload' && <UploadPage onDataUploaded={handleDataUploaded} />}
                 {page === 'gridkey' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}
             </main>
