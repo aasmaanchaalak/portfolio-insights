@@ -2292,6 +2292,9 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
             return3M: number[];
             return6M: number[];
             pe: number[];
+            allocations: number[];
+            peWeightedSum: number;
+            totalAllocation: number;
         }> = {};
 
         enrichedData.forEach(item => {
@@ -2308,6 +2311,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
             if (!matchedStock) return;
 
             const industry = matchedStock.industry || 'Unknown';
+            const allocation = (item as any).calculatedAmount || 0;
 
             if (!industryMetrics[industry]) {
                 industryMetrics[industry] = {
@@ -2315,15 +2319,24 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                     return1M: [],
                     return3M: [],
                     return6M: [],
-                    pe: []
+                    pe: [],
+                    allocations: [],
+                    peWeightedSum: 0,
+                    totalAllocation: 0
                 };
             }
 
             industryMetrics[industry].count++;
+            industryMetrics[industry].totalAllocation += allocation;
+
             if (matchedStock.return1M !== null) industryMetrics[industry].return1M.push(matchedStock.return1M);
             if (matchedStock.return3M !== null) industryMetrics[industry].return3M.push(matchedStock.return3M);
             if (matchedStock.return6M !== null) industryMetrics[industry].return6M.push(matchedStock.return6M);
-            if (matchedStock.priceToEarning !== null) industryMetrics[industry].pe.push(matchedStock.priceToEarning);
+
+            if (matchedStock.priceToEarning !== null && allocation > 0) {
+                industryMetrics[industry].pe.push(matchedStock.priceToEarning);
+                industryMetrics[industry].peWeightedSum += matchedStock.priceToEarning * allocation;
+            }
         });
 
         // Calculate averages
@@ -2338,8 +2351,10 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                 const avgReturn6M = metrics.return6M.length > 0
                     ? metrics.return6M.reduce((sum, val) => sum + val, 0) / metrics.return6M.length
                     : null;
-                const avgPE = metrics.pe.length > 0
-                    ? metrics.pe.reduce((sum, val) => sum + val, 0) / metrics.pe.length
+
+                // Weighted average P/E by allocation
+                const avgPE = metrics.totalAllocation > 0 && metrics.peWeightedSum > 0
+                    ? metrics.peWeightedSum / metrics.totalAllocation
                     : null;
 
                 return {
@@ -2348,7 +2363,8 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                     avgReturn3M,
                     avgReturn6M,
                     avgPE,
-                    count: metrics.count
+                    count: metrics.count,
+                    allocation: metrics.totalAllocation
                 };
             })
             .filter(d => d.avgReturn1M !== null && d.avgReturn6M !== null);
@@ -2492,9 +2508,14 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
             }
 
             const sortedIndustries = [...industriesWithPE].sort((a, b) => (b.avgPE! - a.avgPE!));
-            const avgMarketPE = industriesWithPE.reduce((sum, d) => sum + d.avgPE!, 0) / industriesWithPE.length;
+
+            // Calculate portfolio-weighted average P/E
+            const totalPortfolioAllocation = industriesWithPE.reduce((sum, d) => sum + d.allocation, 0);
+            const portfolioWeightedPE = totalPortfolioAllocation > 0
+                ? industriesWithPE.reduce((sum, d) => sum + (d.avgPE! * d.allocation), 0) / totalPortfolioAllocation
+                : industriesWithPE.reduce((sum, d) => sum + d.avgPE!, 0) / industriesWithPE.length;
+
             const maxPE = Math.max(...industriesWithPE.map(d => d.avgPE!));
-            const minPE = Math.min(...industriesWithPE.map(d => d.avgPE!));
 
             return (
                 <div className="chart-card valuation-heatmap-card">
@@ -2502,7 +2523,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                     <p className="chart-subtitle">P/E comparison - identify overvalued vs undervalued sectors</p>
                     <div className="valuation-heatmap">
                         <div className="heatmap-info">
-                            <span><strong>Market Avg P/E:</strong> {avgMarketPE.toFixed(2)}</span>
+                            <span><strong>Portfolio Avg P/E:</strong> {portfolioWeightedPE.toFixed(2)}</span>
                         </div>
                         <table className="heatmap-table">
                             <thead>
@@ -2510,25 +2531,25 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                                     <th>Industry</th>
                                     <th>Stocks</th>
                                     <th>Avg P/E</th>
-                                    <th>vs Market</th>
+                                    <th>vs Portfolio</th>
                                     <th>Valuation Signal</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {sortedIndustries.map((d, index) => {
-                                    const vsMarket = ((d.avgPE! - avgMarketPE) / avgMarketPE) * 100;
-                                    const isExpensive = d.avgPE! > avgMarketPE * 1.2;
-                                    const isCheap = d.avgPE! < avgMarketPE * 0.8;
+                                    const vsPortfolio = ((d.avgPE! - portfolioWeightedPE) / portfolioWeightedPE) * 100;
+                                    const isExpensive = d.avgPE! > portfolioWeightedPE * 1.2;
+                                    const isCheap = d.avgPE! < portfolioWeightedPE * 0.8;
 
                                     let peColor = '#FFA500'; // Neutral
                                     let intensity = 0.3;
 
                                     if (isExpensive) {
                                         peColor = '#FF6B6B';
-                                        intensity = Math.min(0.9, 0.3 + (d.avgPE! - avgMarketPE) / maxPE);
+                                        intensity = Math.min(0.9, 0.3 + (d.avgPE! - portfolioWeightedPE) / maxPE);
                                     } else if (isCheap) {
                                         peColor = '#51CF66';
-                                        intensity = Math.min(0.9, 0.3 + (avgMarketPE - d.avgPE!) / avgMarketPE);
+                                        intensity = Math.min(0.9, 0.3 + (portfolioWeightedPE - d.avgPE!) / portfolioWeightedPE);
                                     }
 
                                     return (
@@ -2538,8 +2559,8 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                                             <td className="text-center pe-cell" style={{ backgroundColor: peColor, opacity: intensity, fontWeight: 600 }}>
                                                 {d.avgPE!.toFixed(2)}
                                             </td>
-                                            <td className="text-center" style={{ color: vsMarket >= 0 ? 'var(--error-color)' : 'var(--success-color)', fontWeight: 600 }}>
-                                                {vsMarket >= 0 ? '+' : ''}{vsMarket.toFixed(1)}%
+                                            <td className="text-center" style={{ color: vsPortfolio >= 0 ? 'var(--error-color)' : 'var(--success-color)', fontWeight: 600 }}>
+                                                {vsPortfolio >= 0 ? '+' : ''}{vsPortfolio.toFixed(1)}%
                                             </td>
                                             <td className="text-center">
                                                 {isExpensive && <span className="valuation-badge expensive">Expensive</span>}
