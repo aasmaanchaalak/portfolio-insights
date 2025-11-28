@@ -218,6 +218,20 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                     'Quarterly profit growth YOY %': 'yoyQuarterlyProfitGrowth',
                     'YOY Quarterly sales growth': 'yoyQuarterlySalesGrowth',
                     'Quarterly sales growth YOY %': 'yoyQuarterlySalesGrowth',
+                    'DMA 50': 'dma50',
+                    '50 DMA': 'dma50',
+                    '50-Day Moving Average': 'dma50',
+                    'DMA 200': 'dma200',
+                    '200 DMA': 'dma200',
+                    '200-Day Moving Average': 'dma200',
+                    'Down from 52w high': 'downFrom52WeekHigh',
+                    'Down from 52 week high': 'downFrom52WeekHigh',
+                    'Down from 52W high': 'downFrom52WeekHigh',
+                    '52-Week High Distance (%)': 'downFrom52WeekHigh',
+                    'Up from 52w low': 'upFrom52WeekLow',
+                    'Up from 52 week low': 'upFrom52WeekLow',
+                    'Up from 52W low': 'upFrom52WeekLow',
+                    '52-Week Low Distance (%)': 'upFrom52WeekLow',
                     'Return over 1day': 'return1D',
                     'Return over 1 Day': 'return1D',
                     'Return over 1 Day (%)': 'return1D',
@@ -267,7 +281,7 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
 
                         let value = values[index] ? values[index].trim() : null;
 
-                        if (['currentPrice', 'priceToEarning', 'yoyQuarterlyProfitGrowth', 'yoyQuarterlySalesGrowth', 'return1D', 'return1M', 'return1W', 'return3M', 'return6M', 'return1Y'].includes(internalKey)) {
+                        if (['currentPrice', 'priceToEarning', 'yoyQuarterlyProfitGrowth', 'yoyQuarterlySalesGrowth', 'dma50', 'dma200', 'downFrom52WeekHigh', 'upFrom52WeekLow', 'return1D', 'return1M', 'return1W', 'return3M', 'return6M', 'return1Y'].includes(internalKey)) {
                              // Remove any commas from numbers (e.g., "1,234.56" -> "1234.56")
                              const cleanValue = value ? value.replace(/,/g, '') : null;
                              (entry as any)[internalKey] = (cleanValue === null || cleanValue === '') ? null : parseFloat(cleanValue);
@@ -309,6 +323,7 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                     <ul>
                         <li>Must be a valid CSV file exported from Screener.in</li>
                         <li>Required columns: <code>Name, BSE Code, NSE Code, Industry Group, Industry, Current Price, Price to Earning, YOY Quarterly profit growth, YOY Quarterly sales growth, Return over 1day, Return over 1week, Return over 1month, Return over 3months, Return over 6months, Return over 1year</code></li>
+                        <li>Optional columns (for Trend & Momentum Dashboard): <code>DMA 50, DMA 200, Down from 52w high, Up from 52w low</code></li>
                         <li>Numeric columns can be empty for N/A values</li>
                     </ul>
                     <h3>What Happens After Upload</h3>
