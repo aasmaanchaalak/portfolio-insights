@@ -2043,7 +2043,24 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
 
 
 const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = ({ gridKeyData, stocks }) => {
-    const [selectedChart, setSelectedChart] = useState<'allocation' | 'performance' | 'growth' | 'sectors' | 'rotation'>('allocation');
+    const [selectedChart, setSelectedChart] = useState<'allocation' | 'performance' | 'growth' | 'sectors' | 'rotation' | 'value'>('allocation');
+    const [portfolioHistory, setPortfolioHistory] = useState<{date: string; value: number; timestamp: number}[]>([]);
+
+    // Load portfolio history
+    useEffect(() => {
+        const loadHistory = async () => {
+            try {
+                const response = await fetch('/api/portfolio-history');
+                if (response.ok) {
+                    const data = await response.json();
+                    setPortfolioHistory(data);
+                }
+            } catch (error) {
+                console.error('Error loading portfolio history:', error);
+            }
+        };
+        loadHistory();
+    }, []);
 
     // Enrich gridKey data with stock information
     const enrichedData = useMemo(() => {
@@ -2588,6 +2605,160 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
         );
     };
 
+    // Portfolio Value Over Time Chart
+    const PortfolioValueChart = () => {
+        if (portfolioHistory.length === 0) {
+            return (
+                <div className="chart-card">
+                    <h3>Portfolio Value Over Time</h3>
+                    <p className="chart-subtitle">Track your portfolio's total value daily</p>
+                    <div className="empty-chart-state">
+                        <p>No historical data available yet. Upload screener or GridKey data to start tracking.</p>
+                    </div>
+                </div>
+            );
+        }
+
+        const svgWidth = 900;
+        const svgHeight = 400;
+        const padding = 60;
+        const chartWidth = svgWidth - 2 * padding;
+        const chartHeight = svgHeight - 2 * padding;
+
+        const values = portfolioHistory.map(h => h.value);
+        const minValue = Math.min(...values);
+        const maxValue = Math.max(...values);
+        const valueRange = maxValue - minValue;
+
+        const scaleX = (index: number) => padding + (index / (portfolioHistory.length - 1)) * chartWidth;
+        const scaleY = (value: number) => {
+            if (valueRange === 0) return svgHeight - padding - chartHeight / 2;
+            return svgHeight - padding - ((value - minValue) / valueRange) * chartHeight;
+        };
+
+        // Create path for line chart
+        const pathData = portfolioHistory.map((entry, index) => {
+            const x = scaleX(index);
+            const y = scaleY(entry.value);
+            return index === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
+        }).join(' ');
+
+        // Calculate percentage change
+        const firstValue = portfolioHistory[0].value;
+        const lastValue = portfolioHistory[portfolioHistory.length - 1].value;
+        const totalChange = lastValue - firstValue;
+        const percentChange = firstValue > 0 ? (totalChange / firstValue) * 100 : 0;
+
+        return (
+            <div className="chart-card portfolio-value-card">
+                <h3>Portfolio Value Over Time</h3>
+                <p className="chart-subtitle">Daily tracking of total portfolio value</p>
+                <div className="value-summary">
+                    <div className="value-stat">
+                        <span className="stat-label">Current Value:</span>
+                        <span className="stat-value">₹{lastValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                    </div>
+                    <div className="value-stat">
+                        <span className="stat-label">Total Change:</span>
+                        <span className="stat-value" style={{ color: totalChange >= 0 ? 'var(--success-color)' : 'var(--error-color)' }}>
+                            {totalChange >= 0 ? '+' : ''}₹{totalChange.toLocaleString('en-IN', { maximumFractionDigits: 0 })} ({percentChange >= 0 ? '+' : ''}{percentChange.toFixed(2)}%)
+                        </span>
+                    </div>
+                    <div className="value-stat">
+                        <span className="stat-label">Days Tracked:</span>
+                        <span className="stat-value">{portfolioHistory.length}</span>
+                    </div>
+                </div>
+                <div className="portfolio-value-chart-container">
+                    <svg width={svgWidth} height={svgHeight} className="portfolio-value-svg">
+                        {/* Grid lines */}
+                        {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
+                            const y = svgHeight - padding - ratio * chartHeight;
+                            const value = minValue + ratio * valueRange;
+                            return (
+                                <g key={i}>
+                                    <line
+                                        x1={padding}
+                                        y1={y}
+                                        x2={svgWidth - padding}
+                                        y2={y}
+                                        stroke="var(--border-color)"
+                                        strokeWidth="1"
+                                        opacity="0.3"
+                                    />
+                                    <text x={padding - 10} y={y + 4} fontSize="10" fill="var(--secondary-text-color)" textAnchor="end">
+                                        {(value / 1000).toFixed(0)}K
+                                    </text>
+                                </g>
+                            );
+                        })}
+
+                        {/* Area under line */}
+                        <path
+                            d={`${pathData} L ${scaleX(portfolioHistory.length - 1)} ${svgHeight - padding} L ${padding} ${svgHeight - padding} Z`}
+                            fill="var(--accent-color)"
+                            opacity="0.1"
+                        />
+
+                        {/* Line chart */}
+                        <path
+                            d={pathData}
+                            stroke="var(--accent-color)"
+                            strokeWidth="3"
+                            fill="none"
+                        />
+
+                        {/* Data points */}
+                        {portfolioHistory.map((entry, index) => {
+                            const x = scaleX(index);
+                            const y = scaleY(entry.value);
+                            return (
+                                <circle
+                                    key={index}
+                                    cx={x}
+                                    cy={y}
+                                    r="4"
+                                    fill="var(--accent-color)"
+                                    stroke="white"
+                                    strokeWidth="2"
+                                />
+                            );
+                        })}
+
+                        {/* Axis labels */}
+                        <text x={svgWidth / 2} y={svgHeight - 10} fontSize="12" fill="var(--text-color)" textAnchor="middle" fontWeight="600">
+                            Date
+                        </text>
+                        <text x={20} y={svgHeight / 2} fontSize="12" fill="var(--text-color)" textAnchor="middle" transform={`rotate(-90 20 ${svgHeight / 2})`} fontWeight="600">
+                            Portfolio Value (₹)
+                        </text>
+
+                        {/* Date labels (show every few points to avoid crowding) */}
+                        {portfolioHistory.map((entry, index) => {
+                            if (portfolioHistory.length <= 10 || index % Math.ceil(portfolioHistory.length / 8) === 0 || index === portfolioHistory.length - 1) {
+                                const x = scaleX(index);
+                                const dateLabel = new Date(entry.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+                                return (
+                                    <text
+                                        key={index}
+                                        x={x}
+                                        y={svgHeight - padding + 20}
+                                        fontSize="10"
+                                        fill="var(--secondary-text-color)"
+                                        textAnchor="middle"
+                                    >
+                                        {dateLabel}
+                                    </text>
+                                );
+                            }
+                            return null;
+                        })}
+                    </svg>
+                </div>
+            </div>
+        );
+    };
+
     if (gridKeyData.length === 0 || stocks.length === 0) {
         return (
             <div className="analysis-page">
@@ -2615,6 +2786,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                 <button className={selectedChart === 'growth' ? 'active' : ''} onClick={() => setSelectedChart('growth')}>Growth Metrics</button>
                 <button className={selectedChart === 'sectors' ? 'active' : ''} onClick={() => setSelectedChart('sectors')}>Sectors</button>
                 <button className={selectedChart === 'rotation' ? 'active' : ''} onClick={() => setSelectedChart('rotation')}>Sector Rotation</button>
+                <button className={selectedChart === 'value' ? 'active' : ''} onClick={() => setSelectedChart('value')}>Portfolio Value</button>
             </div>
 
             <div className="charts-container">
@@ -2623,6 +2795,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                 {selectedChart === 'growth' && <GrowthChart />}
                 {selectedChart === 'sectors' && <SectorChart />}
                 {selectedChart === 'rotation' && <SectorRotationView />}
+                {selectedChart === 'value' && <PortfolioValueChart />}
             </div>
         </div>
     );
@@ -2990,6 +3163,38 @@ const App: React.FC = () => {
         loadData();
     }, []);
 
+    // Helper function to save portfolio value to history
+    const savePortfolioValueToHistory = async () => {
+        try {
+            // Calculate total portfolio value
+            const totalValue = gridKeyData.reduce((sum, item) => {
+                const matchedStock = stocks.find(stock => {
+                    if (item.nseCode && stock.nseCode) {
+                        return item.nseCode.toLowerCase() === stock.nseCode.toLowerCase();
+                    }
+                    if (item.bseCode && stock.bseCode) {
+                        return item.bseCode.toLowerCase() === stock.bseCode.toLowerCase();
+                    }
+                    return false;
+                });
+                const currentPrice = matchedStock?.currentPrice || null;
+                const currentAmount = (item.quantity && currentPrice) ? item.quantity * currentPrice : 0;
+                return sum + currentAmount;
+            }, 0);
+
+            if (totalValue > 0) {
+                await fetch('/api/portfolio-history', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ value: totalValue })
+                });
+            }
+        } catch (error) {
+            console.error('Error saving portfolio history:', error);
+            // Don't fail the upload if history save fails
+        }
+    };
+
     const handleDataUploaded = async (newData: Stock[]) => {
         try {
             // Update via API
@@ -3010,6 +3215,9 @@ const App: React.FC = () => {
             if (getResponse.ok) {
                 const fullData = await getResponse.json();
                 setStocks(fullData);
+
+                // Save portfolio value to history after stocks are updated
+                await savePortfolioValueToHistory();
             } else {
                 setStocks(newData);
             }
@@ -3038,6 +3246,10 @@ const App: React.FC = () => {
             }
 
             setGridKeyData(data);
+
+            // Save portfolio value to history after gridKey is updated
+            await savePortfolioValueToHistory();
+
             setTimeout(() => setPage('insights'), 1000);
         } catch (error) {
             console.error('Error saving GridKey data:', error);

@@ -2103,3 +2103,64 @@ a:hover {
     gap: 0.5rem;
   }
 }
+
+/* Portfolio Value Chart Styles */
+.portfolio-value-card {
+  grid-column: 1 / -1;
+}
+
+.value-summary {
+  display: flex;
+  gap: 2rem;
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background-color: var(--surface-color);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.value-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: var(--secondary-text-color);
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.portfolio-value-chart-container {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+}
+
+.portfolio-value-svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Responsive Design for Portfolio Value Chart */
+@media (max-width: 768px) {
+  .value-summary {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .stat-value {
+    font-size: 1.1rem;
+  }
+
+  .portfolio-value-svg {
+    width: 100%;
+  }
+}
