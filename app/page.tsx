@@ -351,617 +351,6 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
     );
 };
 
-
-const PortfolioTable: React.FC<{ stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void; gridKeyData: GridKeyData[] }> = ({ stocks, onStocksUpdate, gridKeyData }) => {
-    const industries = useMemo(() => ['All', ...Array.from(new Set(stocks.map(s => s.industry).filter(ind => ind !== null))).sort()], [stocks]);
-
-    // Map GridKey data to stocks and calculate current amount from quantity * current price
-    const stocksWithAmounts = useMemo(() => {
-        return stocks.map(stock => {
-            const gridKeyMatch = gridKeyData.find(gk => {
-                if (gk.nseCode && stock.nseCode) {
-                    return gk.nseCode.toLowerCase() === stock.nseCode.toLowerCase();
-                }
-                if (gk.bseCode && stock.bseCode) {
-                    return gk.bseCode.toLowerCase() === stock.bseCode.toLowerCase();
-                }
-                return false;
-            });
-            const quantity = gridKeyMatch?.quantity || null;
-            const calculatedAmount = (quantity && stock.currentPrice) ? quantity * stock.currentPrice : null;
-            return {
-                ...stock,
-                currentAmount: calculatedAmount
-            };
-        });
-    }, [stocks, gridKeyData]);
-
-    // Calculate total portfolio value
-    const totalPortfolioValue = useMemo(() => {
-        return stocksWithAmounts.reduce((total, stock) => {
-            const amount = (stock as any).currentAmount;
-            return total + (amount || 0);
-        }, 0);
-    }, [stocksWithAmounts]);
-
-    // Calculate weightage for each stock
-    const stocksWithWeightage = useMemo(() => {
-        return stocksWithAmounts.map(stock => {
-            const amount = (stock as any).currentAmount;
-            const weightage = totalPortfolioValue > 0 && amount
-                ? (amount / totalPortfolioValue) * 100
-                : null;
-            return {
-                ...stock,
-                weightage
-            };
-        });
-    }, [stocksWithAmounts, totalPortfolioValue]);
-    const [filters, setFilters] = useState({
-        industry: 'All',
-        min1YReturn: '',
-        max1MReturn: '',
-        searchTerm: '',
-        minPrice: '',
-        maxPrice: '',
-        remarksSearch: '',
-        assignedTo: 'All',
-    });
-
-    const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-    const [showFilterPopover, setShowFilterPopover] = useState(false);
-    const [editingRemark, setEditingRemark] = useState<string | null>(null);
-    const [remarkValue, setRemarkValue] = useState<string>('');
-    const [editingAssignment, setEditingAssignment] = useState<string | null>(null);
-    const [deleteConfirmStock, setDeleteConfirmStock] = useState<Stock | null>(null);
-
-    const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
-        key: 'name',
-        direction: 'ascending',
-    });
-
-    const initialVisibleColumns = allToggleableColumns.reduce((acc, col) => {
-        acc[col.key as string] = true;
-        return acc;
-    }, {} as Record<string, boolean>);
-
-    const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(initialVisibleColumns);
-
-    const toggleColumn = (key: string) => {
-        setVisibleColumns(prev => ({ ...prev, [key]: !prev[key] }));
-    };
-
-    const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
-        setFilters(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleRemarkEdit = (stockName: string, currentRemark: string | null | undefined) => {
-        setEditingRemark(stockName);
-        setRemarkValue(currentRemark || '');
-    };
-
-    const handleRemarkSave = async (stock: Stock) => {
-        const code = stock.nseCode || stock.bseCode;
-        if (!code) return;
-
-        try {
-            const response = await fetch('/api/remarks', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, remark: remarkValue })
-            });
-
-            if (response.ok) {
-                // Update local stocks array
-                const updatedStocks = stocks.map(s =>
-                    s.name === stock.name ? { ...s, remarks: remarkValue || null } : s
-                );
-                onStocksUpdate(updatedStocks);
-                setEditingRemark(null);
-            }
-        } catch (error) {
-            console.error('Error saving remark:', error);
-        }
-    };
-
-    const handleRemarkCancel = () => {
-        setEditingRemark(null);
-        setRemarkValue('');
-    };
-
-    const handleAssignmentChange = async (stock: Stock, assignedTo: string) => {
-        const code = stock.nseCode || stock.bseCode;
-        if (!code) return;
-
-        try {
-            const response = await fetch('/api/assignments', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, assignedTo: assignedTo || null })
-            });
-
-            if (response.ok) {
-                // Update local stocks array
-                const updatedStocks = stocks.map(s =>
-                    s.name === stock.name ? { ...s, assignedTo: assignedTo || null } : s
-                );
-                onStocksUpdate(updatedStocks);
-                setEditingAssignment(null);
-            }
-        } catch (error) {
-            console.error('Error saving assignment:', error);
-        }
-    };
-
-    const handleDeleteClick = (stock: Stock) => {
-        setDeleteConfirmStock(stock);
-    };
-
-    const handleDeleteConfirm = async () => {
-        if (!deleteConfirmStock) return;
-
-        try {
-            const updatedStocks = stocks.filter(s => s.name !== deleteConfirmStock.name);
-
-            // Update via API
-            const response = await fetch('/api/portfolio', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ data: updatedStocks })
-            });
-
-            if (response.ok) {
-                onStocksUpdate(updatedStocks);
-                setDeleteConfirmStock(null);
-            }
-        } catch (error) {
-            console.error('Error deleting stock:', error);
-        }
-    };
-
-    const handleDeleteCancel = () => {
-        setDeleteConfirmStock(null);
-    };
-
-    const requestSort = (key: SortKey) => {
-        let direction: SortDirection = 'ascending';
-        if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-            direction = 'descending';
-        }
-        setSortConfig({ key, direction });
-    };
-
-    const filteredAndSortedStocks = useMemo(() => {
-        let filtered = [...stocksWithWeightage];
-
-        if (filters.searchTerm) {
-            filtered = filtered.filter(s => s.name.toLowerCase().includes(filters.searchTerm.toLowerCase()));
-        }
-
-        if (filters.industry !== 'All') {
-            filtered = filtered.filter(s => s.industry === filters.industry);
-        }
-
-        if (filters.minPrice !== '') {
-            const min = parseFloat(filters.minPrice);
-            if (!isNaN(min)) {
-                filtered = filtered.filter(s => s.currentPrice !== null && s.currentPrice >= min);
-            }
-        }
-
-        if (filters.maxPrice !== '') {
-            const max = parseFloat(filters.maxPrice);
-            if (!isNaN(max)) {
-                filtered = filtered.filter(s => s.currentPrice !== null && s.currentPrice <= max);
-            }
-        }
-
-        if (filters.min1YReturn !== '') {
-            const minReturn = parseFloat(filters.min1YReturn);
-            if (!isNaN(minReturn)) {
-                filtered = filtered.filter(s => s.return1Y !== null && s.return1Y >= minReturn);
-            }
-        }
-
-        if (filters.max1MReturn !== '') {
-            const maxReturn = parseFloat(filters.max1MReturn);
-            if (!isNaN(maxReturn)) {
-                filtered = filtered.filter(s => s.return1M !== null && s.return1M <= maxReturn);
-            }
-        }
-
-        if (filters.remarksSearch) {
-            filtered = filtered.filter(s =>
-                s.remarks && s.remarks.toLowerCase().includes(filters.remarksSearch.toLowerCase())
-            );
-        }
-
-        if (filters.assignedTo !== 'All') {
-            if (filters.assignedTo === 'Unassigned') {
-                filtered = filtered.filter(s => !s.assignedTo);
-            } else {
-                filtered = filtered.filter(s => s.assignedTo === filters.assignedTo);
-            }
-        }
-
-        filtered.sort((a, b) => {
-            const aValue = a[sortConfig.key];
-            const bValue = b[sortConfig.key];
-
-            if (aValue === null) return 1;
-            if (bValue === null) return -1;
-            if (aValue === undefined) return 1;
-            if (bValue === undefined) return -1;
-
-            if (aValue < bValue) {
-                return sortConfig.direction === 'ascending' ? -1 : 1;
-            }
-            if (aValue > bValue) {
-                return sortConfig.direction === 'ascending' ? 1 : -1;
-            }
-            return 0;
-        });
-
-        return filtered;
-    }, [filters, sortConfig, stocksWithWeightage]);
-    
-    const SortIndicator: React.FC<{ columnKey: SortKey }> = ({ columnKey }) => {
-        if (sortConfig.key !== columnKey) return null;
-        return <span className="sort-indicator">{sortConfig.direction === 'ascending' ? '▲' : '▼'}</span>;
-    };
-
-    const ActiveFilters = () => {
-        const activeFilters: { key: string; label: string }[] = [];
-        if (filters.searchTerm) {
-            activeFilters.push({ key: 'searchTerm', label: `Search: "${filters.searchTerm}"` });
-        }
-        if (filters.industry !== 'All') {
-            activeFilters.push({ key: 'industry', label: `Industry: ${filters.industry}`});
-        }
-        if (filters.minPrice) {
-            activeFilters.push({ key: 'minPrice', label: `Min Price: ${filters.minPrice}` });
-        }
-        if (filters.maxPrice) {
-            activeFilters.push({ key: 'maxPrice', label: `Max Price: ${filters.maxPrice}` });
-        }
-        if (filters.min1YReturn) {
-            activeFilters.push({ key: 'min1YReturn', label: `Min 1Y Return: ${filters.min1YReturn}%` });
-        }
-        if (filters.max1MReturn) {
-            activeFilters.push({ key: 'max1MReturn', label: `Max 1M Return: ${filters.max1MReturn}%` });
-        }
-        if (filters.remarksSearch) {
-            activeFilters.push({ key: 'remarksSearch', label: `Remarks: "${filters.remarksSearch}"` });
-        }
-        if (filters.assignedTo !== 'All') {
-            activeFilters.push({ key: 'assignedTo', label: `Assigned: ${filters.assignedTo}` });
-        }
-
-        if (activeFilters.length === 0) return null;
-
-        const defaultValues = { industry: 'All', min1YReturn: '', max1MReturn: '', searchTerm: '', minPrice: '', maxPrice: '', remarksSearch: '', assignedTo: 'All' };
-        const clearFilter = (key: keyof typeof filters) => {
-            setFilters(prev => ({...prev, [key]: defaultValues[key]}));
-        }
-
-        const clearAll = () => {
-            setFilters(defaultValues);
-        }
-
-        return (
-            <div className="active-filters-container">
-                <span className="active-filters-label">Active Filters:</span>
-                <div className="pills-container">
-                    {activeFilters.map(filter => (
-                        <div key={filter.key} className="filter-pill">
-                            <span>{filter.label}</span>
-                            <button onClick={() => clearFilter(filter.key as keyof typeof filters)}>×</button>
-                        </div>
-                    ))}
-                    <button className="clear-all-btn" onClick={clearAll}>Clear All</button>
-                </div>
-            </div>
-        )
-    }
-
-    const FilterPopover = () => (
-        <div className="popover-backdrop" onClick={() => setShowFilterPopover(false)}>
-            <div className="popover-content" onClick={e => e.stopPropagation()}>
-                <div className="popover-header">
-                    <h3>Filter & View Options</h3>
-                    <button className="close-btn" onClick={() => setShowFilterPopover(false)}>×</button>
-                </div>
-                <div className="popover-body">
-                     <div className="filter-group">
-                        <label htmlFor="industry">Industry</label>
-                        <select id="industry" name="industry" value={filters.industry} onChange={handleFilterChange}>
-                            {industries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
-                        </select>
-                    </div>
-
-                    <div className="filter-group">
-                        <label htmlFor="assignedTo">Assigned To</label>
-                        <select id="assignedTo" name="assignedTo" value={filters.assignedTo} onChange={handleFilterChange}>
-                            <option value="All">All</option>
-                            <option value="Unassigned">Unassigned</option>
-                            {TEAM_MEMBERS.map(member => <option key={member} value={member}>{member}</option>)}
-                        </select>
-                    </div>
-
-                    <div className="advanced-filters-toggle">
-                       <button className="advanced-filter-btn" onClick={() => setShowAdvancedFilters(p => !p)}>
-                           Advanced Filters {showAdvancedFilters ? '▲' : '▼'}
-                       </button>
-                    </div>
-                
-                    {showAdvancedFilters && (
-                        <div className="advanced-filters-content">
-                            <div className="filter-group">
-                                <label htmlFor="minPrice">Min Price</label>
-                                <input type="number" id="minPrice" name="minPrice" placeholder="e.g. 100" value={filters.minPrice} onChange={handleFilterChange} />
-                            </div>
-                            <div className="filter-group">
-                                <label htmlFor="maxPrice">Max Price</label>
-                                <input type="number" id="maxPrice" name="maxPrice" placeholder="e.g. 1000" value={filters.maxPrice} onChange={handleFilterChange} />
-                            </div>
-                            <div className="filter-group">
-                                <label htmlFor="min1YReturn">Min 1-Year Return (%)</label>
-                                <input type="number" id="min1YReturn" name="min1YReturn" placeholder="e.g. 20" value={filters.min1YReturn} onChange={handleFilterChange} />
-                            </div>
-                             <div className="filter-group">
-                                <label htmlFor="max1MReturn">Max 1-Month Return (%)</label>
-                                <input type="number" id="max1MReturn" name="max1MReturn" placeholder="e.g. -10" value={filters.max1MReturn} onChange={handleFilterChange} />
-                            </div>
-                            <div className="filter-group">
-                                <label htmlFor="remarksSearch">Search Remarks</label>
-                                <input type="text" id="remarksSearch" name="remarksSearch" placeholder="Search in remarks..." value={filters.remarksSearch} onChange={handleFilterChange} />
-                            </div>
-                        </div>
-                    )}
-
-                    <div className="column-toggles-container">
-                        <label>Show/Hide Columns</label>
-                        <div className="column-toggles">
-                            {allToggleableColumns.map(col => (
-                                <div key={col.key} className="toggle-group">
-                                    <input type="checkbox" id={`toggle-${col.key}`} checked={!!visibleColumns[col.key]} onChange={() => toggleColumn(col.key)} />
-                                    <label htmlFor={`toggle-${col.key}`}>{col.label}</label>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-
-    return (
-        <>
-            <header className="main-header">
-                <h1>Portfolio Insights</h1>
-                <p>Analyze stock performance with advanced sorting and filtering.</p>
-                {totalPortfolioValue > 0 && (
-                    <div className="portfolio-summary">
-                        <span className="portfolio-label">Total Portfolio Value:</span>
-                        <span className="portfolio-value">₹{totalPortfolioValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
-                    </div>
-                )}
-            </header>
-
-            <ActiveFilters />
-
-            <div className="action-bar">
-                <div className="search-bar">
-                     <input type="search" name="searchTerm" placeholder="Search by name..." value={filters.searchTerm} onChange={handleFilterChange} />
-                </div>
-                <button className="filter-btn" onClick={() => setShowFilterPopover(true)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                        <path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10 8.692V13.5a.5.5 0 0 1-.342.474l-3 1.5A.5.5 0 0 1 6 14.5V8.692L1.628 3.834A.5.5 0 0 1 1.5 3.5z"/>
-                    </svg>
-                    Filters
-                </button>
-            </div>
-
-            {showFilterPopover && <FilterPopover />}
-            
-            <div className="stock-table-container">
-                <table className="stock-table">
-                    <thead>
-                        <tr>
-                            <th className="sticky-col" onClick={() => requestSort('name')}>
-                                <div className="th-content">
-                                    <span>Name <SortIndicator columnKey="name" /></span>
-                                </div>
-                            </th>
-                             {visibleColumns['industry'] && <th className="industry-col" onClick={() => requestSort('industry')}>
-                                <div className="th-content">
-                                    <span>Industry <SortIndicator columnKey="industry" /></span>
-                                    <button
-                                        className="hide-column-btn"
-                                        aria-label="Hide Industry column"
-                                        title="Hide Industry column"
-                                        onClick={(e) => { e.stopPropagation(); toggleColumn('industry'); }}
-                                    >
-                                        ×
-                                    </button>
-                                </div>
-                            </th>}
-                            {visibleColumns['currentPrice'] && <th className="text-right" onClick={() => requestSort('currentPrice')}>
-                                <div className="th-content">
-                                    <span>Price <SortIndicator columnKey="currentPrice" /></span>
-                                    <button
-                                        className="hide-column-btn"
-                                        aria-label="Hide Price column"
-                                        title="Hide Price column"
-                                        onClick={(e) => { e.stopPropagation(); toggleColumn('currentPrice'); }}
-                                    >
-                                        ×
-                                    </button>
-                                </div>
-                            </th>}
-                            {visibleColumns['currentAmount'] && <th className="text-right" onClick={() => requestSort('currentAmount' as SortKey)}>
-                                <div className="th-content">
-                                    <span>Current Amount <SortIndicator columnKey={'currentAmount' as SortKey} /></span>
-                                    <button
-                                        className="hide-column-btn"
-                                        aria-label="Hide Current Amount column"
-                                        title="Hide Current Amount column"
-                                        onClick={(e) => { e.stopPropagation(); toggleColumn('currentAmount'); }}
-                                    >
-                                        ×
-                                    </button>
-                                </div>
-                            </th>}
-                            {visibleColumns['weightage'] && <th className="text-right" onClick={() => requestSort('weightage' as SortKey)}>
-                                <div className="th-content">
-                                    <span>Weightage % <SortIndicator columnKey={'weightage' as SortKey} /></span>
-                                    <button
-                                        className="hide-column-btn"
-                                        aria-label="Hide Weightage column"
-                                        title="Hide Weightage column"
-                                        onClick={(e) => { e.stopPropagation(); toggleColumn('weightage'); }}
-                                    >
-                                        ×
-                                    </button>
-                                </div>
-                            </th>}
-                            {perfColumns.map(col => (
-                                visibleColumns[col.key] && <th key={col.key} className="text-right" onClick={() => requestSort(col.key)}>
-                                    <div className="th-content">
-                                        <span>{col.label} <SortIndicator columnKey={col.key} /></span>
-                                        <button
-                                            className="hide-column-btn"
-                                            aria-label={`Hide ${col.label} column`}
-                                            title={`Hide ${col.label} column`}
-                                            onClick={(e) => { e.stopPropagation(); toggleColumn(col.key); }}
-                                        >
-                                            ×
-                                        </button>
-                                    </div>
-                                </th>
-                            ))}
-                            {visibleColumns['remarks'] && <th onClick={() => requestSort('remarks' as SortKey)}>
-                                <div className="th-content">
-                                    <span>Remarks <SortIndicator columnKey={'remarks' as SortKey} /></span>
-                                    <button
-                                        className="hide-column-btn"
-                                        aria-label="Hide Remarks column"
-                                        title="Hide Remarks column"
-                                        onClick={(e) => { e.stopPropagation(); toggleColumn('remarks'); }}
-                                    >
-                                        ×
-                                    </button>
-                                </div>
-                            </th>}
-                            {visibleColumns['assignedTo'] && <th onClick={() => requestSort('assignedTo' as SortKey)}>
-                                <div className="th-content">
-                                    <span>Assigned To <SortIndicator columnKey={'assignedTo' as SortKey} /></span>
-                                    <button
-                                        className="hide-column-btn"
-                                        aria-label="Hide Assigned To column"
-                                        title="Hide Assigned To column"
-                                        onClick={(e) => { e.stopPropagation(); toggleColumn('assignedTo'); }}
-                                    >
-                                        ×
-                                    </button>
-                                </div>
-                            </th>}
-                            <th className="actions-col">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filteredAndSortedStocks.map(stock => (
-                            <tr key={stock.name}>
-                                <td className="sticky-col">
-                                    {stock.nseCode || stock.bseCode ? (
-                                        <a href={`https://www.screener.in/company/${stock.nseCode || stock.bseCode}/`} target="_blank" rel="noopener noreferrer">
-                                            {stock.name}
-                                        </a>
-                                    ) : (
-                                        stock.name
-                                    )}
-                                </td>
-                                {visibleColumns['industry'] && <td className="industry-col">{stock.industry}</td>}
-                                {visibleColumns['currentPrice'] && <td className="text-right">{formatValue(stock.currentPrice)}</td>}
-                                {visibleColumns['currentAmount'] && <td className="text-right current-amount-cell">{formatValue((stock as any).currentAmount)}</td>}
-                                {visibleColumns['weightage'] && <td className="text-right weightage-cell">
-                                    {(stock as any).weightage !== null ? `${((stock as any).weightage).toFixed(2)}%` : 'N/A'}
-                                </td>}
-                                {perfColumns.map(col => (
-                                    visibleColumns[col.key] &&
-                                    <td key={col.key} className="heatmap-td">
-                                        <HeatmapCell value={stock[col.key] as number | null} />
-                                    </td>
-                                ))}
-                                {visibleColumns['remarks'] && <td className="remarks-cell">
-                                    {editingRemark === stock.name ? (
-                                        <div className="remark-edit">
-                                            <input
-                                                type="text"
-                                                value={remarkValue}
-                                                onChange={(e) => setRemarkValue(e.target.value)}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') handleRemarkSave(stock);
-                                                    if (e.key === 'Escape') handleRemarkCancel();
-                                                }}
-                                                autoFocus
-                                            />
-                                            <button onClick={() => handleRemarkSave(stock)} className="save-btn">✓</button>
-                                            <button onClick={handleRemarkCancel} className="cancel-btn">✕</button>
-                                        </div>
-                                    ) : (
-                                        <div className="remark-display" onClick={() => handleRemarkEdit(stock.name, stock.remarks)}>
-                                            {stock.remarks || <span className="remark-placeholder">Add remark...</span>}
-                                        </div>
-                                    )}
-                                </td>}
-                                {visibleColumns['assignedTo'] && <td className="assignment-cell">
-                                    <select
-                                        value={stock.assignedTo || ''}
-                                        onChange={(e) => handleAssignmentChange(stock, e.target.value)}
-                                        className="assignment-select"
-                                    >
-                                        <option value="">Unassigned</option>
-                                        {TEAM_MEMBERS.map(member => (
-                                            <option key={member} value={member}>{member}</option>
-                                        ))}
-                                    </select>
-                                </td>}
-                                <td className="actions-cell">
-                                    <button
-                                        onClick={() => handleDeleteClick(stock)}
-                                        className="delete-btn"
-                                        aria-label="Delete stock"
-                                        title="Delete stock from portfolio"
-                                    >
-                                        🗑️
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-
-            {deleteConfirmStock && (
-                <div className="delete-confirm-backdrop" onClick={handleDeleteCancel}>
-                    <div className="delete-confirm-dialog" onClick={(e) => e.stopPropagation()}>
-                        <h3>Confirm Delete</h3>
-                        <p>Are you sure you want to delete <strong>{deleteConfirmStock.name}</strong> from your portfolio?</p>
-                        <p className="warning-text">This action cannot be undone.</p>
-                        <div className="dialog-actions">
-                            <button onClick={handleDeleteCancel} className="cancel-dialog-btn">Cancel</button>
-                            <button onClick={handleDeleteConfirm} className="confirm-delete-btn">Delete</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </>
-    );
-};
-
-
 const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }> = ({ onGridKeyUploaded }) => {
     const [file, setFile] = useState<File | null>(null);
     const [status, setStatus] = useState('');
@@ -999,12 +388,15 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
 
                         if (char === '"') {
                             if (inQuotes && nextChar === '"') {
+                                // Escaped quote
                                 current += '"';
                                 i++;
                             } else {
+                                // Toggle quote state
                                 inQuotes = !inQuotes;
                             }
                         } else if (char === ',' && !inQuotes) {
+                            // End of field
                             result.push(current.trim());
                             current = '';
                         } else {
@@ -1016,8 +408,9 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
                 };
 
                 const header = parseCSVLine(lines[0]);
+                const dataLines = lines.slice(1);
 
-                const requiredHeaders = ['Asset name', 'Bse', 'Nse', 'Quantity', 'Average buy price'];
+                const requiredHeaders = ['Scrip name', 'Quantity', 'Average buy price'];
                 const missingHeaders = requiredHeaders.filter(h => {
                     if (h === 'Quantity') {
                         return !header.some(col => col === 'Quantity' || col === 'quantity' || col.toLowerCase().includes('quantity'));
@@ -1027,37 +420,37 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
                             col === 'Average buy price' ||
                             col === 'Avg. buy price' ||
                             col === 'Average Buy Price' ||
-                            (col.toLowerCase().includes('avg') && col.toLowerCase().includes('buy') && col.toLowerCase().includes('price'))
+                            col === 'Avg Buy Price' ||
+                            col.toLowerCase().includes('average') && col.toLowerCase().includes('buy') ||
+                            col.toLowerCase().includes('avg') && col.toLowerCase().includes('buy')
                         );
                     }
                     return !header.includes(h);
                 });
+
                 if (missingHeaders.length > 0) {
-                    throw new Error(`Missing required CSV columns: ${missingHeaders.join(', ')}`);
+                    setError(`Missing required columns: ${missingHeaders.join(', ')}`);
+                    return;
                 }
 
-                const data: GridKeyData[] = lines.slice(1).map((line) => {
+                const data: GridKeyData[] = dataLines.map(line => {
                     const values = parseCSVLine(line);
-                    const scripName = values[header.indexOf('Asset name')] || '';
-                    const bseCode = values[header.indexOf('Bse')] || null;
-                    const nseCode = values[header.indexOf('Nse')] || null;
+                    const scripName = values[header.findIndex(h => h === 'Scrip name')] || '';
+                    const bseCode = values[header.findIndex(h => h === 'BSE Code' || h === 'BSE code')] || null;
+                    const nseCode = values[header.findIndex(h => h === 'NSE Code' || h === 'NSE code')] || null;
 
-                    // Required fields for quantity and average buy price
-                    const quantityColIndex = header.findIndex(h =>
-                        h === 'Quantity' || h === 'quantity' || h.toLowerCase().includes('quantity')
-                    );
-                    const quantityStr = quantityColIndex >= 0 ? values[quantityColIndex] : null;
-                    const cleanQuantity = quantityStr ? quantityStr.replace(/,/g, '') : null;
-                    const quantity = cleanQuantity ? parseFloat(cleanQuantity) : null;
+                    const quantityValue = values[header.findIndex(h => h === 'Quantity' || h === 'quantity' || h.toLowerCase().includes('quantity'))] || '0';
+                    const quantity = parseFloat(quantityValue.replace(/,/g, '')) || 0;
 
-                    const avgBuyPriceColIndex = header.findIndex(h =>
+                    const avgBuyPriceValue = values[header.findIndex(h =>
                         h === 'Average buy price' ||
                         h === 'Avg. buy price' ||
                         h === 'Average Buy Price' ||
-                        (h.toLowerCase().includes('avg') && h.toLowerCase().includes('buy') && h.toLowerCase().includes('price'))
-                    );
-                    const avgBuyPriceStr = avgBuyPriceColIndex >= 0 ? values[avgBuyPriceColIndex] : null;
-                    const cleanAvgBuyPrice = avgBuyPriceStr ? avgBuyPriceStr.replace(/,/g, '') : null;
+                        h === 'Avg Buy Price' ||
+                        (h.toLowerCase().includes('average') && h.toLowerCase().includes('buy')) ||
+                        (h.toLowerCase().includes('avg') && h.toLowerCase().includes('buy'))
+                    )] || '0';
+                    const cleanAvgBuyPrice = avgBuyPriceValue.replace(/,/g, '');
                     const averageBuyPrice = cleanAvgBuyPrice ? parseFloat(cleanAvgBuyPrice) : null;
 
                     return {
@@ -1069,25 +462,12 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
                     };
                 });
 
-                // Filter out stocks with no BSE or NSE code, and stocks with only 1 share
-                const filtered = data.filter(item =>
-                    (item.bseCode || item.nseCode) &&
-                    item.quantity !== null &&
-                    item.quantity > 1
-                );
-
-                onGridKeyUploaded(filtered);
-                setStatus(`GridKey data uploaded successfully! ${filtered.length} stocks processed (1-share holdings excluded). View Portfolio View to see current amounts.`);
+                setStatus(`Successfully processed ${data.length} holdings`);
+                onGridKeyUploaded(data);
                 setError('');
-            } catch (e: any) {
-                setError(`Error parsing file: ${e.message}`);
-                setStatus('');
+            } catch (err) {
+                setError('Error parsing CSV file: ' + (err as Error).message);
             }
-        };
-
-        reader.onerror = () => {
-            setError('Failed to read the file.');
-            setStatus('');
         };
 
         reader.readAsText(file);
@@ -1097,29 +477,31 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
         <div className="upload-container">
             <header className="main-header">
                 <h1>GridKey Data Upload</h1>
-                <p>Upload GridKey CSV file to map holdings to your portfolio.</p>
+                <p>Upload your GridKey CSV file to add quantity and buy price data to your portfolio.</p>
             </header>
+
             <div className="upload-content">
                 <div className="upload-instructions">
                     <h3>File Requirements</h3>
                     <ul>
-                        <li>Must be a valid CSV file</li>
-                        <li>Required columns: <code>Asset name, Bse, Nse, Quantity, Average buy price</code></li>
-                        <li>Stocks without BSE/NSE codes will be filtered out</li>
-                        <li>Current amount is calculated automatically from quantity × current price</li>
+                        <li>Must be a valid CSV file from GridKey</li>
+                        <li>Required columns: <code>Scrip name, Quantity, Average buy price</code></li>
+                        <li>Optional columns: <code>BSE Code, NSE Code</code></li>
+                        <li>File should be exported directly from GridKey platform</li>
                     </ul>
                     <h3>What Happens After Upload</h3>
                     <ul>
-                        <li>Stocks are matched with your portfolio using BSE/NSE codes</li>
-                        <li>Current amount is calculated and displayed alongside matched stocks</li>
-                        <li>View Portfolio Insights page to see complete holdings details</li>
+                        <li>Your holdings data will be combined with stock data from Screener</li>
+                        <li>Portfolio insights and analysis will become available</li>
+                        <li>Data is automatically saved to the server</li>
+                        <li>Current amounts will be calculated using live prices</li>
                     </ul>
                 </div>
 
                 <div className="upload-action-area">
                     <div className="filter-group">
-                        <label htmlFor="gridkey-file-upload">CSV File</label>
-                        <input type="file" id="gridkey-file-upload" accept=".csv" onChange={handleFileChange} />
+                        <label htmlFor="file-upload">GridKey CSV File</label>
+                        <input type="file" id="file-upload" accept=".csv" onChange={handleFileChange} />
                     </div>
                     <button className="process-btn" onClick={processFile} disabled={!file}>
                         Process File
@@ -1131,7 +513,6 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
         </div>
     );
 };
-
 
 const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void }> = ({ gridKeyData, stocks, onStocksUpdate }) => {
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' }>({
@@ -1170,6 +551,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         { key: 'absoluteGain', label: 'Absolute Gain' },
         { key: 'gainPercentage', label: 'Gain %' },
         { key: 'weightage', label: 'Weightage %' },
+        { key: 'portfolioContribution', label: 'Portfolio Contribution %' },
         { key: 'sparkline', label: 'Trend Chart' },
         { key: 'industryGroup', label: 'Industry Group' },
         { key: 'industry', label: 'Industry' },
@@ -1321,13 +703,45 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     }, [enrichedData]);
 
     const enrichedDataWithWeightage = useMemo(() => {
-        return enrichedData.map(item => ({
-            ...item,
-            weightage: totalCurrentAmount > 0 && (item as any).calculatedAmount
+        return enrichedData.map(item => {
+            const weightage = totalCurrentAmount > 0 && (item as any).calculatedAmount
                 ? ((item as any).calculatedAmount / totalCurrentAmount) * 100
-                : null
-        }));
-    }, [enrichedData, totalCurrentAmount]);
+                : null;
+
+            // Calculate portfolio contribution (YTD return * weightage) with fallback logic
+            let ytdReturn: number | null = null;
+            const matchedStock = stocks.find(stock => {
+                if (item.nseCode && stock.nseCode) {
+                    return item.nseCode.toLowerCase() === stock.nseCode.toLowerCase();
+                }
+                if (item.bseCode && stock.bseCode) {
+                    return item.bseCode.toLowerCase() === stock.bseCode.toLowerCase();
+                }
+                return false;
+            });
+
+            if (matchedStock) {
+                // Try 1Y first, then fallback to 6M, then 3M
+                if (matchedStock.return1Y !== null && matchedStock.return1Y !== undefined) {
+                    ytdReturn = matchedStock.return1Y;
+                } else if (matchedStock.return6M !== null && matchedStock.return6M !== undefined) {
+                    ytdReturn = matchedStock.return6M;
+                } else if (matchedStock.return3M !== null && matchedStock.return3M !== undefined) {
+                    ytdReturn = matchedStock.return3M;
+                }
+            }
+
+            const portfolioContribution = (ytdReturn !== null && weightage !== null) 
+                ? (ytdReturn * weightage) / 100 
+                : null;
+
+            return {
+                ...item,
+                weightage,
+                portfolioContribution
+            };
+        });
+    }, [enrichedData, totalCurrentAmount, stocks]);
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -1339,20 +753,6 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         setRangeFilters(prev => ({ ...prev, [name]: value }));
     };
 
-    const clearRangeFilters = () => {
-        setRangeFilters({
-            gainPercentageMin: '',
-            gainPercentageMax: '',
-            profitGrowthMin: '',
-            profitGrowthMax: '',
-            salesGrowthMin: '',
-            salesGrowthMax: '',
-            peMin: '',
-            peMax: '',
-            weightageMin: '',
-            weightageMax: '',
-        });
-    };
 
     const toggleColumnFilter = (columnKey: string) => {
         setColumnFilterOpen(prev => prev === columnKey ? null : columnKey);
@@ -1745,7 +1145,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         </div>
                                     </div>
                                 </th>}
-                                {visibleColumns['weightage'] && <th className="text-right filterable-column">
+                                    {visibleColumns['weightage'] && <th className="text-right filterable-column">
                                     <div className="th-content">
                                         <span onClick={() => requestSort('weightage')}>Weightage % <SortIndicator columnKey="weightage" /></span>
                                         <div className="filter-icon-wrapper">
@@ -1762,6 +1162,11 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                             </button>
                                             {columnFilterOpen === 'weightage' && <ColumnFilterPopup columnKey="weightage" />}
                                         </div>
+                                    </div>
+                                </th>}
+                                {visibleColumns['portfolioContribution'] && <th className="text-right" onClick={() => requestSort('portfolioContribution')}>
+                                    <div className="th-content">
+                                        <span>Portfolio Contribution % <SortIndicator columnKey="portfolioContribution" /></span>
                                     </div>
                                 </th>}
                                 {visibleColumns['sparkline'] && <th>
@@ -1927,6 +1332,9 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         {(item as any).gainPercentage !== null && (item as any).gainPercentage !== undefined ? `${(item as any).gainPercentage.toFixed(2)}%` : 'N/A'}
                                     </td>}
                                     {visibleColumns['weightage'] && <td className="text-right weightage-cell">{(item as any).weightage !== null ? `${((item as any).weightage).toFixed(2)}%` : 'N/A'}</td>}
+                                    {visibleColumns['portfolioContribution'] && <td className="text-right" style={{ color: (item as any).portfolioContribution !== null ? ((item as any).portfolioContribution >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit', fontWeight: 500 }}>
+                                        {(item as any).portfolioContribution !== null ? `${((item as any).portfolioContribution).toFixed(2)}%` : 'N/A'}
+                                    </td>}
                                     {visibleColumns['sparkline'] && <td className="sparkline-td">
                                         <Sparkline data={(item as any).sparklineData || []} />
                                     </td>}
@@ -2107,22 +1515,24 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
 
     // Portfolio Allocation Chart (Pie/Bar Chart)
     const AllocationChart = () => {
-        const top10 = enrichedData
+        const [showAll, setShowAll] = useState(false);
+
+        const allStocks = enrichedData
             .map(item => ({
                 name: item.scripName,
                 value: (item as any).calculatedAmount || 0,
                 percentage: totalCurrentAmount > 0 ? (((item as any).calculatedAmount || 0) / totalCurrentAmount) * 100 : 0
             }))
-            .sort((a, b) => b.value - a.value)
-            .slice(0, 10);
+            .sort((a, b) => b.value - a.value);
 
-        const maxValue = Math.max(...top10.map(d => d.value));
+        const displayStocks = showAll ? allStocks : allStocks.slice(0, 10);
+        const maxValue = Math.max(...allStocks.map(d => d.value));
 
         return (
             <div className="chart-card">
-                <h3>Top 10 Holdings by Value</h3>
+                <h3>Holdings by Value {showAll ? `(All ${allStocks.length} Stocks)` : '(Top 10)'}</h3>
                 <div className="bar-chart">
-                    {top10.map((item, index) => (
+                    {displayStocks.map((item, index) => (
                         <div key={index} className="bar-item">
                             <div className="bar-label">{item.name}</div>
                             <div className="bar-container">
@@ -2130,7 +1540,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                                     className="bar-fill"
                                     style={{
                                         width: `${(item.value / maxValue) * 100}%`,
-                                        backgroundColor: `hsl(${210 - index * 20}, 70%, 50%)`
+                                        backgroundColor: `hsl(${210 - (index % 12) * 20}, 70%, 50%)`
                                     }}
                                 >
                                     <span className="bar-value">₹{item.value.toLocaleString('en-IN', { maximumFractionDigits: 0 })} ({item.percentage.toFixed(1)}%)</span>
@@ -2139,12 +1549,24 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                         </div>
                     ))}
                 </div>
+                {allStocks.length > 10 && (
+                    <div className="chart-actions">
+                        <button 
+                            className="show-more-btn"
+                            onClick={() => setShowAll(!showAll)}
+                        >
+                            {showAll ? 'Show Less' : `Show All ${allStocks.length} Stocks`}
+                        </button>
+                    </div>
+                )}
             </div>
         );
     };
 
     // Performance Distribution Chart
     const PerformanceChart = () => {
+        const [performanceMode, setPerformanceMode] = useState<'alltime' | '1year'>('alltime');
+
         const ranges = [
             { label: '< -20%', min: -Infinity, max: -20, count: 0 },
             { label: '-20% to -10%', min: -20, max: -10, count: 0 },
@@ -2155,8 +1577,40 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
             { label: '> 50%', min: 50, max: Infinity, count: 0 },
         ];
 
+        // Function to get the best available return for 1Y mode with fallback
+        const getBestReturn = (item: any) => {
+            if (performanceMode === 'alltime') {
+                return item.gainPercentage;
+            }
+            
+            // For 1Y mode, use fallback: 1Y -> 6M -> 3M
+            const matchedStock = stocks.find(stock => {
+                if (item.nseCode && stock.nseCode) {
+                    return item.nseCode.toLowerCase() === stock.nseCode.toLowerCase();
+                }
+                if (item.bseCode && stock.bseCode) {
+                    return item.bseCode.toLowerCase() === stock.bseCode.toLowerCase();
+                }
+                return false;
+            });
+
+            if (!matchedStock) return null;
+
+            // Try 1Y first, then fallback to 6M, then 3M
+            if (matchedStock.return1Y !== null && matchedStock.return1Y !== undefined) {
+                return matchedStock.return1Y;
+            }
+            if (matchedStock.return6M !== null && matchedStock.return6M !== undefined) {
+                return matchedStock.return6M;
+            }
+            if (matchedStock.return3M !== null && matchedStock.return3M !== undefined) {
+                return matchedStock.return3M;
+            }
+            return null;
+        };
+
         enrichedData.forEach(item => {
-            const gain = (item as any).gainPercentage;
+            const gain = getBestReturn(item);
             if (gain !== null && gain !== undefined) {
                 const range = ranges.find(r => gain >= r.min && gain < r.max);
                 if (range) range.count++;
@@ -2167,7 +1621,28 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
 
         return (
             <div className="chart-card">
-                <h3>Gain/Loss Distribution</h3>
+                <div className="chart-header">
+                    <div>
+                        <h3>Gain/Loss Distribution</h3>
+                        <p className="chart-subtitle">
+                            {performanceMode === 'alltime' ? 'Total returns since purchase' : 'Returns over 1 year period (with fallbacks)'}
+                        </p>
+                    </div>
+                    <div className="performance-toggle">
+                        <button 
+                            className={`performance-btn ${performanceMode === 'alltime' ? 'active' : ''}`}
+                            onClick={() => setPerformanceMode('alltime')}
+                        >
+                            All-time
+                        </button>
+                        <button 
+                            className={`performance-btn ${performanceMode === '1year' ? 'active' : ''}`}
+                            onClick={() => setPerformanceMode('1year')}
+                        >
+                            1Y
+                        </button>
+                    </div>
+                </div>
                 <div className="bar-chart">
                     {ranges.map((range, index) => (
                         <div key={index} className="bar-item">
@@ -2653,10 +2128,43 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
         const totalChange = lastValue - firstValue;
         const percentChange = firstValue > 0 ? (totalChange / firstValue) * 100 : 0;
 
+        // CSV download function
+        const downloadCSV = () => {
+            const csvData = [
+                ['Date', 'Portfolio Value (₹)', 'Timestamp'],
+                ...portfolioHistory.map(entry => [
+                    new Date(entry.date).toLocaleDateString('en-IN'),
+                    entry.value.toFixed(2),
+                    entry.timestamp
+                ])
+            ];
+            
+            const csvContent = csvData.map(row => row.join(',')).join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'portfolio_value_history.csv');
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        };
+
         return (
             <div className="chart-card portfolio-value-card">
-                <h3>Portfolio Value Over Time</h3>
-                <p className="chart-subtitle">Daily tracking of total portfolio value</p>
+                <div className="chart-header">
+                    <div>
+                        <h3>Portfolio Value Over Time</h3>
+                        <p className="chart-subtitle">Daily tracking of total portfolio value</p>
+                    </div>
+                    <button onClick={downloadCSV} className="download-csv-btn">
+                        Download CSV
+                    </button>
+                </div>
                 <div className="value-summary">
                     <div className="value-stat">
                         <span className="stat-label">Current Value:</span>
