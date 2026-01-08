@@ -1098,7 +1098,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                     <table className="stock-table">
                         <thead>
                             <tr>
-                                <th onClick={() => requestSort('scripName')}>
+                                <th className="sticky-col" onClick={() => requestSort('scripName')}>
                                     <div className="th-content">
                                         <span>Stock Name <SortIndicator columnKey="scripName" /></span>
                                     </div>
@@ -1318,7 +1318,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                         <tbody>
                             {filteredAndSortedData.map((item, index) => (
                                 <tr key={`${item.scripName}-${index}`}>
-                                    <td className="stock-name-col" title={item.scripName}>
+                                    <td className="stock-name-col sticky-col" title={item.scripName}>
                                         <span
                                             className="stock-name-clickable"
                                             onClick={() => handleStockNameClick(item)}
@@ -2400,7 +2400,7 @@ const TrendMomentumPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] 
                     <table className="trend-matrix-table">
                         <thead>
                             <tr>
-                                <th>Stock</th>
+                                <th className="sticky-col">Stock</th>
                                 <th>Price &gt; DMA 50<br/><span className="th-subtitle">(Short Term)</span></th>
                                 <th>Price &gt; DMA 200<br/><span className="th-subtitle">(Long Term)</span></th>
                                 <th>DMA 50 &gt; DMA 200<br/><span className="th-subtitle">(Golden Cross)</span></th>
@@ -2430,7 +2430,7 @@ const TrendMomentumPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] 
 
                                 return (
                                     <tr key={index}>
-                                        <td className="stock-name-cell">{item.scripName}</td>
+                                        <td className="stock-name-cell sticky-col">{item.scripName}</td>
                                         <td className="traffic-light-cell">
                                             <span className={`traffic-light ${(item as any).priceAboveDMA50 ? 'green' : 'red'}`}>
                                                 {(item as any).priceAboveDMA50 ? '●' : '●'}
@@ -2541,7 +2541,7 @@ const TrendMomentumPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] 
                     <table className="proximity-table">
                         <thead>
                             <tr>
-                                <th>Stock</th>
+                                <th className="sticky-col">Stock</th>
                                 <th>Current Price</th>
                                 <th>DMA 50</th>
                                 <th>Distance %</th>
@@ -2561,7 +2561,7 @@ const TrendMomentumPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] 
 
                                 return (
                                     <tr key={index}>
-                                        <td className="stock-name-cell">{item.name}</td>
+                                        <td className="stock-name-cell sticky-col">{item.name}</td>
                                         <td className="text-right">₹{item.currentPrice.toFixed(2)}</td>
                                         <td className="text-right">₹{item.dma50.toFixed(2)}</td>
                                         <td className="text-right" style={{
