@@ -410,7 +410,7 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
                 const header = parseCSVLine(lines[0]);
                 const dataLines = lines.slice(1);
 
-                const requiredHeaders = ['Scrip name', 'Quantity', 'Average buy price'];
+                const requiredHeaders = ['Asset name', 'Bse', 'Nse', 'Quantity', 'Average buy price'];
                 const missingHeaders = requiredHeaders.filter(h => {
                     if (h === 'Quantity') {
                         return !header.some(col => col === 'Quantity' || col === 'quantity' || col.toLowerCase().includes('quantity'));
@@ -435,9 +435,9 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
 
                 const data: GridKeyData[] = dataLines.map(line => {
                     const values = parseCSVLine(line);
-                    const scripName = values[header.findIndex(h => h === 'Scrip name')] || '';
-                    const bseCode = values[header.findIndex(h => h === 'BSE Code' || h === 'BSE code')] || null;
-                    const nseCode = values[header.findIndex(h => h === 'NSE Code' || h === 'NSE code')] || null;
+                    const scripName = values[header.indexOf('Asset name')] || '';
+                    const bseCode = values[header.indexOf('Bse')] || null;
+                    const nseCode = values[header.indexOf('Nse')] || null;
 
                     const quantityValue = values[header.findIndex(h => h === 'Quantity' || h === 'quantity' || h.toLowerCase().includes('quantity'))] || '0';
                     const quantity = parseFloat(quantityValue.replace(/,/g, '')) || 0;
@@ -462,8 +462,15 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
                     };
                 });
 
-                setStatus(`Successfully processed ${data.length} holdings`);
-                onGridKeyUploaded(data);
+                // Filter out stocks with no BSE or NSE code, and stocks with only 1 share
+                const filtered = data.filter(item =>
+                    (item.bseCode || item.nseCode) &&
+                    item.quantity !== null &&
+                    item.quantity > 1
+                );
+
+                onGridKeyUploaded(filtered);
+                setStatus(`GridKey data uploaded successfully! ${filtered.length} stocks processed (1-share holdings excluded). View Portfolio View to see current amounts.`);
                 setError('');
             } catch (err) {
                 setError('Error parsing CSV file: ' + (err as Error).message);
