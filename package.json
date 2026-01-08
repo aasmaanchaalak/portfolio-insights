@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "dotenv": "^17.2.3",
-    "next": "^15.1.4",
+    "next": "15.1.11",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "redis": "^5.8.2"
