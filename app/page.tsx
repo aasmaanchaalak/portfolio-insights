@@ -1001,7 +1001,6 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         <>
             <header className="main-header">
                 <h1>Portfolio Insights</h1>
-                <p>View your holdings details including quantity and average buy price.</p>
                 {totalCurrentAmount > 0 && (
                     <div className="portfolio-summary">
                         <span className="portfolio-label">Total Holdings Value:</span>
