@@ -434,10 +434,10 @@ a:hover {
 
 
 .stock-table-container {
-  overflow-x: auto;
-  overflow-y: auto;
+  overflow: auto;
   width: 100%;
-  max-height: calc(100vh - 300px);
+  max-height: calc(100vh - 250px);
+  position: relative;
 }
 
 .stock-table {
