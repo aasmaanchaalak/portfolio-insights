@@ -1035,11 +1035,24 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
 
                         {/* Zero-centered Chart */}
                         <div className="return-drivers-chart">
+                            {/* Zero line header with portfolio return */}
+                            <div className="driver-chart-header">
+                                <div className="driver-info-spacer" />
+                                <div className="driver-bar-area">
+                                    <div className="driver-bar-negative" />
+                                    <div className="driver-zero-line-header">
+                                        <span className={`zero-line-label ${returnDrivers.portfolioReturn >= 0 ? 'positive' : 'negative'}`}>
+                                            {returnDrivers.portfolioReturn >= 0 ? '+' : ''}{returnDrivers.portfolioReturn.toFixed(2)}%
+                                        </span>
+                                    </div>
+                                    <div className="driver-bar-positive" />
+                                </div>
+                            </div>
                             {returnDrivers.unifiedList.map((item, index) => {
                                 const contribution = item.portfolioContribution;
                                 const isPositive = contribution >= 0;
                                 const barWidthPercent = returnDrivers.maxAbsContribution > 0
-                                    ? (Math.abs(contribution) / returnDrivers.maxAbsContribution) * 50
+                                    ? (Math.abs(contribution) / returnDrivers.maxAbsContribution) * 45
                                     : 0;
 
                                 return (
@@ -1051,24 +1064,27 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                                         <div className="driver-bar-area">
                                             <div className="driver-bar-negative">
                                                 {!isPositive && (
-                                                    <div
-                                                        className="driver-bar negative"
-                                                        style={{ width: `${barWidthPercent}%` }}
-                                                    />
+                                                    <div className="driver-bar-with-label negative">
+                                                        <span className="bar-label">{contribution.toFixed(2)}%</span>
+                                                        <div
+                                                            className="driver-bar negative"
+                                                            style={{ width: `${barWidthPercent}%` }}
+                                                        />
+                                                    </div>
                                                 )}
                                             </div>
                                             <div className="driver-zero-line" />
                                             <div className="driver-bar-positive">
                                                 {isPositive && (
-                                                    <div
-                                                        className="driver-bar positive"
-                                                        style={{ width: `${barWidthPercent}%` }}
-                                                    />
+                                                    <div className="driver-bar-with-label positive">
+                                                        <div
+                                                            className="driver-bar positive"
+                                                            style={{ width: `${barWidthPercent}%` }}
+                                                        />
+                                                        <span className="bar-label">+{contribution.toFixed(2)}%</span>
+                                                    </div>
                                                 )}
                                             </div>
-                                        </div>
-                                        <div className={`driver-value ${isPositive ? 'positive' : 'negative'}`}>
-                                            {isPositive ? '+' : ''}{contribution.toFixed(2)}%
                                         </div>
                                     </div>
                                 );
