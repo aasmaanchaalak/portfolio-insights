@@ -1052,7 +1052,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                                 const contribution = item.portfolioContribution;
                                 const isPositive = contribution >= 0;
                                 const barWidthPercent = returnDrivers.maxAbsContribution > 0
-                                    ? (Math.abs(contribution) / returnDrivers.maxAbsContribution) * 45
+                                    ? (Math.abs(contribution) / returnDrivers.maxAbsContribution) * 80
                                     : 0;
 
                                 return (
