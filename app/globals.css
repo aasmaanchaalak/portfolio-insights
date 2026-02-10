@@ -2562,69 +2562,105 @@ a:hover {
   color: var(--error-color);
 }
 
-/* Portfolio Contributors */
-.contributors-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
-}
-
-@media (max-width: 768px) {
-  .contributors-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.contributors-card {
+/* Portfolio Return Drivers */
+.return-drivers-section {
   background-color: var(--surface-color);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
-  padding: 1rem;
+  border-radius: 12px;
+  padding: 1.5rem;
 }
 
-.contributors-title {
-  font-size: 0.9rem;
+.return-drivers-header {
+  margin-bottom: 1rem;
+}
+
+.return-drivers-header .section-title {
+  margin-bottom: 0.25rem;
+}
+
+.section-subtitle {
+  font-size: 0.85rem;
+  color: var(--secondary-text-color);
+  margin: 0;
+}
+
+.return-drivers-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background-color: var(--background-color);
+  border-radius: 8px;
+  margin-bottom: 1.25rem;
+}
+
+.summary-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.summary-label {
+  font-size: 0.8rem;
+  color: var(--secondary-text-color);
+}
+
+.summary-value {
+  font-size: 0.85rem;
   font-weight: 600;
-  margin-bottom: 0.75rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--border-color);
 }
 
-.contributors-title.positive {
+.summary-value.positive {
   color: var(--success-color);
 }
 
-.contributors-title.negative {
+.summary-value.negative {
   color: var(--error-color);
 }
 
-.contributors-list {
+.summary-divider {
+  color: var(--border-color);
+  font-size: 0.75rem;
+}
+
+.return-drivers-chart {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-.contributor-item {
+.driver-row {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  padding: 0.5rem 0;
 }
 
-.contributor-info {
+.driver-row.others-row {
+  margin-top: 0.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--border-color);
+  opacity: 0.75;
+}
+
+.driver-info {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  min-width: 140px;
+  min-width: 180px;
+  max-width: 180px;
 }
 
-.contributor-rank {
+.driver-rank {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--secondary-text-color);
-  width: 18px;
+  width: 20px;
+  text-align: right;
 }
 
-.contributor-name {
+.driver-name {
   font-size: 0.85rem;
   font-weight: 500;
   color: var(--primary-text-color);
@@ -2633,54 +2669,90 @@ a:hover {
   text-overflow: ellipsis;
 }
 
-.contributor-bar-container {
-  flex: 1;
-  height: 20px;
-  background-color: var(--background-color);
-  border-radius: 4px;
-  overflow: hidden;
+.driver-name.muted {
+  color: var(--secondary-text-color);
+  font-style: italic;
 }
 
-.contributor-bar {
+.driver-bar-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  height: 24px;
+}
+
+.driver-bar-negative {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  height: 100%;
+}
+
+.driver-bar-positive {
+  flex: 1;
+  display: flex;
+  justify-content: flex-start;
+  height: 100%;
+}
+
+.driver-zero-line {
+  width: 2px;
+  height: 100%;
+  background-color: var(--border-color);
+}
+
+.driver-bar {
   height: 100%;
   border-radius: 4px;
   transition: width 0.3s ease;
 }
 
-.contributor-bar.positive {
+.driver-bar.positive {
   background-color: var(--success-color);
+  border-radius: 0 4px 4px 0;
 }
 
-.contributor-bar.negative {
+.driver-bar.negative {
   background-color: var(--error-color);
+  border-radius: 4px 0 0 4px;
 }
 
-.contributor-value {
+.driver-value {
   font-size: 0.85rem;
   font-weight: 600;
   min-width: 70px;
   text-align: right;
 }
 
-.contributor-value.positive {
+.driver-value.positive {
   color: var(--success-color);
 }
 
-.contributor-value.negative {
+.driver-value.negative {
   color: var(--error-color);
 }
 
-.contributor-item.others-row {
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px dashed var(--border-color);
+.empty-state {
+  padding: 2rem;
+  text-align: center;
+  color: var(--secondary-text-color);
+  font-style: italic;
 }
 
-.contributor-holding {
-  font-size: 0.8rem;
-  color: var(--secondary-text-color);
-  min-width: 80px;
-  text-align: right;
+@media (max-width: 768px) {
+  .return-drivers-summary {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .summary-divider {
+    display: none;
+  }
+
+  .driver-info {
+    min-width: 120px;
+    max-width: 120px;
+  }
 }
 
 /* Sector Performance Grid */

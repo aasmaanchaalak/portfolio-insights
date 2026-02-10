@@ -487,15 +487,15 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         return { critical, high, medium, info, fundamental };
     }, [technicalAlerts]);
 
-    // Portfolio Contributors (Top 5 and Bottom 5)
-    const portfolioContributors = useMemo(() => {
+    // Portfolio Return Drivers
+    const returnDrivers = useMemo(() => {
         const dataWithContribution = enrichedData
             .filter(item => item.calculatedAmount !== null && item.calculatedAmount > 0)
             .map(item => {
                 const weightage = totalCurrentAmount > 0
                     ? (item.calculatedAmount! / totalCurrentAmount) * 100
                     : 0;
-                // YTD return with fallback: 1Y → 6M → 3M
+                // 1Y return with fallback: 1Y → 6M → 3M
                 const ytdReturn = item.return1Y ?? item.return6M ?? item.return3M ?? null;
                 const portfolioContribution = (ytdReturn !== null && weightage > 0)
                     ? (ytdReturn * weightage) / 100
@@ -507,43 +507,80 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                     weightage,
                     ytdReturn,
                     holdingValue: item.calculatedAmount || 0,
+                    isOthers: false,
                 };
             })
             .filter(item => item.portfolioContribution !== null);
 
+        if (dataWithContribution.length === 0) {
+            return null;
+        }
+
         const sorted = [...dataWithContribution].sort((a, b) =>
             (b.portfolioContribution || 0) - (a.portfolioContribution || 0)
         );
+
+        // Calculate totals
+        const portfolioReturn = sorted.reduce((sum, item) => sum + (item.portfolioContribution || 0), 0);
+        const top3Contribution = sorted.slice(0, 3).reduce((sum, item) => sum + (item.portfolioContribution || 0), 0);
+        const bottom3 = sorted.slice(-3);
+        const bottom3Contribution = bottom3.reduce((sum, item) => sum + (item.portfolioContribution || 0), 0);
+        const topContributor = sorted[0];
+        const excludingTopContributor = portfolioReturn - (topContributor?.portfolioContribution || 0);
 
         // Separate positive and negative contributors
         const positiveContributors = sorted.filter(item => (item.portfolioContribution || 0) > 0);
         const negativeContributors = sorted.filter(item => (item.portfolioContribution || 0) < 0);
 
         // Top 5 positive and others
-        const top5 = positiveContributors.slice(0, 5);
+        const topPositive = positiveContributors.slice(0, 5);
         const otherPositive = positiveContributors.slice(5);
-        const othersPositive = otherPositive.length > 0 ? {
-            name: 'Others',
+        const othersPositiveRow = otherPositive.length > 0 ? {
+            name: `Others (${otherPositive.length} stocks)`,
             portfolioContribution: otherPositive.reduce((sum, item) => sum + (item.portfolioContribution || 0), 0),
-            holdingValue: otherPositive.reduce((sum, item) => sum + item.holdingValue, 0),
-            count: otherPositive.length,
+            isOthers: true,
         } : null;
 
-        // Bottom 5 negative and others
-        const bottom5 = negativeContributors.slice(-5).reverse();
-        const otherNegative = negativeContributors.slice(0, -5);
-        const othersNegative = otherNegative.length > 0 ? {
-            name: 'Others',
+        // Bottom 4 negative and others
+        const bottomNegative = negativeContributors.slice(-4).reverse();
+        const otherNegative = negativeContributors.slice(0, -4);
+        const othersNegativeRow = otherNegative.length > 0 ? {
+            name: `Others (${otherNegative.length} stocks)`,
             portfolioContribution: otherNegative.reduce((sum, item) => sum + (item.portfolioContribution || 0), 0),
-            holdingValue: otherNegative.reduce((sum, item) => sum + item.holdingValue, 0),
-            count: otherNegative.length,
+            isOthers: true,
         } : null;
+
+        // Build unified list: positives first, then negatives
+        const unifiedList: { name: string; portfolioContribution: number; isOthers: boolean; rank?: number }[] = [];
+        let rank = 1;
+
+        topPositive.forEach(item => {
+            unifiedList.push({ name: item.name, portfolioContribution: item.portfolioContribution || 0, isOthers: false, rank: rank++ });
+        });
+        if (othersPositiveRow) {
+            unifiedList.push(othersPositiveRow);
+        }
+        bottomNegative.forEach(item => {
+            unifiedList.push({ name: item.name, portfolioContribution: item.portfolioContribution || 0, isOthers: false, rank: rank++ });
+        });
+        if (othersNegativeRow) {
+            unifiedList.push(othersNegativeRow);
+        }
+
+        // Find max absolute contribution for bar scaling
+        const maxAbsContribution = Math.max(
+            ...unifiedList.map(item => Math.abs(item.portfolioContribution || 0))
+        );
 
         return {
-            top5,
-            bottom5,
-            othersPositive,
-            othersNegative,
+            portfolioReturn,
+            top3Contribution,
+            bottom3Contribution,
+            topContributor,
+            excludingTopContributor,
+            unifiedList,
+            maxAbsContribution,
+            hasData: true,
         };
     }, [enrichedData, totalCurrentAmount]);
 
@@ -954,99 +991,91 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 )}
             </section>
 
-            {/* Portfolio Contributors */}
-            <section className="dashboard-section">
-                <h2 className="section-title">Portfolio Contributors (1Y)</h2>
-                <div className="contributors-grid">
-                    <div className="contributors-card">
-                        <h3 className="contributors-title positive">Top Contributors</h3>
-                        <div className="contributors-list">
-                            {portfolioContributors.top5.map((item, index) => {
-                                const maxContribution = Math.max(
-                                    ...portfolioContributors.top5.map(i => Math.abs(i.portfolioContribution || 0))
-                                );
-                                const barWidth = maxContribution > 0
-                                    ? (Math.abs(item.portfolioContribution || 0) / maxContribution) * 100
-                                    : 0;
-                                return (
-                                    <div key={index} className="contributor-item">
-                                        <div className="contributor-info">
-                                            <span className="contributor-rank">{index + 1}</span>
-                                            <span className="contributor-name">{item.name}</span>
-                                        </div>
-                                        <div className="contributor-bar-container">
-                                            <div
-                                                className="contributor-bar positive"
-                                                style={{ width: `${barWidth}%` }}
-                                            />
-                                        </div>
-                                        <div className="contributor-value positive">
-                                            +{(item.portfolioContribution || 0).toFixed(2)}%
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                            {portfolioContributors.othersPositive && (
-                                <div className="contributor-item others-row">
-                                    <div className="contributor-info">
-                                        <span className="contributor-rank">+</span>
-                                        <span className="contributor-name">Others ({portfolioContributors.othersPositive.count} stocks)</span>
-                                    </div>
-                                    <div className="contributor-holding">
-                                        {formatCurrency(portfolioContributors.othersPositive.holdingValue)}
-                                    </div>
-                                    <div className="contributor-value positive">
-                                        +{portfolioContributors.othersPositive.portfolioContribution.toFixed(2)}%
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                    <div className="contributors-card">
-                        <h3 className="contributors-title negative">Bottom Contributors</h3>
-                        <div className="contributors-list">
-                            {portfolioContributors.bottom5.map((item, index) => {
-                                const maxContribution = Math.max(
-                                    ...portfolioContributors.bottom5.map(i => Math.abs(i.portfolioContribution || 0))
-                                );
-                                const barWidth = maxContribution > 0
-                                    ? (Math.abs(item.portfolioContribution || 0) / maxContribution) * 100
-                                    : 0;
-                                return (
-                                    <div key={index} className="contributor-item">
-                                        <div className="contributor-info">
-                                            <span className="contributor-rank">{index + 1}</span>
-                                            <span className="contributor-name">{item.name}</span>
-                                        </div>
-                                        <div className="contributor-bar-container">
-                                            <div
-                                                className="contributor-bar negative"
-                                                style={{ width: `${barWidth}%` }}
-                                            />
-                                        </div>
-                                        <div className="contributor-value negative">
-                                            {(item.portfolioContribution || 0).toFixed(2)}%
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                            {portfolioContributors.othersNegative && (
-                                <div className="contributor-item others-row">
-                                    <div className="contributor-info">
-                                        <span className="contributor-rank">+</span>
-                                        <span className="contributor-name">Others ({portfolioContributors.othersNegative.count} stocks)</span>
-                                    </div>
-                                    <div className="contributor-holding">
-                                        {formatCurrency(portfolioContributors.othersNegative.holdingValue)}
-                                    </div>
-                                    <div className="contributor-value negative">
-                                        {portfolioContributors.othersNegative.portfolioContribution.toFixed(2)}%
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+            {/* Portfolio Return Drivers */}
+            <section className="dashboard-section return-drivers-section">
+                <div className="return-drivers-header">
+                    <h2 className="section-title">Portfolio Return Drivers (1Y)</h2>
+                    <p className="section-subtitle">How much did each stock add or drain?</p>
                 </div>
+
+                {!returnDrivers ? (
+                    <div className="empty-state">No contribution data for this period.</div>
+                ) : (
+                    <>
+                        {/* Summary Strip */}
+                        <div className="return-drivers-summary">
+                            <div className="summary-item">
+                                <span className="summary-label">Portfolio Return</span>
+                                <span className={`summary-value ${returnDrivers.portfolioReturn >= 0 ? 'positive' : 'negative'}`}>
+                                    {returnDrivers.portfolioReturn >= 0 ? '+' : ''}{returnDrivers.portfolioReturn.toFixed(2)}%
+                                </span>
+                            </div>
+                            <span className="summary-divider">•</span>
+                            <div className="summary-item">
+                                <span className="summary-label">Top 3 Stocks</span>
+                                <span className="summary-value positive">
+                                    +{returnDrivers.top3Contribution.toFixed(2)}%
+                                </span>
+                            </div>
+                            <span className="summary-divider">•</span>
+                            <div className="summary-item">
+                                <span className="summary-label">Bottom 3 Stocks</span>
+                                <span className="summary-value negative">
+                                    {returnDrivers.bottom3Contribution.toFixed(2)}%
+                                </span>
+                            </div>
+                            <span className="summary-divider">•</span>
+                            <div className="summary-item">
+                                <span className="summary-label">Top Contributor</span>
+                                <span className="summary-value positive">
+                                    {returnDrivers.topContributor?.name.substring(0, 15)}{returnDrivers.topContributor?.name.length > 15 ? '...' : ''}: +{(returnDrivers.topContributor?.portfolioContribution || 0).toFixed(2)}%
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Zero-centered Chart */}
+                        <div className="return-drivers-chart">
+                            {returnDrivers.unifiedList.map((item, index) => {
+                                const contribution = item.portfolioContribution;
+                                const isPositive = contribution >= 0;
+                                const barWidthPercent = returnDrivers.maxAbsContribution > 0
+                                    ? (Math.abs(contribution) / returnDrivers.maxAbsContribution) * 50
+                                    : 0;
+
+                                return (
+                                    <div key={index} className={`driver-row ${item.isOthers ? 'others-row' : ''}`}>
+                                        <div className="driver-info">
+                                            {!item.isOthers && <span className="driver-rank">{item.rank}</span>}
+                                            <span className={`driver-name ${item.isOthers ? 'muted' : ''}`}>{item.name}</span>
+                                        </div>
+                                        <div className="driver-bar-area">
+                                            <div className="driver-bar-negative">
+                                                {!isPositive && (
+                                                    <div
+                                                        className="driver-bar negative"
+                                                        style={{ width: `${barWidthPercent}%` }}
+                                                    />
+                                                )}
+                                            </div>
+                                            <div className="driver-zero-line" />
+                                            <div className="driver-bar-positive">
+                                                {isPositive && (
+                                                    <div
+                                                        className="driver-bar positive"
+                                                        style={{ width: `${barWidthPercent}%` }}
+                                                    />
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className={`driver-value ${isPositive ? 'positive' : 'negative'}`}>
+                                            {isPositive ? '+' : ''}{contribution.toFixed(2)}%
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
+                )}
             </section>
 
             {/* Sector Rotation - Top Gainers & Losers */}
