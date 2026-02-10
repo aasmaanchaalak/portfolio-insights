@@ -2862,6 +2862,52 @@ a:hover {
   }
 }
 
+/* Section Header with Toggle */
+.section-header-with-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.section-header-with-toggle .section-title {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.period-toggle {
+  display: flex;
+  gap: 0.25rem;
+  background-color: var(--surface-color);
+  padding: 0.25rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.toggle-btn {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border: none;
+  background: none;
+  color: var(--secondary-text-color);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.toggle-btn:hover {
+  color: var(--primary-text-color);
+}
+
+.toggle-btn.active {
+  background-color: var(--accent-color);
+  color: white;
+}
+
 @media (max-width: 480px) {
   .overview-cards {
     grid-template-columns: 1fr;
@@ -2869,5 +2915,11 @@ a:hover {
 
   .metrics-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .section-header-with-toggle {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
   }
 }

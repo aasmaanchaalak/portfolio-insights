@@ -55,6 +55,7 @@ const formatPercent = (value: number | null, decimals: number = 2): string => {
 const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
     const [alerts, setAlerts] = useState<Alert[]>([]);
     const [previousStates, setPreviousStates] = useState<TechnicalState[]>([]);
+    const [performersPeriod, setPerformersPeriod] = useState<'daily' | 'yearly'>('daily');
 
     // Enrich gridKey data with stock information
     const enrichedData = useMemo(() => {
@@ -98,9 +99,9 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
                 return3M: matchedStock?.return3M || null,
                 return6M: matchedStock?.return6M || null,
                 return1Y: matchedStock?.return1Y || null,
-                // Placeholder fields for data not yet available
-                rsi: null as number | null, // RSI not in current data
-                marketCap: null as number | null, // Market cap not in current data
+                rsi: matchedStock?.rsi || null,
+                marketCap: matchedStock?.marketCap || null,
+                roce: matchedStock?.roce || null,
             };
         });
     }, [gridKeyData, stocks]);
@@ -114,47 +115,10 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
         return enrichedData.reduce((total, item) => total + (item.investedAmount || 0), 0);
     }, [enrichedData]);
 
-    const totalAbsoluteGain = totalCurrentAmount - totalInvestedAmount;
-    const totalGainPercentage = totalInvestedAmount > 0 ? (totalAbsoluteGain / totalInvestedAmount) * 100 : 0;
-
-    // Calculate today's P&L using weighted 1D returns
-    const todaysPnL = useMemo(() => {
-        let weightedReturn = 0;
-        enrichedData.forEach(item => {
-            if (item.calculatedAmount && item.return1D !== null) {
-                const weight = item.calculatedAmount / totalCurrentAmount;
-                weightedReturn += item.return1D * weight;
-            }
-        });
-        return {
-            percent: weightedReturn,
-            amount: (weightedReturn / 100) * totalCurrentAmount
-        };
-    }, [enrichedData, totalCurrentAmount]);
-
-    // Calculate weekly P&L
-    const weeklyPnL = useMemo(() => {
-        let weightedReturn = 0;
-        enrichedData.forEach(item => {
-            if (item.calculatedAmount && item.return1W !== null) {
-                const weight = item.calculatedAmount / totalCurrentAmount;
-                weightedReturn += item.return1W * weight;
-            }
-        });
-        return weightedReturn;
-    }, [enrichedData, totalCurrentAmount]);
-
-    // Calculate monthly P&L
-    const monthlyPnL = useMemo(() => {
-        let weightedReturn = 0;
-        enrichedData.forEach(item => {
-            if (item.calculatedAmount && item.return1M !== null) {
-                const weight = item.calculatedAmount / totalCurrentAmount;
-                weightedReturn += item.return1M * weight;
-            }
-        });
-        return weightedReturn;
-    }, [enrichedData, totalCurrentAmount]);
+    // Count stocks excluding single-share holdings (quantity > 1)
+    const stockCount = useMemo(() => {
+        return enrichedData.filter(item => item.quantity !== null && item.quantity > 1).length;
+    }, [enrichedData]);
 
     // Calculate weighted averages for portfolio metrics
     const weightedMetrics = useMemo(() => {
@@ -163,10 +127,13 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
         let salesGrowthSum = 0, salesGrowthWeight = 0;
         let marketCapSum = 0, marketCapWeight = 0;
         let rsiSum = 0, rsiWeight = 0;
+        let roceSum = 0, roceWeight = 0;
         let dma50Sum = 0, dma50Weight = 0;
         let dma200Sum = 0, dma200Weight = 0;
         let downFrom52WHSum = 0, downFrom52WHWeight = 0;
         let upFrom52WLSum = 0, upFrom52WLWeight = 0;
+        let allTimeGainSum = 0, allTimeGainWeight = 0;
+        let return1YSum = 0, return1YWeight = 0;
 
         enrichedData.forEach(item => {
             const weight = item.calculatedAmount || 0;
@@ -191,6 +158,10 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
                 rsiSum += item.rsi * weight;
                 rsiWeight += weight;
             }
+            if (item.roce !== null) {
+                roceSum += item.roce * weight;
+                roceWeight += weight;
+            }
             if (item.dma50 !== null && item.currentPrice !== null) {
                 const dma50Percent = ((item.currentPrice - item.dma50) / item.dma50) * 100;
                 dma50Sum += dma50Percent * weight;
@@ -209,7 +180,21 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
                 upFrom52WLSum += item.upFrom52WeekLow * weight;
                 upFrom52WLWeight += weight;
             }
+            if (item.gainPercentage !== null) {
+                allTimeGainSum += item.gainPercentage * weight;
+                allTimeGainWeight += weight;
+            }
+            if (item.return1Y !== null) {
+                return1YSum += item.return1Y * weight;
+                return1YWeight += weight;
+            }
         });
+
+        // Avg stock value (total value / number of stocks with quantity > 1)
+        const stocksWithValue = enrichedData.filter(item => item.quantity !== null && item.quantity > 1 && item.calculatedAmount);
+        const avgStockValue = stocksWithValue.length > 0
+            ? stocksWithValue.reduce((sum, item) => sum + (item.calculatedAmount || 0), 0) / stocksWithValue.length
+            : null;
 
         return {
             avgPE: peWeight > 0 ? peSum / peWeight : null,
@@ -217,10 +202,14 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
             avgSalesGrowth: salesGrowthWeight > 0 ? salesGrowthSum / salesGrowthWeight : null,
             avgMarketCap: marketCapWeight > 0 ? marketCapSum / marketCapWeight : null,
             avgRSI: rsiWeight > 0 ? rsiSum / rsiWeight : null,
+            avgROCE: roceWeight > 0 ? roceSum / roceWeight : null,
             avgDMA50: dma50Weight > 0 ? dma50Sum / dma50Weight : null,
             avgDMA200: dma200Weight > 0 ? dma200Sum / dma200Weight : null,
             avgDownFrom52WH: downFrom52WHWeight > 0 ? downFrom52WHSum / downFrom52WHWeight : null,
             avgUpFrom52WL: upFrom52WLWeight > 0 ? upFrom52WLSum / upFrom52WLWeight : null,
+            avgStockValue,
+            weightedAllTimeGain: allTimeGainWeight > 0 ? allTimeGainSum / allTimeGainWeight : null,
+            weighted1YReturn: return1YWeight > 0 ? return1YSum / return1YWeight : null,
         };
     }, [enrichedData]);
 
@@ -234,27 +223,20 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
         const top5Value = sortedByValue.slice(0, 5).reduce((sum, item) => sum + (item.calculatedAmount || 0), 0);
         const top5Concentration = totalCurrentAmount > 0 ? (top5Value / totalCurrentAmount) * 100 : 0;
 
-        // Sector concentration
-        const sectorMap: Record<string, number> = {};
-        enrichedData.forEach(item => {
-            const sector = item.industryGroup || 'Unknown';
-            sectorMap[sector] = (sectorMap[sector] || 0) + (item.calculatedAmount || 0);
-        });
-        const largestSector = Object.entries(sectorMap).sort((a, b) => b[1] - a[1])[0];
-        const largestSectorPercent = totalCurrentAmount > 0 && largestSector
-            ? (largestSector[1] / totalCurrentAmount) * 100
-            : 0;
+        // Winners vs Losers (All-time based on gain %)
+        const winnersAllTime = enrichedData.filter(item => item.gainPercentage !== null && item.gainPercentage > 0).length;
+        const losersAllTime = enrichedData.filter(item => item.gainPercentage !== null && item.gainPercentage < 0).length;
 
-        // Winners vs Losers
-        const winners = enrichedData.filter(item => item.gainPercentage !== null && item.gainPercentage > 0).length;
-        const losers = enrichedData.filter(item => item.gainPercentage !== null && item.gainPercentage < 0).length;
+        // Winners vs Losers (1 Year based on return1Y)
+        const winners1Y = enrichedData.filter(item => item.return1Y !== null && item.return1Y > 0).length;
+        const losers1Y = enrichedData.filter(item => item.return1Y !== null && item.return1Y < 0).length;
 
         return {
             top5Concentration,
-            largestSector: largestSector ? largestSector[0] : 'N/A',
-            largestSectorPercent,
-            winners,
-            losers,
+            winnersAllTime,
+            losersAllTime,
+            winners1Y,
+            losers1Y,
             totalStocks: enrichedData.length,
         };
     }, [enrichedData, totalCurrentAmount]);
@@ -272,7 +254,6 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
             const dma200 = item.dma200;
             const downFrom52WH = item.downFrom52WeekHigh;
             const upFrom52WL = item.upFrom52WeekLow;
-            const return1D = item.return1D;
 
             if (!currentPrice || !stockCode) return;
 
@@ -495,15 +476,23 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
         };
     }, [enrichedData]);
 
-    // Top and Bottom Performers
+    // Top and Bottom Performers (Daily and Yearly)
     const performers = useMemo(() => {
-        const sortedByGain = [...enrichedData]
-            .filter(item => item.gainPercentage !== null)
-            .sort((a, b) => (b.gainPercentage || 0) - (a.gainPercentage || 0));
+        // Daily performers (by return1D)
+        const sortedByDaily = [...enrichedData]
+            .filter(item => item.return1D !== null)
+            .sort((a, b) => (b.return1D || 0) - (a.return1D || 0));
+
+        // Yearly performers (by return1Y)
+        const sortedByYearly = [...enrichedData]
+            .filter(item => item.return1Y !== null)
+            .sort((a, b) => (b.return1Y || 0) - (a.return1Y || 0));
 
         return {
-            topPerformers: sortedByGain.slice(0, 5),
-            bottomPerformers: sortedByGain.slice(-5).reverse(),
+            topDaily: sortedByDaily.slice(0, 5),
+            bottomDaily: sortedByDaily.slice(-5).reverse(),
+            topYearly: sortedByYearly.slice(0, 5),
+            bottomYearly: sortedByYearly.slice(-5).reverse(),
         };
     }, [enrichedData]);
 
@@ -564,53 +553,18 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
                     <div className="overview-card">
                         <div className="card-label">Total Value</div>
                         <div className="card-value">{formatCurrency(totalCurrentAmount)}</div>
-                        <div className={`card-change ${todaysPnL.percent >= 0 ? 'positive' : 'negative'}`}>
-                            {formatPercent(todaysPnL.percent)} ({formatCurrency(todaysPnL.amount)}) today
-                        </div>
                     </div>
                     <div className="overview-card">
                         <div className="card-label">Invested</div>
                         <div className="card-value">{formatCurrency(totalInvestedAmount)}</div>
-                        <div className="card-subtext">{enrichedData.length} stocks</div>
-                    </div>
-                    <div className="overview-card">
-                        <div className="card-label">Total Gain/Loss</div>
-                        <div className={`card-value ${totalAbsoluteGain >= 0 ? 'positive' : 'negative'}`}>
-                            {formatCurrency(totalAbsoluteGain)}
-                        </div>
-                        <div className={`card-change ${totalGainPercentage >= 0 ? 'positive' : 'negative'}`}>
-                            {formatPercent(totalGainPercentage)} all-time
-                        </div>
-                    </div>
-                    <div className="overview-card">
-                        <div className="card-label">Today's P&L</div>
-                        <div className={`card-value ${todaysPnL.percent >= 0 ? 'positive' : 'negative'}`}>
-                            {formatCurrency(todaysPnL.amount)}
-                        </div>
-                        <div className={`card-change ${todaysPnL.percent >= 0 ? 'positive' : 'negative'}`}>
-                            {formatPercent(todaysPnL.percent)}
-                        </div>
-                    </div>
-                    <div className="overview-card">
-                        <div className="card-label">This Week</div>
-                        <div className={`card-value ${weeklyPnL >= 0 ? 'positive' : 'negative'}`}>
-                            {formatPercent(weeklyPnL)}
-                        </div>
-                        <div className="card-subtext">1W weighted return</div>
-                    </div>
-                    <div className="overview-card">
-                        <div className="card-label">This Month</div>
-                        <div className={`card-value ${monthlyPnL >= 0 ? 'positive' : 'negative'}`}>
-                            {formatPercent(monthlyPnL)}
-                        </div>
-                        <div className="card-subtext">1M weighted return</div>
+                        <div className="card-subtext">{stockCount} stocks</div>
                     </div>
                 </div>
             </section>
 
             {/* Portfolio Health & Weighted Metrics */}
             <section className="dashboard-section">
-                <h2 className="section-title">Portfolio Metrics</h2>
+                <h2 className="section-title">Portfolio Quality</h2>
                 <div className="metrics-grid">
                     <div className="metric-card">
                         <div className="metric-label">Weighted Avg P/E</div>
@@ -628,6 +582,12 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
                         <div className="metric-label">Avg Sales Growth</div>
                         <div className={`metric-value ${(weightedMetrics.avgSalesGrowth || 0) >= 0 ? 'positive' : 'negative'}`}>
                             {weightedMetrics.avgSalesGrowth !== null ? formatPercent(weightedMetrics.avgSalesGrowth) : 'N/A'}
+                        </div>
+                    </div>
+                    <div className="metric-card">
+                        <div className="metric-label">Avg ROCE</div>
+                        <div className={`metric-value ${(weightedMetrics.avgROCE || 0) >= 0 ? 'positive' : 'negative'}`}>
+                            {weightedMetrics.avgROCE !== null ? formatPercent(weightedMetrics.avgROCE) : 'N/A'}
                         </div>
                     </div>
                     <div className="metric-card">
@@ -673,16 +633,37 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
                         </div>
                     </div>
                     <div className="metric-card">
-                        <div className="metric-label">Largest Sector</div>
-                        <div className="metric-value-small">{healthMetrics.largestSector}</div>
-                        <div className="metric-subvalue">{healthMetrics.largestSectorPercent.toFixed(1)}%</div>
+                        <div className="metric-label">Avg Stock Value</div>
+                        <div className="metric-value">
+                            {weightedMetrics.avgStockValue !== null ? formatCurrency(weightedMetrics.avgStockValue) : 'N/A'}
+                        </div>
                     </div>
                     <div className="metric-card">
-                        <div className="metric-label">Winners vs Losers</div>
+                        <div className="metric-label">Weighted All-time Gain</div>
+                        <div className={`metric-value ${(weightedMetrics.weightedAllTimeGain || 0) >= 0 ? 'positive' : 'negative'}`}>
+                            {weightedMetrics.weightedAllTimeGain !== null ? formatPercent(weightedMetrics.weightedAllTimeGain) : 'N/A'}
+                        </div>
+                    </div>
+                    <div className="metric-card">
+                        <div className="metric-label">Weighted 1Y Return</div>
+                        <div className={`metric-value ${(weightedMetrics.weighted1YReturn || 0) >= 0 ? 'positive' : 'negative'}`}>
+                            {weightedMetrics.weighted1YReturn !== null ? formatPercent(weightedMetrics.weighted1YReturn) : 'N/A'}
+                        </div>
+                    </div>
+                    <div className="metric-card">
+                        <div className="metric-label">Winners / Losers (All-time)</div>
                         <div className="metric-value">
-                            <span className="positive">{healthMetrics.winners}</span>
+                            <span className="positive">{healthMetrics.winnersAllTime}</span>
                             {' / '}
-                            <span className="negative">{healthMetrics.losers}</span>
+                            <span className="negative">{healthMetrics.losersAllTime}</span>
+                        </div>
+                    </div>
+                    <div className="metric-card">
+                        <div className="metric-label">Winners / Losers (1Y)</div>
+                        <div className="metric-value">
+                            <span className="positive">{healthMetrics.winners1Y}</span>
+                            {' / '}
+                            <span className="negative">{healthMetrics.losers1Y}</span>
                         </div>
                     </div>
                 </div>
@@ -888,31 +869,47 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
 
             {/* Performance Leaderboard */}
             <section className="dashboard-section">
-                <h2 className="section-title">Performance Leaderboard</h2>
+                <div className="section-header-with-toggle">
+                    <h2 className="section-title">Performance Leaderboard</h2>
+                    <div className="period-toggle">
+                        <button
+                            className={`toggle-btn ${performersPeriod === 'daily' ? 'active' : ''}`}
+                            onClick={() => setPerformersPeriod('daily')}
+                        >
+                            Daily
+                        </button>
+                        <button
+                            className={`toggle-btn ${performersPeriod === 'yearly' ? 'active' : ''}`}
+                            onClick={() => setPerformersPeriod('yearly')}
+                        >
+                            1 Year
+                        </button>
+                    </div>
+                </div>
                 <div className="leaderboard-grid">
                     <div className="leaderboard-card">
-                        <h3 className="leaderboard-title positive">Top 5 Performers</h3>
+                        <h3 className="leaderboard-title positive">Top 5 {performersPeriod === 'daily' ? 'Today' : 'This Year'}</h3>
                         <div className="leaderboard-list">
-                            {performers.topPerformers.map((item, index) => (
+                            {(performersPeriod === 'daily' ? performers.topDaily : performers.topYearly).map((item, index) => (
                                 <div key={index} className="leaderboard-item">
                                     <span className="leaderboard-rank">{index + 1}</span>
                                     <span className="leaderboard-name">{item.scripName}</span>
                                     <span className={`leaderboard-gain positive`}>
-                                        {formatPercent(item.gainPercentage)}
+                                        {formatPercent(performersPeriod === 'daily' ? item.return1D : item.return1Y)}
                                     </span>
                                 </div>
                             ))}
                         </div>
                     </div>
                     <div className="leaderboard-card">
-                        <h3 className="leaderboard-title negative">Bottom 5 Performers</h3>
+                        <h3 className="leaderboard-title negative">Bottom 5 {performersPeriod === 'daily' ? 'Today' : 'This Year'}</h3>
                         <div className="leaderboard-list">
-                            {performers.bottomPerformers.map((item, index) => (
+                            {(performersPeriod === 'daily' ? performers.bottomDaily : performers.bottomYearly).map((item, index) => (
                                 <div key={index} className="leaderboard-item">
                                     <span className="leaderboard-rank">{index + 1}</span>
                                     <span className="leaderboard-name">{item.scripName}</span>
                                     <span className={`leaderboard-gain negative`}>
-                                        {formatPercent(item.gainPercentage)}
+                                        {formatPercent(performersPeriod === 'daily' ? item.return1D : item.return1Y)}
                                     </span>
                                 </div>
                             ))}

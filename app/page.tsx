@@ -256,7 +256,21 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                     'Return over 1year': 'return1Y',
                     'Return over 1 Year': 'return1Y',
                     'Return over 1 Year (%)': 'return1Y',
-                    '1-Year Return (%)': 'return1Y'
+                    '1-Year Return (%)': 'return1Y',
+                    // Market Cap
+                    'Market Capitalization': 'marketCap',
+                    'Market Cap': 'marketCap',
+                    'Mcap': 'marketCap',
+                    'Market cap': 'marketCap',
+                    // RSI
+                    'RSI': 'rsi',
+                    'Rsi': 'rsi',
+                    'Relative Strength Index': 'rsi',
+                    // ROCE
+                    'Return on capital employed': 'roce',
+                    'ROCE': 'roce',
+                    'ROCE %': 'roce',
+                    'Return on Capital Employed': 'roce'
                 };
 
                 const requiredCsvHeaders = [
@@ -282,7 +296,7 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
 
                         let value = values[index] ? values[index].trim() : null;
 
-                        if (['currentPrice', 'priceToEarning', 'yoyQuarterlyProfitGrowth', 'yoyQuarterlySalesGrowth', 'dma50', 'dma200', 'downFrom52WeekHigh', 'upFrom52WeekLow', 'return1D', 'return1M', 'return1W', 'return3M', 'return6M', 'return1Y'].includes(internalKey)) {
+                        if (['currentPrice', 'priceToEarning', 'yoyQuarterlyProfitGrowth', 'yoyQuarterlySalesGrowth', 'dma50', 'dma200', 'downFrom52WeekHigh', 'upFrom52WeekLow', 'return1D', 'return1M', 'return1W', 'return3M', 'return6M', 'return1Y', 'marketCap', 'rsi', 'roce'].includes(internalKey)) {
                              // Remove any commas from numbers (e.g., "1,234.56" -> "1234.56")
                              const cleanValue = value ? value.replace(/,/g, '') : null;
                              (entry as any)[internalKey] = (cleanValue === null || cleanValue === '') ? null : parseFloat(cleanValue);

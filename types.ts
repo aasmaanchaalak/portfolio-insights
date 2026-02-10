@@ -26,6 +26,7 @@ export interface Stock {
   // New fields for Dashboard - may not be available in current data
   rsi?: number | null;
   marketCap?: number | null;
+  roce?: number | null;
   remarks?: string | null;
   assignedTo?: string | null;
 }
