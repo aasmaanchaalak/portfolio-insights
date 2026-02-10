@@ -2562,53 +2562,112 @@ a:hover {
   color: var(--error-color);
 }
 
-/* Gain/Loss Distribution */
-.distribution-chart {
+/* Portfolio Contributors */
+.contributors-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .contributors-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.contributors-card {
   background-color: var(--surface-color);
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  padding: 1.25rem;
+  padding: 1rem;
 }
 
-.distribution-bar-item {
+.contributors-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.contributors-title.positive {
+  color: var(--success-color);
+}
+
+.contributors-title.negative {
+  color: var(--error-color);
+}
+
+.contributors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.contributor-item {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 0.5rem;
+  gap: 0.75rem;
 }
 
-.distribution-label {
-  width: 120px;
+.contributor-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 140px;
+}
+
+.contributor-rank {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--secondary-text-color);
+  width: 18px;
+}
+
+.contributor-name {
   font-size: 0.85rem;
   font-weight: 500;
-  color: var(--secondary-text-color);
-  text-align: right;
+  color: var(--primary-text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.distribution-bar-container {
+.contributor-bar-container {
   flex: 1;
-  height: 28px;
+  height: 20px;
   background-color: var(--background-color);
   border-radius: 4px;
   overflow: hidden;
 }
 
-.distribution-bar-fill {
+.contributor-bar {
   height: 100%;
-  display: flex;
-  align-items: center;
-  padding-left: 0.5rem;
-  min-width: 0;
   border-radius: 4px;
   transition: width 0.3s ease;
 }
 
-.distribution-count {
-  font-size: 0.8rem;
+.contributor-bar.positive {
+  background-color: var(--success-color);
+}
+
+.contributor-bar.negative {
+  background-color: var(--error-color);
+}
+
+.contributor-value {
+  font-size: 0.85rem;
   font-weight: 600;
-  color: white;
-  white-space: nowrap;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  min-width: 70px;
+  text-align: right;
+}
+
+.contributor-value.positive {
+  color: var(--success-color);
+}
+
+.contributor-value.negative {
+  color: var(--error-color);
 }
 
 /* Sector Performance Grid */

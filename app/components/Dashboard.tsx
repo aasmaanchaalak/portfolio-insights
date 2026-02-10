@@ -3,9 +3,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Stock, GridKeyData } from '../../types';
 
+interface PrivateInvestments {
+    totalInvested: number;
+    count: number;
+}
+
 interface DashboardProps {
     gridKeyData: GridKeyData[];
     stocks: Stock[];
+    privateInvestments: PrivateInvestments;
 }
 
 interface TechnicalState {
@@ -52,7 +58,7 @@ const formatPercent = (value: number | null, decimals: number = 2): string => {
     return `${value >= 0 ? '+' : ''}${value.toFixed(decimals)}%`;
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
+const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInvestments }) => {
     const [alerts, setAlerts] = useState<Alert[]>([]);
     const [previousStates, setPreviousStates] = useState<TechnicalState[]>([]);
     const [performersPeriod, setPerformersPeriod] = useState<'daily' | 'yearly'>('daily');
@@ -117,13 +123,11 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
 
     // Calculate P&L metrics
     const pnlMetrics = useMemo(() => {
-        const totalGainLoss = totalCurrentAmount - totalInvestedAmount;
-        const gainLossPercent = totalInvestedAmount > 0 ? (totalGainLoss / totalInvestedAmount) * 100 : 0;
-
-        // Calculate weighted daily, weekly, monthly P&L
+        // Calculate weighted daily, weekly, monthly, yearly P&L
         let dailyPnL = 0;
         let weeklyPnL = 0;
         let monthlyPnL = 0;
+        let yearlyPnL = 0;
 
         enrichedData.forEach(item => {
             const value = item.calculatedAmount || 0;
@@ -137,9 +141,12 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
             if (item.return1M !== null) {
                 monthlyPnL += value * item.return1M / (100 + item.return1M);
             }
+            if (item.return1Y !== null) {
+                yearlyPnL += value * item.return1Y / (100 + item.return1Y);
+            }
         });
 
-        // Daily % = dailyPnL / (totalCurrentAmount - dailyPnL) * 100
+        // Calculate percentages
         const previousDayValue = totalCurrentAmount - dailyPnL;
         const dailyPercent = previousDayValue > 0 ? (dailyPnL / previousDayValue) * 100 : 0;
 
@@ -149,17 +156,16 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
         const previousMonthValue = totalCurrentAmount - monthlyPnL;
         const monthlyPercent = previousMonthValue > 0 ? (monthlyPnL / previousMonthValue) * 100 : 0;
 
+        const previousYearValue = totalCurrentAmount - yearlyPnL;
+        const yearlyPercent = previousYearValue > 0 ? (yearlyPnL / previousYearValue) * 100 : 0;
+
         return {
-            totalGainLoss,
-            gainLossPercent,
-            dailyPnL,
             dailyPercent,
-            weeklyPnL,
             weeklyPercent,
-            monthlyPnL,
             monthlyPercent,
+            yearlyPercent,
         };
-    }, [enrichedData, totalCurrentAmount, totalInvestedAmount]);
+    }, [enrichedData, totalCurrentAmount]);
 
     // Count stocks excluding single-share holdings (quantity > 1)
     const stockCount = useMemo(() => {
@@ -481,27 +487,38 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
         return { critical, high, medium, info, fundamental };
     }, [technicalAlerts]);
 
-    // Gain/Loss Distribution
-    const gainLossDistribution = useMemo(() => {
-        const ranges = [
-            { label: '< -20%', min: -Infinity, max: -20, count: 0, color: '#dc2626' },
-            { label: '-20% to -10%', min: -20, max: -10, count: 0, color: '#ef4444' },
-            { label: '-10% to 0%', min: -10, max: 0, count: 0, color: '#f87171' },
-            { label: '0% to 10%', min: 0, max: 10, count: 0, color: '#86efac' },
-            { label: '10% to 20%', min: 10, max: 20, count: 0, color: '#4ade80' },
-            { label: '20% to 50%', min: 20, max: 50, count: 0, color: '#22c55e' },
-            { label: '> 50%', min: 50, max: Infinity, count: 0, color: '#16a34a' },
-        ];
+    // Portfolio Contributors (Top 5 and Bottom 5)
+    const portfolioContributors = useMemo(() => {
+        const dataWithContribution = enrichedData
+            .filter(item => item.calculatedAmount !== null && item.calculatedAmount > 0)
+            .map(item => {
+                const weightage = totalCurrentAmount > 0
+                    ? (item.calculatedAmount! / totalCurrentAmount) * 100
+                    : 0;
+                // YTD return with fallback: 1Y → 6M → 3M
+                const ytdReturn = item.return1Y ?? item.return6M ?? item.return3M ?? null;
+                const portfolioContribution = (ytdReturn !== null && weightage > 0)
+                    ? (ytdReturn * weightage) / 100
+                    : null;
+                return {
+                    name: item.scripName,
+                    code: item.nseCode || item.bseCode || '',
+                    portfolioContribution,
+                    weightage,
+                    ytdReturn,
+                };
+            })
+            .filter(item => item.portfolioContribution !== null);
 
-        enrichedData.forEach(item => {
-            if (item.gainPercentage !== null) {
-                const range = ranges.find(r => item.gainPercentage! >= r.min && item.gainPercentage! < r.max);
-                if (range) range.count++;
-            }
-        });
+        const sorted = [...dataWithContribution].sort((a, b) =>
+            (b.portfolioContribution || 0) - (a.portfolioContribution || 0)
+        );
 
-        return ranges;
-    }, [enrichedData]);
+        return {
+            top5: sorted.slice(0, 5),
+            bottom5: sorted.slice(-5).reverse(),
+        };
+    }, [enrichedData, totalCurrentAmount]);
 
     // Sector Performance - Top 5 Gainers and Losers
     const sectorPerformance = useMemo(() => {
@@ -625,40 +642,35 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
                         <div className="card-value">{formatCurrency(totalInvestedAmount)}</div>
                         <div className="card-subtext">{stockCount} stocks</div>
                     </div>
+                    {privateInvestments.count > 0 && (
+                        <div className="overview-card">
+                            <div className="card-label">Private Investments</div>
+                            <div className="card-value">{formatCurrency(privateInvestments.totalInvested)}</div>
+                            <div className="card-subtext">{privateInvestments.count} stocks</div>
+                        </div>
+                    )}
                     <div className="overview-card">
-                        <div className="card-label">Gain/Loss</div>
-                        <div className={`card-value ${pnlMetrics.totalGainLoss >= 0 ? 'positive' : 'negative'}`}>
-                            {formatCurrency(pnlMetrics.totalGainLoss)}
-                        </div>
-                        <div className={`card-subtext ${pnlMetrics.gainLossPercent >= 0 ? 'positive' : 'negative'}`}>
-                            {formatPercent(pnlMetrics.gainLossPercent)}
-                        </div>
-                    </div>
-                    <div className="overview-card">
-                        <div className="card-label">Today's P&L</div>
-                        <div className={`card-value ${pnlMetrics.dailyPnL >= 0 ? 'positive' : 'negative'}`}>
-                            {formatCurrency(pnlMetrics.dailyPnL)}
-                        </div>
-                        <div className={`card-subtext ${pnlMetrics.dailyPercent >= 0 ? 'positive' : 'negative'}`}>
+                        <div className="card-label">Today</div>
+                        <div className={`card-value ${pnlMetrics.dailyPercent >= 0 ? 'positive' : 'negative'}`}>
                             {formatPercent(pnlMetrics.dailyPercent)}
                         </div>
                     </div>
                     <div className="overview-card">
                         <div className="card-label">Weekly</div>
-                        <div className={`card-value ${pnlMetrics.weeklyPnL >= 0 ? 'positive' : 'negative'}`}>
-                            {formatCurrency(pnlMetrics.weeklyPnL)}
-                        </div>
-                        <div className={`card-subtext ${pnlMetrics.weeklyPercent >= 0 ? 'positive' : 'negative'}`}>
+                        <div className={`card-value ${pnlMetrics.weeklyPercent >= 0 ? 'positive' : 'negative'}`}>
                             {formatPercent(pnlMetrics.weeklyPercent)}
                         </div>
                     </div>
                     <div className="overview-card">
                         <div className="card-label">Monthly</div>
-                        <div className={`card-value ${pnlMetrics.monthlyPnL >= 0 ? 'positive' : 'negative'}`}>
-                            {formatCurrency(pnlMetrics.monthlyPnL)}
-                        </div>
-                        <div className={`card-subtext ${pnlMetrics.monthlyPercent >= 0 ? 'positive' : 'negative'}`}>
+                        <div className={`card-value ${pnlMetrics.monthlyPercent >= 0 ? 'positive' : 'negative'}`}>
                             {formatPercent(pnlMetrics.monthlyPercent)}
+                        </div>
+                    </div>
+                    <div className="overview-card">
+                        <div className="card-label">Yearly</div>
+                        <div className={`card-value ${pnlMetrics.yearlyPercent >= 0 ? 'positive' : 'negative'}`}>
+                            {formatPercent(pnlMetrics.yearlyPercent)}
                         </div>
                     </div>
                 </div>
@@ -753,7 +765,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
                         </div>
                     </div>
                     <div className="metric-card">
-                        <div className="metric-label">Winners / Losers (All-time)</div>
+                        <div className="metric-label">Gain / Loss (All-time)</div>
                         <div className="metric-value">
                             <span className="positive">{healthMetrics.winnersAllTime}</span>
                             {' / '}
@@ -766,7 +778,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
                         </div>
                     </div>
                     <div className="metric-card">
-                        <div className="metric-label">Winners / Losers (1Y)</div>
+                        <div className="metric-label">Gain / Loss (1Y)</div>
                         <div className="metric-value">
                             <span className="positive">{healthMetrics.winners1Y}</span>
                             {' / '}
@@ -915,30 +927,70 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
                 )}
             </section>
 
-            {/* Gain/Loss Distribution */}
+            {/* Portfolio Contributors */}
             <section className="dashboard-section">
-                <h2 className="section-title">Gain/Loss Distribution</h2>
-                <div className="distribution-chart">
-                    {gainLossDistribution.map((range, index) => {
-                        const maxCount = Math.max(...gainLossDistribution.map(r => r.count));
-                        const width = maxCount > 0 ? (range.count / maxCount) * 100 : 0;
-                        return (
-                            <div key={index} className="distribution-bar-item">
-                                <div className="distribution-label">{range.label}</div>
-                                <div className="distribution-bar-container">
-                                    <div
-                                        className="distribution-bar-fill"
-                                        style={{
-                                            width: `${width}%`,
-                                            backgroundColor: range.color
-                                        }}
-                                    >
-                                        <span className="distribution-count">{range.count} stocks</span>
+                <h2 className="section-title">Portfolio Contributors</h2>
+                <div className="contributors-grid">
+                    <div className="contributors-card">
+                        <h3 className="contributors-title positive">Top 5 Contributors</h3>
+                        <div className="contributors-list">
+                            {portfolioContributors.top5.map((item, index) => {
+                                const maxContribution = Math.max(
+                                    ...portfolioContributors.top5.map(i => Math.abs(i.portfolioContribution || 0))
+                                );
+                                const barWidth = maxContribution > 0
+                                    ? (Math.abs(item.portfolioContribution || 0) / maxContribution) * 100
+                                    : 0;
+                                return (
+                                    <div key={index} className="contributor-item">
+                                        <div className="contributor-info">
+                                            <span className="contributor-rank">{index + 1}</span>
+                                            <span className="contributor-name">{item.name}</span>
+                                        </div>
+                                        <div className="contributor-bar-container">
+                                            <div
+                                                className="contributor-bar positive"
+                                                style={{ width: `${barWidth}%` }}
+                                            />
+                                        </div>
+                                        <div className="contributor-value positive">
+                                            +{(item.portfolioContribution || 0).toFixed(2)}%
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-                        );
-                    })}
+                                );
+                            })}
+                        </div>
+                    </div>
+                    <div className="contributors-card">
+                        <h3 className="contributors-title negative">Bottom 5 Contributors</h3>
+                        <div className="contributors-list">
+                            {portfolioContributors.bottom5.map((item, index) => {
+                                const maxContribution = Math.max(
+                                    ...portfolioContributors.bottom5.map(i => Math.abs(i.portfolioContribution || 0))
+                                );
+                                const barWidth = maxContribution > 0
+                                    ? (Math.abs(item.portfolioContribution || 0) / maxContribution) * 100
+                                    : 0;
+                                return (
+                                    <div key={index} className="contributor-item">
+                                        <div className="contributor-info">
+                                            <span className="contributor-rank">{index + 1}</span>
+                                            <span className="contributor-name">{item.name}</span>
+                                        </div>
+                                        <div className="contributor-bar-container">
+                                            <div
+                                                className="contributor-bar negative"
+                                                style={{ width: `${barWidth}%` }}
+                                            />
+                                        </div>
+                                        <div className="contributor-value negative">
+                                            {(item.portfolioContribution || 0).toFixed(2)}%
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
                 </div>
             </section>
 

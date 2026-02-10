@@ -366,7 +366,7 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
     );
 };
 
-const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }> = ({ onGridKeyUploaded }) => {
+const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateInvestments: { totalInvested: number; count: number }) => void }> = ({ onGridKeyUploaded }) => {
     const [file, setFile] = useState<File | null>(null);
     const [status, setStatus] = useState('');
     const [error, setError] = useState('');
@@ -484,8 +484,20 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[]) => void }
                     item.quantity > 1
                 );
 
-                onGridKeyUploaded(filtered);
-                setStatus(`GridKey data uploaded successfully! ${filtered.length} stocks processed (1-share holdings excluded). View Portfolio View to see current amounts.`);
+                // Calculate private investments (stocks without NSE/BSE codes)
+                const privateStocks = data.filter(item =>
+                    !item.bseCode && !item.nseCode &&
+                    item.quantity !== null &&
+                    item.quantity > 1
+                );
+                const privateInvestments = {
+                    totalInvested: privateStocks.reduce((sum, item) =>
+                        sum + ((item.quantity || 0) * (item.averageBuyPrice || 0)), 0),
+                    count: privateStocks.length
+                };
+
+                onGridKeyUploaded(filtered, privateInvestments);
+                setStatus(`GridKey data uploaded successfully! ${filtered.length} stocks processed${privateInvestments.count > 0 ? ` + ${privateInvestments.count} private investments` : ''} (1-share holdings excluded). View Portfolio View to see current amounts.`);
                 setError('');
             } catch (err) {
                 setError('Error parsing CSV file: ' + (err as Error).message);
@@ -2632,10 +2644,16 @@ const TrendMomentumPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] 
 };
 
 
+interface PrivateInvestments {
+    totalInvested: number;
+    count: number;
+}
+
 const App: React.FC = () => {
     const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'momentum'>('dashboard');
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
+    const [privateInvestments, setPrivateInvestments] = useState<PrivateInvestments>({ totalInvested: 0, count: 0 });
     const [loading, setLoading] = useState(true);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [passwordInput, setPasswordInput] = useState('');
@@ -2678,11 +2696,12 @@ const App: React.FC = () => {
                 const portfolioData = await portfolioResponse.json();
                 setStocks(portfolioData);
 
-                // Load GridKey data
+                // Load GridKey data and private investments
                 const gridKeyResponse = await fetch('/api/gridkey');
                 if (gridKeyResponse.ok) {
-                    const gridKeyData = await gridKeyResponse.json();
-                    setGridKeyData(gridKeyData);
+                    const { gridKeyData, privateInvestments: privInv } = await gridKeyResponse.json();
+                    setGridKeyData(gridKeyData || []);
+                    setPrivateInvestments(privInv || { totalInvested: 0, count: 0 });
                 }
             } catch (error) {
                 console.error('Error loading data:', error);
@@ -2763,7 +2782,7 @@ const App: React.FC = () => {
         }
     };
 
-    const handleGridKeyUploaded = async (data: GridKeyData[]) => {
+    const handleGridKeyUploaded = async (data: GridKeyData[], privateInv: { totalInvested: number; count: number }) => {
         try {
             // Save to API
             const response = await fetch('/api/gridkey', {
@@ -2771,7 +2790,7 @@ const App: React.FC = () => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ data }),
+                body: JSON.stringify({ data, privateInvestments: privateInv }),
             });
 
             if (!response.ok) {
@@ -2779,6 +2798,7 @@ const App: React.FC = () => {
             }
 
             setGridKeyData(data);
+            setPrivateInvestments(privateInv);
 
             // Save portfolio value to history after gridKey is updated
             await savePortfolioValueToHistory();
@@ -2788,6 +2808,7 @@ const App: React.FC = () => {
             console.error('Error saving GridKey data:', error);
             // Still update the UI even if API fails
             setGridKeyData(data);
+            setPrivateInvestments(privateInv);
         }
     };
 
@@ -2835,7 +2856,7 @@ const App: React.FC = () => {
                 <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>
             </nav>
             <main>
-                {page === 'dashboard' && <Dashboard gridKeyData={gridKeyData} stocks={stocks} />}
+                {page === 'dashboard' && <Dashboard gridKeyData={gridKeyData} stocks={stocks} privateInvestments={privateInvestments} />}
                 {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={stocks} onStocksUpdate={setStocks} />}
                 {page === 'analysis' && <AnalysisPage gridKeyData={gridKeyData} stocks={stocks} />}
                 {page === 'momentum' && <TrendMomentumPage gridKeyData={gridKeyData} stocks={stocks} />}
