@@ -23,6 +23,9 @@ export interface Stock {
   dma200: number | null;
   downFrom52WeekHigh: number | null;
   upFrom52WeekLow: number | null;
+  // New fields for Dashboard - may not be available in current data
+  rsi?: number | null;
+  marketCap?: number | null;
   remarks?: string | null;
   assignedTo?: string | null;
 }

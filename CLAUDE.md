@@ -1,10 +1,9 @@
 # Portfolio Insights - Claude Documentation
 
-## 🧹 Cleanup Summary (Latest Changes)
-- **Removed**: Entire unused `PortfolioTable` component (794 lines of dead code)
-- **Removed**: Unused `clearRangeFilters` function
-- **Fixed**: Re-created accidentally deleted `GridKeyPage` component
-- **Result**: Cleaner, more maintainable codebase
+## 🧹 Latest Changes
+- **NEW**: Added Dashboard page with comprehensive portfolio metrics and technical alerts
+- **NEW**: Added RSI and marketCap fields to Stock interface (placeholders for future data)
+- Dashboard is now the default landing page
 
 ---
 
@@ -13,14 +12,31 @@
 ### 🏗️ Main Application Architecture
 ```
 App Component (Main Router)
-├── Navigation Bar (5 tabs)
+├── Navigation Bar (6 tabs)
 ├── Main Content Area
 └── Shared State Management
 ```
 
-### 📱 5 Main Pages/Components
+### 📱 6 Main Pages/Components
 
-#### 1. **Portfolio Insights** (`PortfolioInsightsPage`)
+#### 1. **Dashboard** (`Dashboard`) - NEW
+- **Purpose**: Overview dashboard with portfolio metrics and technical alerts
+- **Location**: `app/components/Dashboard.tsx`
+- **Features**:
+  - **Portfolio Overview Cards**: Total Value, Invested, Gain/Loss, Today's P&L, Weekly, Monthly
+  - **Portfolio Metrics**: Weighted avg P/E, Profit Growth, Sales Growth, vs 50/200 DMA, 52W High/Low, RSI, Market Cap
+  - **Technical Alerts**: Stocks below 50/200 DMA, Death/Golden Cross, near 52W high/low, big daily moves
+  - **Gain/Loss Distribution**: Visual bar chart of portfolio performance ranges
+  - **Sector Performance**: Top 5 gaining and losing sectors by 1M return
+  - **Performance Leaderboard**: Top/Bottom 5 performers by gain %
+  - **Technical Status Table**: DMA positions, 52W positions for all stocks
+- **Alert Categories**:
+  - Critical: Death Cross, Below 200 DMA
+  - High: Below 50 DMA, Near 52W Low, Big Daily Drop
+  - Positive: Golden Cross, Above 50/200 DMA
+  - Info: Near 52W High, Big Daily Gain
+
+#### 2. **Portfolio Insights** (`PortfolioInsightsPage`)
 - **Purpose**: Main portfolio analysis dashboard
 - **Features**: 
   - Interactive data table with all portfolio holdings
@@ -31,7 +47,7 @@ App Component (Main Router)
 - **Data Source**: Combined GridKey + Screener data
 - **Table**: Single functional table (`filteredAndSortedData`)
 
-#### 2. **Analysis** (`AnalysisPage`)
+#### 3. **Analysis** (`AnalysisPage`)
 - **Purpose**: Visual portfolio analysis and charts
 - **Features**:
   - **Allocation Chart**: Holdings by value (with Show More/Less for all stocks)
@@ -42,17 +58,17 @@ App Component (Main Router)
   - **Portfolio Value Chart**: Historical value tracking with CSV download
 - **Charts**: 6 different chart types with interactive controls
 
-#### 3. **Trend & Momentum** (`TrendMomentumPage`)
+#### 4. **Trend & Momentum** (`TrendMomentumPage`)
 - **Purpose**: Technical analysis dashboard
 - **Features**: Performance heatmaps, trend indicators
 - **Data**: Uses return periods (1D, 1W, 1M, 3M, 6M, 1Y)
 
-#### 4. **Screener Data** (`UploadPage`)
+#### 5. **Screener Data** (`UploadPage`)
 - **Purpose**: Upload and process Screener.in CSV files
 - **Features**: File validation, CSV parsing, data processing
 - **Updates**: Stock prices, returns, fundamentals
 
-#### 5. **GridKey Data** (`GridKeyPage`)
+#### 6. **GridKey Data** (`GridKeyPage`)
 - **Purpose**: Upload GridKey CSV files for holdings data
 - **Features**: Quantity and buy price processing
 - **Updates**: Portfolio holdings, quantities, average buy prices
@@ -107,7 +123,7 @@ Combined Data → Calculate Amounts → Calculate Weightages → Calculate Portf
 ---
 
 ## 🗂️ Component Structure
-- **Total Components**: 5 main page components
+- **Total Components**: 6 main page components
 - **Single Table**: Only 1 functional table (in PortfolioInsightsPage)
 - **Clean Architecture**: No unused/dead code remaining
 - **Modular Design**: Each page handles specific functionality
@@ -132,12 +148,14 @@ Combined Data → Calculate Amounts → Calculate Weightages → Calculate Portf
 ```
 portfolio-insights/
 ├── app/
-│   ├── page.tsx          # Main application file
-│   ├── globals.css       # Styling
-│   └── api/              # API endpoints
-├── types/                # TypeScript definitions
-├── package.json          # Dependencies
-└── CLAUDE.md            # This documentation
+│   ├── page.tsx              # Main application file
+│   ├── globals.css           # Styling
+│   ├── components/
+│   │   └── Dashboard.tsx     # Dashboard component
+│   └── api/                  # API endpoints
+├── types.ts                  # TypeScript definitions
+├── package.json              # Dependencies
+└── CLAUDE.md                 # This documentation
 ```
 
 ---

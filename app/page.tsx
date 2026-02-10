@@ -7,6 +7,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Stock, GridKeyData } from '../types';
+import Dashboard from './components/Dashboard';
 
 type SortKey = keyof Stock;
 type SortDirection = 'ascending' | 'descending';
@@ -2618,7 +2619,7 @@ const TrendMomentumPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] 
 
 
 const App: React.FC = () => {
-    const [page, setPage] = useState<'insights' | 'upload' | 'gridkey' | 'analysis' | 'momentum'>('insights');
+    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'momentum'>('dashboard');
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [loading, setLoading] = useState(true);
@@ -2812,6 +2813,7 @@ const App: React.FC = () => {
     return (
         <>
             <nav className="main-nav">
+                <button className={page === 'dashboard' ? 'active' : ''} onClick={() => setPage('dashboard')}>Dashboard</button>
                 <button className={page === 'insights' ? 'active' : ''} onClick={() => setPage('insights')}>Portfolio Insights</button>
                 <button className={page === 'analysis' ? 'active' : ''} onClick={() => setPage('analysis')}>Analysis</button>
                 <button className={page === 'momentum' ? 'active' : ''} onClick={() => setPage('momentum')}>Trend & Momentum</button>
@@ -2819,6 +2821,7 @@ const App: React.FC = () => {
                 <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>
             </nav>
             <main>
+                {page === 'dashboard' && <Dashboard gridKeyData={gridKeyData} stocks={stocks} />}
                 {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={stocks} onStocksUpdate={setStocks} />}
                 {page === 'analysis' && <AnalysisPage gridKeyData={gridKeyData} stocks={stocks} />}
                 {page === 'momentum' && <TrendMomentumPage gridKeyData={gridKeyData} stocks={stocks} />}
