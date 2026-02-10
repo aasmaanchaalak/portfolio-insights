@@ -115,6 +115,52 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
         return enrichedData.reduce((total, item) => total + (item.investedAmount || 0), 0);
     }, [enrichedData]);
 
+    // Calculate P&L metrics
+    const pnlMetrics = useMemo(() => {
+        const totalGainLoss = totalCurrentAmount - totalInvestedAmount;
+        const gainLossPercent = totalInvestedAmount > 0 ? (totalGainLoss / totalInvestedAmount) * 100 : 0;
+
+        // Calculate weighted daily, weekly, monthly P&L
+        let dailyPnL = 0;
+        let weeklyPnL = 0;
+        let monthlyPnL = 0;
+
+        enrichedData.forEach(item => {
+            const value = item.calculatedAmount || 0;
+            if (item.return1D !== null) {
+                // P&L for today = value * return1D / (100 + return1D)
+                dailyPnL += value * item.return1D / (100 + item.return1D);
+            }
+            if (item.return1W !== null) {
+                weeklyPnL += value * item.return1W / (100 + item.return1W);
+            }
+            if (item.return1M !== null) {
+                monthlyPnL += value * item.return1M / (100 + item.return1M);
+            }
+        });
+
+        // Daily % = dailyPnL / (totalCurrentAmount - dailyPnL) * 100
+        const previousDayValue = totalCurrentAmount - dailyPnL;
+        const dailyPercent = previousDayValue > 0 ? (dailyPnL / previousDayValue) * 100 : 0;
+
+        const previousWeekValue = totalCurrentAmount - weeklyPnL;
+        const weeklyPercent = previousWeekValue > 0 ? (weeklyPnL / previousWeekValue) * 100 : 0;
+
+        const previousMonthValue = totalCurrentAmount - monthlyPnL;
+        const monthlyPercent = previousMonthValue > 0 ? (monthlyPnL / previousMonthValue) * 100 : 0;
+
+        return {
+            totalGainLoss,
+            gainLossPercent,
+            dailyPnL,
+            dailyPercent,
+            weeklyPnL,
+            weeklyPercent,
+            monthlyPnL,
+            monthlyPercent,
+        };
+    }, [enrichedData, totalCurrentAmount, totalInvestedAmount]);
+
     // Count stocks excluding single-share holdings (quantity > 1)
     const stockCount = useMemo(() => {
         return enrichedData.filter(item => item.quantity !== null && item.quantity > 1).length;
@@ -224,19 +270,39 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
         const top5Concentration = totalCurrentAmount > 0 ? (top5Value / totalCurrentAmount) * 100 : 0;
 
         // Winners vs Losers (All-time based on gain %)
-        const winnersAllTime = enrichedData.filter(item => item.gainPercentage !== null && item.gainPercentage > 0).length;
-        const losersAllTime = enrichedData.filter(item => item.gainPercentage !== null && item.gainPercentage < 0).length;
+        const winnersAllTimeItems = enrichedData.filter(item => item.gainPercentage !== null && item.gainPercentage > 0);
+        const losersAllTimeItems = enrichedData.filter(item => item.gainPercentage !== null && item.gainPercentage < 0);
+        const winnersAllTime = winnersAllTimeItems.length;
+        const losersAllTime = losersAllTimeItems.length;
+        const winnersAllTimeWeight = totalCurrentAmount > 0
+            ? (winnersAllTimeItems.reduce((sum, item) => sum + (item.calculatedAmount || 0), 0) / totalCurrentAmount) * 100
+            : 0;
+        const losersAllTimeWeight = totalCurrentAmount > 0
+            ? (losersAllTimeItems.reduce((sum, item) => sum + (item.calculatedAmount || 0), 0) / totalCurrentAmount) * 100
+            : 0;
 
         // Winners vs Losers (1 Year based on return1Y)
-        const winners1Y = enrichedData.filter(item => item.return1Y !== null && item.return1Y > 0).length;
-        const losers1Y = enrichedData.filter(item => item.return1Y !== null && item.return1Y < 0).length;
+        const winners1YItems = enrichedData.filter(item => item.return1Y !== null && item.return1Y > 0);
+        const losers1YItems = enrichedData.filter(item => item.return1Y !== null && item.return1Y < 0);
+        const winners1Y = winners1YItems.length;
+        const losers1Y = losers1YItems.length;
+        const winners1YWeight = totalCurrentAmount > 0
+            ? (winners1YItems.reduce((sum, item) => sum + (item.calculatedAmount || 0), 0) / totalCurrentAmount) * 100
+            : 0;
+        const losers1YWeight = totalCurrentAmount > 0
+            ? (losers1YItems.reduce((sum, item) => sum + (item.calculatedAmount || 0), 0) / totalCurrentAmount) * 100
+            : 0;
 
         return {
             top5Concentration,
             winnersAllTime,
             losersAllTime,
+            winnersAllTimeWeight,
+            losersAllTimeWeight,
             winners1Y,
             losers1Y,
+            winners1YWeight,
+            losers1YWeight,
             totalStocks: enrichedData.length,
         };
     }, [enrichedData, totalCurrentAmount]);
@@ -559,6 +625,42 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
                         <div className="card-value">{formatCurrency(totalInvestedAmount)}</div>
                         <div className="card-subtext">{stockCount} stocks</div>
                     </div>
+                    <div className="overview-card">
+                        <div className="card-label">Gain/Loss</div>
+                        <div className={`card-value ${pnlMetrics.totalGainLoss >= 0 ? 'positive' : 'negative'}`}>
+                            {formatCurrency(pnlMetrics.totalGainLoss)}
+                        </div>
+                        <div className={`card-subtext ${pnlMetrics.gainLossPercent >= 0 ? 'positive' : 'negative'}`}>
+                            {formatPercent(pnlMetrics.gainLossPercent)}
+                        </div>
+                    </div>
+                    <div className="overview-card">
+                        <div className="card-label">Today's P&L</div>
+                        <div className={`card-value ${pnlMetrics.dailyPnL >= 0 ? 'positive' : 'negative'}`}>
+                            {formatCurrency(pnlMetrics.dailyPnL)}
+                        </div>
+                        <div className={`card-subtext ${pnlMetrics.dailyPercent >= 0 ? 'positive' : 'negative'}`}>
+                            {formatPercent(pnlMetrics.dailyPercent)}
+                        </div>
+                    </div>
+                    <div className="overview-card">
+                        <div className="card-label">Weekly</div>
+                        <div className={`card-value ${pnlMetrics.weeklyPnL >= 0 ? 'positive' : 'negative'}`}>
+                            {formatCurrency(pnlMetrics.weeklyPnL)}
+                        </div>
+                        <div className={`card-subtext ${pnlMetrics.weeklyPercent >= 0 ? 'positive' : 'negative'}`}>
+                            {formatPercent(pnlMetrics.weeklyPercent)}
+                        </div>
+                    </div>
+                    <div className="overview-card">
+                        <div className="card-label">Monthly</div>
+                        <div className={`card-value ${pnlMetrics.monthlyPnL >= 0 ? 'positive' : 'negative'}`}>
+                            {formatCurrency(pnlMetrics.monthlyPnL)}
+                        </div>
+                        <div className={`card-subtext ${pnlMetrics.monthlyPercent >= 0 ? 'positive' : 'negative'}`}>
+                            {formatPercent(pnlMetrics.monthlyPercent)}
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -657,6 +759,11 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
                             {' / '}
                             <span className="negative">{healthMetrics.losersAllTime}</span>
                         </div>
+                        <div className="metric-subtext">
+                            <span className="positive">{healthMetrics.winnersAllTimeWeight.toFixed(1)}%</span>
+                            {' / '}
+                            <span className="negative">{healthMetrics.losersAllTimeWeight.toFixed(1)}%</span>
+                        </div>
                     </div>
                     <div className="metric-card">
                         <div className="metric-label">Winners / Losers (1Y)</div>
@@ -664,6 +771,11 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
                             <span className="positive">{healthMetrics.winners1Y}</span>
                             {' / '}
                             <span className="negative">{healthMetrics.losers1Y}</span>
+                        </div>
+                        <div className="metric-subtext">
+                            <span className="positive">{healthMetrics.winners1YWeight.toFixed(1)}%</span>
+                            {' / '}
+                            <span className="negative">{healthMetrics.losers1YWeight.toFixed(1)}%</span>
                         </div>
                     </div>
                 </div>

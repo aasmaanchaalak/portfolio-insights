@@ -2406,11 +2406,31 @@ a:hover {
   margin-top: 0.25rem;
 }
 
+.metric-card .metric-subtext {
+  font-size: 0.75rem;
+  color: var(--secondary-text-color);
+  margin-top: 0.25rem;
+}
+
+.metric-card .metric-subtext .positive {
+  color: var(--success-color);
+}
+
+.metric-card .metric-subtext .negative {
+  color: var(--error-color);
+}
+
 /* Alerts Container */
 .alerts-container {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 900px) {
+  .alerts-container {
+    grid-template-columns: 1fr;
+  }
 }
 
 .empty-alerts {
