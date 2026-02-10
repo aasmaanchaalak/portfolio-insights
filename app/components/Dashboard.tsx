@@ -22,6 +22,7 @@ interface TechnicalState {
     dma50Above200: boolean; // for golden/death cross
     near52WeekHigh: boolean;
     near52WeekLow: boolean;
+    timestamp?: string;
 }
 
 interface Alert {
@@ -59,9 +60,10 @@ const formatPercent = (value: number | null, decimals: number = 2): string => {
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInvestments }) => {
-    const [alerts, setAlerts] = useState<Alert[]>([]);
     const [previousStates, setPreviousStates] = useState<TechnicalState[]>([]);
+    const [transitionAlerts, setTransitionAlerts] = useState<Alert[]>([]);
     const [performersPeriod, setPerformersPeriod] = useState<'daily' | 'yearly'>('daily');
+    const [statesLoaded, setStatesLoaded] = useState(false);
 
     // Enrich gridKey data with stock information
     const enrichedData = useMemo(() => {
@@ -111,6 +113,181 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             };
         });
     }, [gridKeyData, stocks]);
+
+    // Compute current technical states
+    const currentStates = useMemo((): TechnicalState[] => {
+        return enrichedData
+            .filter(item => item.currentPrice !== null)
+            .map(item => {
+                const stockCode = item.nseCode || item.bseCode || '';
+                const currentPrice = item.currentPrice!;
+                const dma50 = item.dma50;
+                const dma200 = item.dma200;
+                const downFrom52WH = item.downFrom52WeekHigh;
+                const upFrom52WL = item.upFrom52WeekLow;
+
+                return {
+                    stockCode,
+                    stockName: item.scripName,
+                    above50DMA: dma50 !== null ? currentPrice > dma50 : false,
+                    above200DMA: dma200 !== null ? currentPrice > dma200 : false,
+                    dma50Above200: (dma50 !== null && dma200 !== null) ? dma50 > dma200 : false,
+                    near52WeekHigh: downFrom52WH !== null ? downFrom52WH <= 5 : false,
+                    near52WeekLow: upFrom52WL !== null ? upFrom52WL <= 10 : false,
+                    timestamp: new Date().toISOString(),
+                };
+            });
+    }, [enrichedData]);
+
+    // Load previous states from Redis on mount
+    useEffect(() => {
+        const loadPreviousStates = async () => {
+            try {
+                const response = await fetch('/api/technical-states');
+                if (response.ok) {
+                    const states = await response.json();
+                    setPreviousStates(states);
+                }
+            } catch (error) {
+                console.error('Error loading technical states:', error);
+            } finally {
+                setStatesLoaded(true);
+            }
+        };
+        loadPreviousStates();
+    }, []);
+
+    // Generate transition alerts and save current states
+    useEffect(() => {
+        if (!statesLoaded || currentStates.length === 0) return;
+
+        const newTransitionAlerts: Alert[] = [];
+        const today = new Date().toISOString().split('T')[0];
+
+        currentStates.forEach(current => {
+            const previous = previousStates.find(p => p.stockCode === current.stockCode);
+            if (!previous) return; // No previous state to compare
+
+            const enrichedItem = enrichedData.find(
+                item => (item.nseCode || item.bseCode) === current.stockCode
+            );
+            const currentPrice = enrichedItem?.currentPrice || 0;
+            const dma50 = enrichedItem?.dma50 || 0;
+            const dma200 = enrichedItem?.dma200 || 0;
+
+            // Crossed below 50 DMA (was above, now below)
+            if (previous.above50DMA && !current.above50DMA) {
+                newTransitionAlerts.push({
+                    id: `${current.stockCode}-crossed-below-50dma-${today}`,
+                    stockCode: current.stockCode,
+                    stockName: current.stockName,
+                    alertType: 'CROSSED_BELOW_50DMA',
+                    message: 'Just crossed below 50 DMA',
+                    currentPrice,
+                    thresholdValue: dma50,
+                    changePercent: dma50 > 0 ? ((currentPrice - dma50) / dma50) * 100 : 0,
+                    triggeredAt: today,
+                    isRead: false,
+                });
+            }
+
+            // Crossed above 50 DMA (was below, now above)
+            if (!previous.above50DMA && current.above50DMA) {
+                newTransitionAlerts.push({
+                    id: `${current.stockCode}-crossed-above-50dma-${today}`,
+                    stockCode: current.stockCode,
+                    stockName: current.stockName,
+                    alertType: 'CROSSED_ABOVE_50DMA',
+                    message: 'Just crossed above 50 DMA',
+                    currentPrice,
+                    thresholdValue: dma50,
+                    changePercent: dma50 > 0 ? ((currentPrice - dma50) / dma50) * 100 : 0,
+                    triggeredAt: today,
+                    isRead: false,
+                });
+            }
+
+            // Crossed below 200 DMA
+            if (previous.above200DMA && !current.above200DMA) {
+                newTransitionAlerts.push({
+                    id: `${current.stockCode}-crossed-below-200dma-${today}`,
+                    stockCode: current.stockCode,
+                    stockName: current.stockName,
+                    alertType: 'CROSSED_BELOW_200DMA',
+                    message: 'Just crossed below 200 DMA',
+                    currentPrice,
+                    thresholdValue: dma200,
+                    changePercent: dma200 > 0 ? ((currentPrice - dma200) / dma200) * 100 : 0,
+                    triggeredAt: today,
+                    isRead: false,
+                });
+            }
+
+            // Crossed above 200 DMA
+            if (!previous.above200DMA && current.above200DMA) {
+                newTransitionAlerts.push({
+                    id: `${current.stockCode}-crossed-above-200dma-${today}`,
+                    stockCode: current.stockCode,
+                    stockName: current.stockName,
+                    alertType: 'CROSSED_ABOVE_200DMA',
+                    message: 'Just crossed above 200 DMA',
+                    currentPrice,
+                    thresholdValue: dma200,
+                    changePercent: dma200 > 0 ? ((currentPrice - dma200) / dma200) * 100 : 0,
+                    triggeredAt: today,
+                    isRead: false,
+                });
+            }
+
+            // Death Cross (50 DMA crossed below 200 DMA)
+            if (previous.dma50Above200 && !current.dma50Above200) {
+                newTransitionAlerts.push({
+                    id: `${current.stockCode}-death-cross-${today}`,
+                    stockCode: current.stockCode,
+                    stockName: current.stockName,
+                    alertType: 'DEATH_CROSS',
+                    message: 'Death Cross: 50 DMA just crossed below 200 DMA',
+                    currentPrice,
+                    thresholdValue: dma200,
+                    changePercent: 0,
+                    triggeredAt: today,
+                    isRead: false,
+                });
+            }
+
+            // Golden Cross (50 DMA crossed above 200 DMA)
+            if (!previous.dma50Above200 && current.dma50Above200) {
+                newTransitionAlerts.push({
+                    id: `${current.stockCode}-golden-cross-${today}`,
+                    stockCode: current.stockCode,
+                    stockName: current.stockName,
+                    alertType: 'GOLDEN_CROSS',
+                    message: 'Golden Cross: 50 DMA just crossed above 200 DMA',
+                    currentPrice,
+                    thresholdValue: dma200,
+                    changePercent: 0,
+                    triggeredAt: today,
+                    isRead: false,
+                });
+            }
+        });
+
+        setTransitionAlerts(newTransitionAlerts);
+
+        // Save current states to Redis
+        const saveStates = async () => {
+            try {
+                await fetch('/api/technical-states', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ states: currentStates }),
+                });
+            } catch (error) {
+                console.error('Error saving technical states:', error);
+            }
+        };
+        saveStates();
+    }, [statesLoaded, currentStates, previousStates, enrichedData]);
 
     // Calculate totals
     const totalCurrentAmount = useMemo(() => {
@@ -465,8 +642,17 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         return newAlerts;
     }, [enrichedData]);
 
-    // Categorize alerts
+    // Categorize alerts (combine technical alerts with transition alerts)
     const categorizedAlerts = useMemo(() => {
+        // Transition alerts (state changes) - these are prioritized
+        const recentTransitions = transitionAlerts.filter(a =>
+            ['DEATH_CROSS', 'CROSSED_BELOW_200DMA', 'CROSSED_BELOW_50DMA'].includes(a.alertType)
+        );
+        const positiveTransitions = transitionAlerts.filter(a =>
+            ['GOLDEN_CROSS', 'CROSSED_ABOVE_200DMA', 'CROSSED_ABOVE_50DMA'].includes(a.alertType)
+        );
+
+        // Current state alerts
         const critical = technicalAlerts.filter(a =>
             ['DEATH_CROSS', 'CROSSED_BELOW_200DMA'].includes(a.alertType)
         );
@@ -484,8 +670,8 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             ['WEAK_PROFIT_GROWTH', 'WEAK_SALES_GROWTH'].includes(a.alertType)
         );
 
-        return { critical, high, medium, info, fundamental };
-    }, [technicalAlerts]);
+        return { recentTransitions, positiveTransitions, critical, high, medium, info, fundamental };
+    }, [technicalAlerts, transitionAlerts]);
 
     // Portfolio Return Drivers
     const returnDrivers = useMemo(() => {
@@ -861,13 +1047,61 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             <section className="dashboard-section">
                 <h2 className="section-title">
                     Technical Alerts
-                    <span className="alert-count">({technicalAlerts.length})</span>
+                    <span className="alert-count">({technicalAlerts.length + transitionAlerts.length})</span>
                 </h2>
 
-                {technicalAlerts.length === 0 ? (
+                {technicalAlerts.length === 0 && transitionAlerts.length === 0 ? (
                     <div className="empty-alerts">No alerts at this time</div>
                 ) : (
                     <div className="alerts-container">
+                        {/* Recent State Changes - Negative */}
+                        {categorizedAlerts.recentTransitions.length > 0 && (
+                            <div className="alert-group">
+                                <h3 className="alert-group-title critical">New Alerts ({categorizedAlerts.recentTransitions.length})</h3>
+                                <div className="alerts-list">
+                                    {categorizedAlerts.recentTransitions.map(alert => (
+                                        <div key={alert.id} className={`alert-item ${getAlertPriorityClass(alert.alertType)}`}>
+                                            <span className="alert-icon">🆕</span>
+                                            <div className="alert-content">
+                                                <div className="alert-stock">{alert.stockName}</div>
+                                                <div className="alert-message">{alert.message}</div>
+                                            </div>
+                                            <div className="alert-details">
+                                                <div className="alert-price">₹{alert.currentPrice.toFixed(2)}</div>
+                                                <div className={`alert-change ${alert.changePercent >= 0 ? 'positive' : 'negative'}`}>
+                                                    {formatPercent(alert.changePercent)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Recent State Changes - Positive */}
+                        {categorizedAlerts.positiveTransitions.length > 0 && (
+                            <div className="alert-group">
+                                <h3 className="alert-group-title positive">New Positive Signals ({categorizedAlerts.positiveTransitions.length})</h3>
+                                <div className="alerts-list">
+                                    {categorizedAlerts.positiveTransitions.map(alert => (
+                                        <div key={alert.id} className={`alert-item ${getAlertPriorityClass(alert.alertType)}`}>
+                                            <span className="alert-icon">🆕</span>
+                                            <div className="alert-content">
+                                                <div className="alert-stock">{alert.stockName}</div>
+                                                <div className="alert-message">{alert.message}</div>
+                                            </div>
+                                            <div className="alert-details">
+                                                <div className="alert-price">₹{alert.currentPrice.toFixed(2)}</div>
+                                                <div className={`alert-change ${alert.changePercent >= 0 ? 'positive' : 'negative'}`}>
+                                                    {formatPercent(alert.changePercent)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Critical Alerts */}
                         {categorizedAlerts.critical.length > 0 && (
                             <div className="alert-group">
