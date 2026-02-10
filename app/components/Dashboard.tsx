@@ -506,6 +506,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                     portfolioContribution,
                     weightage,
                     ytdReturn,
+                    holdingValue: item.calculatedAmount || 0,
                 };
             })
             .filter(item => item.portfolioContribution !== null);
@@ -514,9 +515,35 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             (b.portfolioContribution || 0) - (a.portfolioContribution || 0)
         );
 
+        // Separate positive and negative contributors
+        const positiveContributors = sorted.filter(item => (item.portfolioContribution || 0) > 0);
+        const negativeContributors = sorted.filter(item => (item.portfolioContribution || 0) < 0);
+
+        // Top 5 positive and others
+        const top5 = positiveContributors.slice(0, 5);
+        const otherPositive = positiveContributors.slice(5);
+        const othersPositive = otherPositive.length > 0 ? {
+            name: 'Others',
+            portfolioContribution: otherPositive.reduce((sum, item) => sum + (item.portfolioContribution || 0), 0),
+            holdingValue: otherPositive.reduce((sum, item) => sum + item.holdingValue, 0),
+            count: otherPositive.length,
+        } : null;
+
+        // Bottom 5 negative and others
+        const bottom5 = negativeContributors.slice(-5).reverse();
+        const otherNegative = negativeContributors.slice(0, -5);
+        const othersNegative = otherNegative.length > 0 ? {
+            name: 'Others',
+            portfolioContribution: otherNegative.reduce((sum, item) => sum + (item.portfolioContribution || 0), 0),
+            holdingValue: otherNegative.reduce((sum, item) => sum + item.holdingValue, 0),
+            count: otherNegative.length,
+        } : null;
+
         return {
-            top5: sorted.slice(0, 5),
-            bottom5: sorted.slice(-5).reverse(),
+            top5,
+            bottom5,
+            othersPositive,
+            othersNegative,
         };
     }, [enrichedData, totalCurrentAmount]);
 
@@ -929,10 +956,10 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
 
             {/* Portfolio Contributors */}
             <section className="dashboard-section">
-                <h2 className="section-title">Portfolio Contributors</h2>
+                <h2 className="section-title">Portfolio Contributors (1Y)</h2>
                 <div className="contributors-grid">
                     <div className="contributors-card">
-                        <h3 className="contributors-title positive">Top 5 Contributors</h3>
+                        <h3 className="contributors-title positive">Top Contributors</h3>
                         <div className="contributors-list">
                             {portfolioContributors.top5.map((item, index) => {
                                 const maxContribution = Math.max(
@@ -959,10 +986,24 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                                     </div>
                                 );
                             })}
+                            {portfolioContributors.othersPositive && (
+                                <div className="contributor-item others-row">
+                                    <div className="contributor-info">
+                                        <span className="contributor-rank">+</span>
+                                        <span className="contributor-name">Others ({portfolioContributors.othersPositive.count} stocks)</span>
+                                    </div>
+                                    <div className="contributor-holding">
+                                        {formatCurrency(portfolioContributors.othersPositive.holdingValue)}
+                                    </div>
+                                    <div className="contributor-value positive">
+                                        +{portfolioContributors.othersPositive.portfolioContribution.toFixed(2)}%
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                     <div className="contributors-card">
-                        <h3 className="contributors-title negative">Bottom 5 Contributors</h3>
+                        <h3 className="contributors-title negative">Bottom Contributors</h3>
                         <div className="contributors-list">
                             {portfolioContributors.bottom5.map((item, index) => {
                                 const maxContribution = Math.max(
@@ -989,6 +1030,20 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                                     </div>
                                 );
                             })}
+                            {portfolioContributors.othersNegative && (
+                                <div className="contributor-item others-row">
+                                    <div className="contributor-info">
+                                        <span className="contributor-rank">+</span>
+                                        <span className="contributor-name">Others ({portfolioContributors.othersNegative.count} stocks)</span>
+                                    </div>
+                                    <div className="contributor-holding">
+                                        {formatCurrency(portfolioContributors.othersNegative.holdingValue)}
+                                    </div>
+                                    <div className="contributor-value negative">
+                                        {portfolioContributors.othersNegative.portfolioContribution.toFixed(2)}%
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
