@@ -22,7 +22,7 @@ interface Alert {
     id: string;
     stockCode: string;
     stockName: string;
-    alertType: 'CROSSED_BELOW_50DMA' | 'CROSSED_ABOVE_50DMA' | 'CROSSED_BELOW_200DMA' | 'CROSSED_ABOVE_200DMA' | 'DEATH_CROSS' | 'GOLDEN_CROSS' | 'NEAR_52W_HIGH' | 'NEAR_52W_LOW' | 'BIG_DAILY_MOVE_UP' | 'BIG_DAILY_MOVE_DOWN' | 'WEAK_PROFIT_GROWTH' | 'WEAK_SALES_GROWTH';
+    alertType: 'CROSSED_BELOW_50DMA' | 'CROSSED_ABOVE_50DMA' | 'CROSSED_BELOW_200DMA' | 'CROSSED_ABOVE_200DMA' | 'DEATH_CROSS' | 'GOLDEN_CROSS' | 'NEAR_52W_HIGH' | 'NEAR_52W_LOW' | 'WEAK_PROFIT_GROWTH' | 'WEAK_SALES_GROWTH';
     message: string;
     currentPrice: number;
     thresholdValue: number;
@@ -374,22 +374,6 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
                 });
             }
 
-            // Big daily moves (> ±5%)
-            if (return1D !== null && Math.abs(return1D) >= 5) {
-                newAlerts.push({
-                    id: `${stockCode}-big-move-${return1D > 0 ? 'up' : 'down'}`,
-                    stockCode,
-                    stockName,
-                    alertType: return1D > 0 ? 'BIG_DAILY_MOVE_UP' : 'BIG_DAILY_MOVE_DOWN',
-                    message: `Big ${return1D > 0 ? 'gain' : 'drop'}: ${return1D.toFixed(1)}% today`,
-                    currentPrice,
-                    thresholdValue: currentPrice / (1 + return1D / 100),
-                    changePercent: return1D,
-                    triggeredAt: today,
-                    isRead: false,
-                });
-            }
-
             // Weak quarterly results - Profit Growth < 15%
             const profitGrowth = item.yoyQuarterlyProfitGrowth;
             if (profitGrowth !== null && profitGrowth < 15) {
@@ -434,13 +418,13 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
             ['DEATH_CROSS', 'CROSSED_BELOW_200DMA'].includes(a.alertType)
         );
         const high = technicalAlerts.filter(a =>
-            ['CROSSED_BELOW_50DMA', 'NEAR_52W_LOW', 'BIG_DAILY_MOVE_DOWN'].includes(a.alertType)
+            ['CROSSED_BELOW_50DMA', 'NEAR_52W_LOW'].includes(a.alertType)
         );
         const medium = technicalAlerts.filter(a =>
             ['CROSSED_ABOVE_50DMA', 'CROSSED_ABOVE_200DMA', 'GOLDEN_CROSS'].includes(a.alertType)
         );
         const info = technicalAlerts.filter(a =>
-            ['NEAR_52W_HIGH', 'BIG_DAILY_MOVE_UP'].includes(a.alertType)
+            ['NEAR_52W_HIGH'].includes(a.alertType)
         );
         // Fundamental alerts - weak quarterly results
         const fundamental = technicalAlerts.filter(a =>
@@ -551,10 +535,10 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
     }, [enrichedData]);
 
     const getAlertIcon = (type: string) => {
-        if (type.includes('BELOW') || type.includes('DEATH') || type.includes('LOW') || type.includes('DOWN')) {
+        if (type.includes('BELOW') || type.includes('DEATH') || type.includes('LOW')) {
             return '🔴';
         }
-        if (type.includes('ABOVE') || type.includes('GOLDEN') || type.includes('HIGH') || type.includes('UP')) {
+        if (type.includes('ABOVE') || type.includes('GOLDEN') || type.includes('HIGH')) {
             return '🟢';
         }
         if (type.includes('WEAK')) {
@@ -565,7 +549,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks }) => {
 
     const getAlertPriorityClass = (type: string) => {
         if (['DEATH_CROSS', 'CROSSED_BELOW_200DMA'].includes(type)) return 'alert-critical';
-        if (['CROSSED_BELOW_50DMA', 'NEAR_52W_LOW', 'BIG_DAILY_MOVE_DOWN'].includes(type)) return 'alert-high';
+        if (['CROSSED_BELOW_50DMA', 'NEAR_52W_LOW'].includes(type)) return 'alert-high';
         if (['GOLDEN_CROSS', 'CROSSED_ABOVE_50DMA', 'CROSSED_ABOVE_200DMA'].includes(type)) return 'alert-positive';
         if (['WEAK_PROFIT_GROWTH', 'WEAK_SALES_GROWTH'].includes(type)) return 'alert-fundamental';
         return 'alert-info';
