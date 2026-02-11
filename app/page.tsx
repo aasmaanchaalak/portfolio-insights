@@ -68,9 +68,11 @@ const allToggleableColumns = [
     ...perfColumns,
     { key: 'remarks', label: 'Remarks' },
     { key: 'assignedTo', label: 'Assigned To' },
+    { key: 'bucket', label: 'Bucket' },
 ];
 
 const TEAM_MEMBERS = ['Deepak', 'Aditya', 'Tushar', 'Aayush', 'Daksh', 'Siddhartha'];
+const BUCKETS = ['Long Term', 'Short Term', 'Special Situation'];
 
 const HeatmapCell: React.FC<{ value: number | null }> = ({ value }) => (
     <div
@@ -557,6 +559,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     const [filters, setFilters] = useState({
         searchTerm: '',
         assignedTo: 'All',
+        bucket: 'All',
         remarksSearch: '',
         trend: 'All',
     });
@@ -605,6 +608,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         { key: 'return1Y', label: '1Y %' },
         { key: 'remarks', label: 'Remarks' },
         { key: 'assignedTo', label: 'Assigned To' },
+        { key: 'bucket', label: 'Bucket' },
     ];
 
     const initialVisibleColumns = allInsightsColumns.reduce((acc, col) => {
@@ -839,6 +843,15 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             }
         }
 
+        // Apply bucket filter
+        if (filters.bucket !== 'All') {
+            if (filters.bucket === 'Unassigned') {
+                filtered = filtered.filter(item => !(item as any).bucket);
+            } else {
+                filtered = filtered.filter(item => (item as any).bucket === filters.bucket);
+            }
+        }
+
         // Apply remarks filter
         if (filters.remarksSearch) {
             filtered = filtered.filter(item =>
@@ -1024,6 +1037,32 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         }
     };
 
+    const handleBucketChange = async (item: any, bucket: string) => {
+        const code = item.nseCode || item.bseCode;
+        if (!code) return;
+
+        try {
+            const response = await fetch('/api/buckets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, bucket: bucket || null })
+            });
+
+            if (response.ok) {
+                // Find and update the matching stock
+                const updatedStocks = stocks.map(s => {
+                    if ((s.nseCode && s.nseCode === item.nseCode) || (s.bseCode && s.bseCode === item.bseCode)) {
+                        return { ...s, bucket: bucket || null };
+                    }
+                    return s;
+                });
+                onStocksUpdate(updatedStocks);
+            }
+        } catch (error) {
+            console.error('Error saving bucket:', error);
+        }
+    };
+
     return (
         <>
             <header className="main-header">
@@ -1085,6 +1124,14 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                             <option value="All">All</option>
                                             <option value="Unassigned">Unassigned</option>
                                             {TEAM_MEMBERS.map(member => <option key={member} value={member}>{member}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="filter-group">
+                                        <label htmlFor="bucket">Bucket</label>
+                                        <select id="bucket" name="bucket" value={filters.bucket} onChange={handleFilterChange}>
+                                            <option value="All">All Buckets</option>
+                                            <option value="Unassigned">Unassigned</option>
+                                            {BUCKETS.map(bucket => <option key={bucket} value={bucket}>{bucket}</option>)}
                                         </select>
                                     </div>
                                     <div className="filter-group">
@@ -1339,6 +1386,11 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         <span>Assigned To <SortIndicator columnKey="assignedTo" /></span>
                                     </div>
                                 </th>}
+                                {visibleColumns['bucket'] && <th onClick={() => requestSort('bucket')}>
+                                    <div className="th-content">
+                                        <span>Bucket <SortIndicator columnKey="bucket" /></span>
+                                    </div>
+                                </th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -1417,6 +1469,18 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                             <option value="">Unassigned</option>
                                             {TEAM_MEMBERS.map(member => (
                                                 <option key={member} value={member}>{member}</option>
+                                            ))}
+                                        </select>
+                                    </td>}
+                                    {visibleColumns['bucket'] && <td className="assignment-cell">
+                                        <select
+                                            value={(item as any).bucket || ''}
+                                            onChange={(e) => handleBucketChange(item, e.target.value)}
+                                            className="assignment-select"
+                                        >
+                                            <option value="">Unassigned</option>
+                                            {BUCKETS.map(bucket => (
+                                                <option key={bucket} value={bucket}>{bucket}</option>
                                             ))}
                                         </select>
                                     </td>}

@@ -29,6 +29,9 @@ export interface Stock {
   roce?: number | null;
   remarks?: string | null;
   assignedTo?: string | null;
+  bucket?: string | null;
+  entryDate?: string | null;  // ISO date string (YYYY-MM-DD) when stock was first added
+  entryPrice?: number | null; // Price when stock was first added
 }
 
 export interface GridKeyData {

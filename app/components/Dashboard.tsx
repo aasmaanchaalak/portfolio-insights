@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Stock, GridKeyData } from '../../types';
 
 interface PrivateInvestments {
@@ -64,6 +64,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
     const [transitionAlerts, setTransitionAlerts] = useState<Alert[]>([]);
     const [performersPeriod, setPerformersPeriod] = useState<'daily' | 'yearly'>('daily');
     const [statesLoaded, setStatesLoaded] = useState(false);
+    const hasProcessedStates = useRef(false);
 
     // Enrich gridKey data with stock information
     const enrichedData = useMemo(() => {
@@ -157,9 +158,10 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         loadPreviousStates();
     }, []);
 
-    // Generate transition alerts and save current states
+    // Generate transition alerts and save current states (runs only once)
     useEffect(() => {
-        if (!statesLoaded || currentStates.length === 0) return;
+        if (!statesLoaded || currentStates.length === 0 || hasProcessedStates.current) return;
+        hasProcessedStates.current = true;
 
         const newTransitionAlerts: Alert[] = [];
         const today = new Date().toISOString().split('T')[0];
@@ -490,188 +492,19 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         };
     }, [enrichedData, totalCurrentAmount]);
 
-    // Generate technical alerts
-    const technicalAlerts = useMemo(() => {
-        const newAlerts: Alert[] = [];
-        const today = new Date().toISOString().split('T')[0];
-
-        enrichedData.forEach(item => {
-            const stockCode = item.nseCode || item.bseCode || '';
-            const stockName = item.scripName;
-            const currentPrice = item.currentPrice;
-            const dma50 = item.dma50;
-            const dma200 = item.dma200;
-            const downFrom52WH = item.downFrom52WeekHigh;
-            const upFrom52WL = item.upFrom52WeekLow;
-
-            if (!currentPrice || !stockCode) return;
-
-            // Below 50 DMA
-            if (dma50 !== null && currentPrice < dma50) {
-                const changePercent = ((currentPrice - dma50) / dma50) * 100;
-                newAlerts.push({
-                    id: `${stockCode}-below-50dma`,
-                    stockCode,
-                    stockName,
-                    alertType: 'CROSSED_BELOW_50DMA',
-                    message: `Trading below 50 DMA`,
-                    currentPrice,
-                    thresholdValue: dma50,
-                    changePercent,
-                    triggeredAt: today,
-                    isRead: false,
-                });
-            }
-
-            // Below 200 DMA
-            if (dma200 !== null && currentPrice < dma200) {
-                const changePercent = ((currentPrice - dma200) / dma200) * 100;
-                newAlerts.push({
-                    id: `${stockCode}-below-200dma`,
-                    stockCode,
-                    stockName,
-                    alertType: 'CROSSED_BELOW_200DMA',
-                    message: `Trading below 200 DMA`,
-                    currentPrice,
-                    thresholdValue: dma200,
-                    changePercent,
-                    triggeredAt: today,
-                    isRead: false,
-                });
-            }
-
-            // Death Cross (50 DMA below 200 DMA)
-            if (dma50 !== null && dma200 !== null && dma50 < dma200) {
-                newAlerts.push({
-                    id: `${stockCode}-death-cross`,
-                    stockCode,
-                    stockName,
-                    alertType: 'DEATH_CROSS',
-                    message: `Death Cross: 50 DMA below 200 DMA`,
-                    currentPrice,
-                    thresholdValue: dma200,
-                    changePercent: ((dma50 - dma200) / dma200) * 100,
-                    triggeredAt: today,
-                    isRead: false,
-                });
-            }
-
-            // Golden Cross (50 DMA above 200 DMA)
-            if (dma50 !== null && dma200 !== null && dma50 > dma200) {
-                newAlerts.push({
-                    id: `${stockCode}-golden-cross`,
-                    stockCode,
-                    stockName,
-                    alertType: 'GOLDEN_CROSS',
-                    message: `Golden Cross: 50 DMA above 200 DMA`,
-                    currentPrice,
-                    thresholdValue: dma200,
-                    changePercent: ((dma50 - dma200) / dma200) * 100,
-                    triggeredAt: today,
-                    isRead: false,
-                });
-            }
-
-            // Near 52-week high (within 5%)
-            if (downFrom52WH !== null && downFrom52WH <= 5 && downFrom52WH >= 0) {
-                newAlerts.push({
-                    id: `${stockCode}-near-52w-high`,
-                    stockCode,
-                    stockName,
-                    alertType: 'NEAR_52W_HIGH',
-                    message: `Near 52-week high (${downFrom52WH.toFixed(1)}% away)`,
-                    currentPrice,
-                    thresholdValue: currentPrice * (1 + downFrom52WH / 100),
-                    changePercent: -downFrom52WH,
-                    triggeredAt: today,
-                    isRead: false,
-                });
-            }
-
-            // Near 52-week low (within 10%)
-            if (upFrom52WL !== null && upFrom52WL <= 10 && upFrom52WL >= 0) {
-                newAlerts.push({
-                    id: `${stockCode}-near-52w-low`,
-                    stockCode,
-                    stockName,
-                    alertType: 'NEAR_52W_LOW',
-                    message: `Near 52-week low (${upFrom52WL.toFixed(1)}% above)`,
-                    currentPrice,
-                    thresholdValue: currentPrice / (1 + upFrom52WL / 100),
-                    changePercent: upFrom52WL,
-                    triggeredAt: today,
-                    isRead: false,
-                });
-            }
-
-            // Weak quarterly results - Profit Growth < 15%
-            const profitGrowth = item.yoyQuarterlyProfitGrowth;
-            if (profitGrowth !== null && profitGrowth < 15) {
-                newAlerts.push({
-                    id: `${stockCode}-weak-profit-growth`,
-                    stockCode,
-                    stockName,
-                    alertType: 'WEAK_PROFIT_GROWTH',
-                    message: `Weak profit growth: ${profitGrowth.toFixed(1)}% (below 15%)`,
-                    currentPrice,
-                    thresholdValue: 15,
-                    changePercent: profitGrowth,
-                    triggeredAt: today,
-                    isRead: false,
-                });
-            }
-
-            // Weak quarterly results - Sales Growth < 15%
-            const salesGrowth = item.yoyQuarterlySalesGrowth;
-            if (salesGrowth !== null && salesGrowth < 15) {
-                newAlerts.push({
-                    id: `${stockCode}-weak-sales-growth`,
-                    stockCode,
-                    stockName,
-                    alertType: 'WEAK_SALES_GROWTH',
-                    message: `Weak sales growth: ${salesGrowth.toFixed(1)}% (below 15%)`,
-                    currentPrice,
-                    thresholdValue: 15,
-                    changePercent: salesGrowth,
-                    triggeredAt: today,
-                    isRead: false,
-                });
-            }
-        });
-
-        return newAlerts;
-    }, [enrichedData]);
-
-    // Categorize alerts (combine technical alerts with transition alerts)
+    // Categorize transition alerts only (state changes)
     const categorizedAlerts = useMemo(() => {
-        // Transition alerts (state changes) - these are prioritized
-        const recentTransitions = transitionAlerts.filter(a =>
+        // Negative transitions (bearish signals)
+        const negativeTransitions = transitionAlerts.filter(a =>
             ['DEATH_CROSS', 'CROSSED_BELOW_200DMA', 'CROSSED_BELOW_50DMA'].includes(a.alertType)
         );
+        // Positive transitions (bullish signals)
         const positiveTransitions = transitionAlerts.filter(a =>
             ['GOLDEN_CROSS', 'CROSSED_ABOVE_200DMA', 'CROSSED_ABOVE_50DMA'].includes(a.alertType)
         );
 
-        // Current state alerts
-        const critical = technicalAlerts.filter(a =>
-            ['DEATH_CROSS', 'CROSSED_BELOW_200DMA'].includes(a.alertType)
-        );
-        const high = technicalAlerts.filter(a =>
-            ['CROSSED_BELOW_50DMA', 'NEAR_52W_LOW'].includes(a.alertType)
-        );
-        const medium = technicalAlerts.filter(a =>
-            ['CROSSED_ABOVE_50DMA', 'CROSSED_ABOVE_200DMA', 'GOLDEN_CROSS'].includes(a.alertType)
-        );
-        const info = technicalAlerts.filter(a =>
-            ['NEAR_52W_HIGH'].includes(a.alertType)
-        );
-        // Fundamental alerts - weak quarterly results
-        const fundamental = technicalAlerts.filter(a =>
-            ['WEAK_PROFIT_GROWTH', 'WEAK_SALES_GROWTH'].includes(a.alertType)
-        );
-
-        return { recentTransitions, positiveTransitions, critical, high, medium, info, fundamental };
-    }, [technicalAlerts, transitionAlerts]);
+        return { negativeTransitions, positiveTransitions };
+    }, [transitionAlerts]);
 
     // Portfolio Return Drivers
     const returnDrivers = useMemo(() => {
@@ -1043,25 +876,25 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 </div>
             </section>
 
-            {/* Technical Alerts */}
+            {/* Technical Alerts - Transition Alerts Only */}
             <section className="dashboard-section">
                 <h2 className="section-title">
                     Technical Alerts
-                    <span className="alert-count">({technicalAlerts.length + transitionAlerts.length})</span>
+                    <span className="alert-count">({transitionAlerts.length})</span>
                 </h2>
 
-                {technicalAlerts.length === 0 && transitionAlerts.length === 0 ? (
-                    <div className="empty-alerts">No alerts at this time</div>
+                {transitionAlerts.length === 0 ? (
+                    <div className="empty-alerts">No state changes detected since last update</div>
                 ) : (
                     <div className="alerts-container">
-                        {/* Recent State Changes - Negative */}
-                        {categorizedAlerts.recentTransitions.length > 0 && (
+                        {/* Negative Transitions (Bearish) */}
+                        {categorizedAlerts.negativeTransitions.length > 0 && (
                             <div className="alert-group">
-                                <h3 className="alert-group-title critical">New Alerts ({categorizedAlerts.recentTransitions.length})</h3>
+                                <h3 className="alert-group-title critical">Bearish Signals ({categorizedAlerts.negativeTransitions.length})</h3>
                                 <div className="alerts-list">
-                                    {categorizedAlerts.recentTransitions.map(alert => (
+                                    {categorizedAlerts.negativeTransitions.map(alert => (
                                         <div key={alert.id} className={`alert-item ${getAlertPriorityClass(alert.alertType)}`}>
-                                            <span className="alert-icon">🆕</span>
+                                            <span className="alert-icon">{getAlertIcon(alert.alertType)}</span>
                                             <div className="alert-content">
                                                 <div className="alert-stock">{alert.stockName}</div>
                                                 <div className="alert-message">{alert.message}</div>
@@ -1078,132 +911,12 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                             </div>
                         )}
 
-                        {/* Recent State Changes - Positive */}
+                        {/* Positive Transitions (Bullish) */}
                         {categorizedAlerts.positiveTransitions.length > 0 && (
                             <div className="alert-group">
-                                <h3 className="alert-group-title positive">New Positive Signals ({categorizedAlerts.positiveTransitions.length})</h3>
+                                <h3 className="alert-group-title positive">Bullish Signals ({categorizedAlerts.positiveTransitions.length})</h3>
                                 <div className="alerts-list">
                                     {categorizedAlerts.positiveTransitions.map(alert => (
-                                        <div key={alert.id} className={`alert-item ${getAlertPriorityClass(alert.alertType)}`}>
-                                            <span className="alert-icon">🆕</span>
-                                            <div className="alert-content">
-                                                <div className="alert-stock">{alert.stockName}</div>
-                                                <div className="alert-message">{alert.message}</div>
-                                            </div>
-                                            <div className="alert-details">
-                                                <div className="alert-price">₹{alert.currentPrice.toFixed(2)}</div>
-                                                <div className={`alert-change ${alert.changePercent >= 0 ? 'positive' : 'negative'}`}>
-                                                    {formatPercent(alert.changePercent)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Critical Alerts */}
-                        {categorizedAlerts.critical.length > 0 && (
-                            <div className="alert-group">
-                                <h3 className="alert-group-title critical">Critical ({categorizedAlerts.critical.length})</h3>
-                                <div className="alerts-list">
-                                    {categorizedAlerts.critical.map(alert => (
-                                        <div key={alert.id} className={`alert-item ${getAlertPriorityClass(alert.alertType)}`}>
-                                            <span className="alert-icon">{getAlertIcon(alert.alertType)}</span>
-                                            <div className="alert-content">
-                                                <div className="alert-stock">{alert.stockName}</div>
-                                                <div className="alert-message">{alert.message}</div>
-                                            </div>
-                                            <div className="alert-details">
-                                                <div className="alert-price">₹{alert.currentPrice.toFixed(2)}</div>
-                                                <div className={`alert-change ${alert.changePercent >= 0 ? 'positive' : 'negative'}`}>
-                                                    {formatPercent(alert.changePercent)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* High Priority Alerts */}
-                        {categorizedAlerts.high.length > 0 && (
-                            <div className="alert-group">
-                                <h3 className="alert-group-title high">High Priority ({categorizedAlerts.high.length})</h3>
-                                <div className="alerts-list">
-                                    {categorizedAlerts.high.map(alert => (
-                                        <div key={alert.id} className={`alert-item ${getAlertPriorityClass(alert.alertType)}`}>
-                                            <span className="alert-icon">{getAlertIcon(alert.alertType)}</span>
-                                            <div className="alert-content">
-                                                <div className="alert-stock">{alert.stockName}</div>
-                                                <div className="alert-message">{alert.message}</div>
-                                            </div>
-                                            <div className="alert-details">
-                                                <div className="alert-price">₹{alert.currentPrice.toFixed(2)}</div>
-                                                <div className={`alert-change ${alert.changePercent >= 0 ? 'positive' : 'negative'}`}>
-                                                    {formatPercent(alert.changePercent)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Positive Alerts */}
-                        {categorizedAlerts.medium.length > 0 && (
-                            <div className="alert-group">
-                                <h3 className="alert-group-title positive">Positive Signals ({categorizedAlerts.medium.length})</h3>
-                                <div className="alerts-list">
-                                    {categorizedAlerts.medium.map(alert => (
-                                        <div key={alert.id} className={`alert-item ${getAlertPriorityClass(alert.alertType)}`}>
-                                            <span className="alert-icon">{getAlertIcon(alert.alertType)}</span>
-                                            <div className="alert-content">
-                                                <div className="alert-stock">{alert.stockName}</div>
-                                                <div className="alert-message">{alert.message}</div>
-                                            </div>
-                                            <div className="alert-details">
-                                                <div className="alert-price">₹{alert.currentPrice.toFixed(2)}</div>
-                                                <div className={`alert-change ${alert.changePercent >= 0 ? 'positive' : 'negative'}`}>
-                                                    {formatPercent(alert.changePercent)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Info Alerts */}
-                        {categorizedAlerts.info.length > 0 && (
-                            <div className="alert-group">
-                                <h3 className="alert-group-title info">Info ({categorizedAlerts.info.length})</h3>
-                                <div className="alerts-list">
-                                    {categorizedAlerts.info.map(alert => (
-                                        <div key={alert.id} className={`alert-item ${getAlertPriorityClass(alert.alertType)}`}>
-                                            <span className="alert-icon">{getAlertIcon(alert.alertType)}</span>
-                                            <div className="alert-content">
-                                                <div className="alert-stock">{alert.stockName}</div>
-                                                <div className="alert-message">{alert.message}</div>
-                                            </div>
-                                            <div className="alert-details">
-                                                <div className="alert-price">₹{alert.currentPrice.toFixed(2)}</div>
-                                                <div className={`alert-change ${alert.changePercent >= 0 ? 'positive' : 'negative'}`}>
-                                                    {formatPercent(alert.changePercent)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Fundamental Alerts - Weak Quarterly Results */}
-                        {categorizedAlerts.fundamental.length > 0 && (
-                            <div className="alert-group">
-                                <h3 className="alert-group-title fundamental">Weak Quarterly Results ({categorizedAlerts.fundamental.length})</h3>
-                                <div className="alerts-list">
-                                    {categorizedAlerts.fundamental.map(alert => (
                                         <div key={alert.id} className={`alert-item ${getAlertPriorityClass(alert.alertType)}`}>
                                             <span className="alert-icon">{getAlertIcon(alert.alertType)}</span>
                                             <div className="alert-content">
@@ -1267,58 +980,49 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                             </div>
                         </div>
 
-                        {/* Zero-centered Chart */}
+                        {/* Zero-centered Horizontal Bar Chart */}
                         <div className="return-drivers-chart">
-                            {/* Zero line header with portfolio return */}
-                            <div className="driver-chart-header">
-                                <div className="driver-info-spacer" />
-                                <div className="driver-bar-area">
-                                    <div className="driver-bar-negative" />
-                                    <div className="driver-zero-line-header">
-                                        <span className={`zero-line-label ${returnDrivers.portfolioReturn >= 0 ? 'positive' : 'negative'}`}>
-                                            {returnDrivers.portfolioReturn >= 0 ? '+' : ''}{returnDrivers.portfolioReturn.toFixed(2)}%
-                                        </span>
-                                    </div>
-                                    <div className="driver-bar-positive" />
-                                </div>
-                            </div>
                             {returnDrivers.unifiedList.map((item, index) => {
                                 const contribution = item.portfolioContribution;
                                 const isPositive = contribution >= 0;
+                                // Scale bar to max 50% (half the container width)
                                 const barWidthPercent = returnDrivers.maxAbsContribution > 0
-                                    ? (Math.abs(contribution) / returnDrivers.maxAbsContribution) * 80
+                                    ? (Math.abs(contribution) / returnDrivers.maxAbsContribution) * 48
                                     : 0;
 
                                 return (
                                     <div key={index} className={`driver-row ${item.isOthers ? 'others-row' : ''}`}>
+                                        {/* Left: Rank + Name */}
                                         <div className="driver-info">
                                             {!item.isOthers && <span className="driver-rank">{item.rank}</span>}
                                             <span className={`driver-name ${item.isOthers ? 'muted' : ''}`}>{item.name}</span>
                                         </div>
-                                        <div className="driver-bar-area">
-                                            <div className="driver-bar-negative">
-                                                {!isPositive && (
-                                                    <div className="driver-bar-with-label negative">
-                                                        <span className="bar-label">{contribution.toFixed(2)}%</span>
-                                                        <div
-                                                            className="driver-bar negative"
-                                                            style={{ width: `${barWidthPercent}%` }}
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
+
+                                        {/* Middle: Bar Zone with centered zero line */}
+                                        <div className="driver-bar-zone">
                                             <div className="driver-zero-line" />
-                                            <div className="driver-bar-positive">
-                                                {isPositive && (
-                                                    <div className="driver-bar-with-label positive">
-                                                        <div
-                                                            className="driver-bar positive"
-                                                            style={{ width: `${barWidthPercent}%` }}
-                                                        />
-                                                        <span className="bar-label">+{contribution.toFixed(2)}%</span>
-                                                    </div>
-                                                )}
-                                            </div>
+                                            {isPositive ? (
+                                                <div
+                                                    className={`driver-bar positive ${item.isOthers ? 'muted' : ''}`}
+                                                    style={{
+                                                        left: '50%',
+                                                        width: `${barWidthPercent}%`,
+                                                    }}
+                                                />
+                                            ) : (
+                                                <div
+                                                    className={`driver-bar negative ${item.isOthers ? 'muted' : ''}`}
+                                                    style={{
+                                                        right: '50%',
+                                                        width: `${barWidthPercent}%`,
+                                                    }}
+                                                />
+                                            )}
+                                        </div>
+
+                                        {/* Right: Value */}
+                                        <div className={`driver-value ${isPositive ? 'positive' : 'negative'}`}>
+                                            {isPositive ? '+' : ''}{contribution.toFixed(2)}%
                                         </div>
                                     </div>
                                 );
