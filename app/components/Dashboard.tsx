@@ -22,6 +22,8 @@ interface TechnicalState {
     dma50Above200: boolean; // for golden/death cross
     near52WeekHigh: boolean;
     near52WeekLow: boolean;
+    profitGrowthAbove15: boolean;
+    salesGrowthAbove15: boolean;
     timestamp?: string;
 }
 
@@ -29,7 +31,7 @@ interface Alert {
     id: string;
     stockCode: string;
     stockName: string;
-    alertType: 'CROSSED_BELOW_50DMA' | 'CROSSED_ABOVE_50DMA' | 'CROSSED_BELOW_200DMA' | 'CROSSED_ABOVE_200DMA' | 'DEATH_CROSS' | 'GOLDEN_CROSS' | 'NEAR_52W_HIGH' | 'NEAR_52W_LOW' | 'WEAK_PROFIT_GROWTH' | 'WEAK_SALES_GROWTH';
+    alertType: 'CROSSED_BELOW_50DMA' | 'CROSSED_ABOVE_50DMA' | 'CROSSED_BELOW_200DMA' | 'CROSSED_ABOVE_200DMA' | 'DEATH_CROSS' | 'GOLDEN_CROSS' | 'NEAR_52W_HIGH' | 'NEAR_52W_LOW' | 'WEAK_PROFIT_GROWTH' | 'WEAK_SALES_GROWTH' | 'PROFIT_GROWTH_DROPPED' | 'PROFIT_GROWTH_RECOVERED' | 'SALES_GROWTH_DROPPED' | 'SALES_GROWTH_RECOVERED';
     message: string;
     currentPrice: number;
     thresholdValue: number;
@@ -126,6 +128,8 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 const dma200 = item.dma200;
                 const downFrom52WH = item.downFrom52WeekHigh;
                 const upFrom52WL = item.upFrom52WeekLow;
+                const profitGrowth = item.yoyQuarterlyProfitGrowth;
+                const salesGrowth = item.yoyQuarterlySalesGrowth;
 
                 return {
                     stockCode,
@@ -135,6 +139,8 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                     dma50Above200: (dma50 !== null && dma200 !== null) ? dma50 > dma200 : false,
                     near52WeekHigh: downFrom52WH !== null ? downFrom52WH <= 5 : false,
                     near52WeekLow: upFrom52WL !== null ? upFrom52WL <= 10 : false,
+                    profitGrowthAbove15: profitGrowth !== null ? profitGrowth >= 15 : false,
+                    salesGrowthAbove15: salesGrowth !== null ? salesGrowth >= 15 : false,
                     timestamp: new Date().toISOString(),
                 };
             });
@@ -268,6 +274,74 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                     currentPrice,
                     thresholdValue: dma200,
                     changePercent: 0,
+                    triggeredAt: today,
+                    isRead: false,
+                });
+            }
+
+            // Profit Growth dropped below 15%
+            if (previous.profitGrowthAbove15 && !current.profitGrowthAbove15) {
+                const profitGrowth = enrichedItem?.yoyQuarterlyProfitGrowth || 0;
+                newTransitionAlerts.push({
+                    id: `${current.stockCode}-profit-growth-dropped-${today}`,
+                    stockCode: current.stockCode,
+                    stockName: current.stockName,
+                    alertType: 'PROFIT_GROWTH_DROPPED',
+                    message: `Profit growth dropped below 15% (now ${profitGrowth.toFixed(1)}%)`,
+                    currentPrice,
+                    thresholdValue: 15,
+                    changePercent: profitGrowth,
+                    triggeredAt: today,
+                    isRead: false,
+                });
+            }
+
+            // Profit Growth recovered above 15%
+            if (!previous.profitGrowthAbove15 && current.profitGrowthAbove15) {
+                const profitGrowth = enrichedItem?.yoyQuarterlyProfitGrowth || 0;
+                newTransitionAlerts.push({
+                    id: `${current.stockCode}-profit-growth-recovered-${today}`,
+                    stockCode: current.stockCode,
+                    stockName: current.stockName,
+                    alertType: 'PROFIT_GROWTH_RECOVERED',
+                    message: `Profit growth recovered above 15% (now ${profitGrowth.toFixed(1)}%)`,
+                    currentPrice,
+                    thresholdValue: 15,
+                    changePercent: profitGrowth,
+                    triggeredAt: today,
+                    isRead: false,
+                });
+            }
+
+            // Sales Growth dropped below 15%
+            if (previous.salesGrowthAbove15 && !current.salesGrowthAbove15) {
+                const salesGrowth = enrichedItem?.yoyQuarterlySalesGrowth || 0;
+                newTransitionAlerts.push({
+                    id: `${current.stockCode}-sales-growth-dropped-${today}`,
+                    stockCode: current.stockCode,
+                    stockName: current.stockName,
+                    alertType: 'SALES_GROWTH_DROPPED',
+                    message: `Sales growth dropped below 15% (now ${salesGrowth.toFixed(1)}%)`,
+                    currentPrice,
+                    thresholdValue: 15,
+                    changePercent: salesGrowth,
+                    triggeredAt: today,
+                    isRead: false,
+                });
+            }
+
+            // Sales Growth recovered above 15%
+            if (!previous.salesGrowthAbove15 && current.salesGrowthAbove15) {
+                const salesGrowth = enrichedItem?.yoyQuarterlySalesGrowth || 0;
+                newTransitionAlerts.push({
+                    id: `${current.stockCode}-sales-growth-recovered-${today}`,
+                    stockCode: current.stockCode,
+                    stockName: current.stockName,
+                    alertType: 'SALES_GROWTH_RECOVERED',
+                    message: `Sales growth recovered above 15% (now ${salesGrowth.toFixed(1)}%)`,
+                    currentPrice,
+                    thresholdValue: 15,
+                    changePercent: salesGrowth,
                     triggeredAt: today,
                     isRead: false,
                 });
@@ -496,11 +570,11 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
     const categorizedAlerts = useMemo(() => {
         // Negative transitions (bearish signals)
         const negativeTransitions = transitionAlerts.filter(a =>
-            ['DEATH_CROSS', 'CROSSED_BELOW_200DMA', 'CROSSED_BELOW_50DMA'].includes(a.alertType)
+            ['DEATH_CROSS', 'CROSSED_BELOW_200DMA', 'CROSSED_BELOW_50DMA', 'PROFIT_GROWTH_DROPPED', 'SALES_GROWTH_DROPPED'].includes(a.alertType)
         );
         // Positive transitions (bullish signals)
         const positiveTransitions = transitionAlerts.filter(a =>
-            ['GOLDEN_CROSS', 'CROSSED_ABOVE_200DMA', 'CROSSED_ABOVE_50DMA'].includes(a.alertType)
+            ['GOLDEN_CROSS', 'CROSSED_ABOVE_200DMA', 'CROSSED_ABOVE_50DMA', 'PROFIT_GROWTH_RECOVERED', 'SALES_GROWTH_RECOVERED'].includes(a.alertType)
         );
 
         return { negativeTransitions, positiveTransitions };
@@ -690,10 +764,10 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
     }, [enrichedData]);
 
     const getAlertIcon = (type: string) => {
-        if (type.includes('BELOW') || type.includes('DEATH') || type.includes('LOW')) {
+        if (type.includes('BELOW') || type.includes('DEATH') || type.includes('LOW') || type.includes('DROPPED')) {
             return '🔴';
         }
-        if (type.includes('ABOVE') || type.includes('GOLDEN') || type.includes('HIGH')) {
+        if (type.includes('ABOVE') || type.includes('GOLDEN') || type.includes('HIGH') || type.includes('RECOVERED')) {
             return '🟢';
         }
         if (type.includes('WEAK')) {
@@ -704,8 +778,8 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
 
     const getAlertPriorityClass = (type: string) => {
         if (['DEATH_CROSS', 'CROSSED_BELOW_200DMA'].includes(type)) return 'alert-critical';
-        if (['CROSSED_BELOW_50DMA', 'NEAR_52W_LOW'].includes(type)) return 'alert-high';
-        if (['GOLDEN_CROSS', 'CROSSED_ABOVE_50DMA', 'CROSSED_ABOVE_200DMA'].includes(type)) return 'alert-positive';
+        if (['CROSSED_BELOW_50DMA', 'NEAR_52W_LOW', 'PROFIT_GROWTH_DROPPED', 'SALES_GROWTH_DROPPED'].includes(type)) return 'alert-high';
+        if (['GOLDEN_CROSS', 'CROSSED_ABOVE_50DMA', 'CROSSED_ABOVE_200DMA', 'PROFIT_GROWTH_RECOVERED', 'SALES_GROWTH_RECOVERED'].includes(type)) return 'alert-positive';
         if (['WEAK_PROFIT_GROWTH', 'WEAK_SALES_GROWTH'].includes(type)) return 'alert-fundamental';
         return 'alert-info';
     };

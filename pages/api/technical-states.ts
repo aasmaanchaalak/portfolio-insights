@@ -11,6 +11,8 @@ export interface StoredTechnicalState {
   dma50Above200: boolean;
   near52WeekHigh: boolean;
   near52WeekLow: boolean;
+  profitGrowthAbove15: boolean;
+  salesGrowthAbove15: boolean;
   timestamp: string;
 }
 

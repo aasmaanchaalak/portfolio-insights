@@ -730,7 +730,10 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                 return6M: matchedStock?.return6M || null,
                 return1Y: matchedStock?.return1Y || null,
                 remarks: matchedStock?.remarks || null,
-                assignedTo: matchedStock?.assignedTo || null
+                assignedTo: matchedStock?.assignedTo || null,
+                bucket: matchedStock?.bucket || null,
+                entryDate: matchedStock?.entryDate || null,
+                entryPrice: matchedStock?.entryPrice || null
             };
         });
     }, [gridKeyData, stocks]);
