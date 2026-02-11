@@ -370,9 +370,28 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         return enrichedData.reduce((total, item) => total + (item.calculatedAmount || 0), 0);
     }, [enrichedData]);
 
-    const totalInvestedAmount = useMemo(() => {
-        return enrichedData.reduce((total, item) => total + (item.investedAmount || 0), 0);
-    }, [enrichedData]);
+    // Helper function to check if stock is less than 1 year old
+    const isNewStock = (entryDate: string | null | undefined): boolean => {
+        if (!entryDate) return false; // No entry date = old stock
+        const entry = new Date(entryDate);
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+        return entry > oneYearAgo;
+    };
+
+    // Helper function to get effective 1Y return for a stock
+    const getEffective1YReturn = (item: any): number | null => {
+        const entryDate = item.entryDate;
+        const entryPrice = item.entryPrice;
+        const currentPrice = item.currentPrice;
+
+        // If new stock (< 1 year old) and has entry price, calculate actual return
+        if (isNewStock(entryDate) && entryPrice && currentPrice) {
+            return ((currentPrice - entryPrice) / entryPrice) * 100;
+        }
+        // Otherwise use screener's 1Y return
+        return item.return1Y;
+    };
 
     // Calculate P&L metrics
     const pnlMetrics = useMemo(() => {
@@ -394,8 +413,10 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             if (item.return1M !== null) {
                 monthlyPnL += value * item.return1M / (100 + item.return1M);
             }
-            if (item.return1Y !== null) {
-                yearlyPnL += value * item.return1Y / (100 + item.return1Y);
+            // For yearly P&L, use effective return (actual return for new stocks, screener for old)
+            const effective1YReturn = getEffective1YReturn(item);
+            if (effective1YReturn !== null) {
+                yearlyPnL += value * effective1YReturn / (100 + effective1YReturn);
             }
         });
 
@@ -588,8 +609,10 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 const weightage = totalCurrentAmount > 0
                     ? (item.calculatedAmount! / totalCurrentAmount) * 100
                     : 0;
-                // 1Y return with fallback: 1Y → 6M → 3M
-                const ytdReturn = item.return1Y ?? item.return6M ?? item.return3M ?? null;
+                // Use effective 1Y return: actual return for new stocks (<1 year), screener return for old
+                const effective1YReturn = getEffective1YReturn(item);
+                // Fallback to 6M → 3M only for old stocks without 1Y data
+                const ytdReturn = effective1YReturn ?? item.return6M ?? item.return3M ?? null;
                 const portfolioContribution = (ytdReturn !== null && weightage > 0)
                     ? (ytdReturn * weightage) / 100
                     : null;
@@ -793,10 +816,6 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                     <div className="overview-card">
                         <div className="card-label">Total Value</div>
                         <div className="card-value">{formatCurrency(totalCurrentAmount)}</div>
-                    </div>
-                    <div className="overview-card">
-                        <div className="card-label">Invested</div>
-                        <div className="card-value">{formatCurrency(totalInvestedAmount)}</div>
                         <div className="card-subtext">{stockCount} stocks</div>
                     </div>
                     {privateInvestments.count > 0 && (
