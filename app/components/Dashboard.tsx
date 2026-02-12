@@ -64,8 +64,10 @@ const formatPercent = (value: number | null, decimals: number = 2): string => {
 const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInvestments }) => {
     const [previousStates, setPreviousStates] = useState<TechnicalState[]>([]);
     const [transitionAlerts, setTransitionAlerts] = useState<Alert[]>([]);
+    const [storedAlerts, setStoredAlerts] = useState<Alert[]>([]);
     const [performersPeriod, setPerformersPeriod] = useState<'daily' | 'yearly'>('daily');
     const [statesLoaded, setStatesLoaded] = useState(false);
+    const [alertsLoaded, setAlertsLoaded] = useState(false);
     const hasProcessedStates = useRef(false);
 
     // Enrich gridKey data with stock information
@@ -164,9 +166,27 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         loadPreviousStates();
     }, []);
 
+    // Load stored alerts from Redis on mount
+    useEffect(() => {
+        const loadStoredAlerts = async () => {
+            try {
+                const response = await fetch('/api/alerts');
+                if (response.ok) {
+                    const alerts = await response.json();
+                    setStoredAlerts(alerts);
+                }
+            } catch (error) {
+                console.error('Error loading stored alerts:', error);
+            } finally {
+                setAlertsLoaded(true);
+            }
+        };
+        loadStoredAlerts();
+    }, []);
+
     // Generate transition alerts and save current states (runs only once)
     useEffect(() => {
-        if (!statesLoaded || currentStates.length === 0 || hasProcessedStates.current) return;
+        if (!statesLoaded || !alertsLoaded || currentStates.length === 0 || hasProcessedStates.current) return;
         hasProcessedStates.current = true;
 
         const newTransitionAlerts: Alert[] = [];
@@ -348,7 +368,11 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             }
         });
 
-        setTransitionAlerts(newTransitionAlerts);
+        // Merge new alerts with stored alerts (stored alerts already persisted in Redis)
+        const existingIds = new Set(storedAlerts.map(a => a.id));
+        const uniqueNewAlerts = newTransitionAlerts.filter(a => !existingIds.has(a.id));
+        const allAlerts = [...storedAlerts, ...uniqueNewAlerts];
+        setTransitionAlerts(allAlerts);
 
         // Save current states to Redis
         const saveStates = async () => {
@@ -363,7 +387,27 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             }
         };
         saveStates();
-    }, [statesLoaded, currentStates, previousStates, enrichedData]);
+
+        // Save new alerts to Redis (with createdAt timestamp for 24h expiration)
+        if (uniqueNewAlerts.length > 0) {
+            const saveAlerts = async () => {
+                try {
+                    const alertsWithTimestamp = uniqueNewAlerts.map(alert => ({
+                        ...alert,
+                        createdAt: new Date().toISOString(),
+                    }));
+                    await fetch('/api/alerts', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ alerts: alertsWithTimestamp }),
+                    });
+                } catch (error) {
+                    console.error('Error saving alerts:', error);
+                }
+            };
+            saveAlerts();
+        }
+    }, [statesLoaded, alertsLoaded, currentStates, previousStates, enrichedData, storedAlerts]);
 
     // Calculate totals
     const totalCurrentAmount = useMemo(() => {

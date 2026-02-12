@@ -1066,6 +1066,118 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         }
     };
 
+    // CSV export function for master data
+    const exportToCSV = () => {
+        // Define CSV headers
+        const headers = [
+            'Scrip Name',
+            'NSE Code',
+            'BSE Code',
+            'Quantity',
+            'Avg Buy Price',
+            'Invested Amount',
+            'Current Price',
+            'Current Amount',
+            'Absolute Gain',
+            'Gain %',
+            'Weightage %',
+            'Portfolio Contribution %',
+            'Industry Group',
+            'Industry',
+            'P/E',
+            'Profit Growth %',
+            'Sales Growth %',
+            'DMA 50',
+            'DMA 200',
+            'Change % from DMA 50',
+            'Change % from DMA 200',
+            'Down from 52W High %',
+            'Up from 52W Low %',
+            'Trend',
+            '1D %',
+            '1W %',
+            '1M %',
+            '3M %',
+            '6M %',
+            '1Y %',
+            'Remarks',
+            'Assigned To',
+            'Bucket',
+        ];
+
+        // Helper to escape CSV values
+        const escapeCSV = (value: any): string => {
+            if (value === null || value === undefined) return '';
+            const str = String(value);
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        };
+
+        // Helper to format numbers
+        const formatNum = (value: number | null, decimals: number = 2): string => {
+            if (value === null || value === undefined) return '';
+            return value.toFixed(decimals);
+        };
+
+        // Build CSV rows from enrichedDataWithWeightage (full data, not filtered)
+        const rows = enrichedDataWithWeightage.map((item: any) => [
+            escapeCSV(item.scripName),
+            escapeCSV(item.nseCode),
+            escapeCSV(item.bseCode),
+            item.quantity || '',
+            formatNum(item.averageBuyPrice),
+            formatNum(item.investedAmount),
+            formatNum(item.currentPrice),
+            formatNum(item.calculatedAmount),
+            formatNum(item.absoluteGain),
+            formatNum(item.gainPercentage),
+            formatNum(item.weightage),
+            formatNum(item.portfolioContribution),
+            escapeCSV(item.industryGroup),
+            escapeCSV(item.industry),
+            formatNum(item.priceToEarning),
+            formatNum(item.yoyQuarterlyProfitGrowth),
+            formatNum(item.yoyQuarterlySalesGrowth),
+            formatNum(item.dma50),
+            formatNum(item.dma200),
+            formatNum(item.dma50ChangePercent),
+            formatNum(item.dma200ChangePercent),
+            formatNum(item.downFrom52WeekHigh),
+            formatNum(item.upFrom52WeekLow),
+            escapeCSV(item.trend),
+            formatNum(item.return1D),
+            formatNum(item.return1W),
+            formatNum(item.return1M),
+            formatNum(item.return3M),
+            formatNum(item.return6M),
+            formatNum(item.return1Y),
+            escapeCSV(item.remarks),
+            escapeCSV(item.assignedTo),
+            escapeCSV(item.bucket),
+        ]);
+
+        // Combine headers and rows
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.join(','))
+        ].join('\n');
+
+        // Create and download blob
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        const today = new Date().toISOString().split('T')[0];
+        link.setAttribute('href', url);
+        link.setAttribute('download', `portfolio_master_data_${today}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <>
             <header className="main-header">
@@ -1094,12 +1206,21 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                 onChange={handleFilterChange}
                             />
                         </div>
-                        <button className="filter-btn" onClick={() => setShowFilterPopover(true)}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                <path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10 8.692V13.5a.5.5 0 0 1-.342.474l-3 1.5A.5.5 0 0 1 6 14.5V8.692L1.628 3.834A.5.5 0 0 1 1.5 3.5z"/>
-                            </svg>
-                            Filters
-                        </button>
+                        <div className="action-buttons">
+                            <button className="export-btn" onClick={exportToCSV}>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                                    <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+                                </svg>
+                                Export CSV
+                            </button>
+                            <button className="filter-btn" onClick={() => setShowFilterPopover(true)}>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10 8.692V13.5a.5.5 0 0 1-.342.474l-3 1.5A.5.5 0 0 1 6 14.5V8.692L1.628 3.834A.5.5 0 0 1 1.5 3.5z"/>
+                                </svg>
+                                Filters
+                            </button>
+                        </div>
                     </div>
 
                     {showFilterPopover && (
