@@ -694,18 +694,18 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         const positiveContributors = sorted.filter(item => (item.portfolioContribution || 0) > 0);
         const negativeContributors = sorted.filter(item => (item.portfolioContribution || 0) < 0);
 
-        // Top 5 positive and others
-        const topPositive = positiveContributors.slice(0, 5);
-        const otherPositive = positiveContributors.slice(5);
+        // Top 9 positive and others
+        const topPositive = positiveContributors.slice(0, 9);
+        const otherPositive = positiveContributors.slice(9);
         const othersPositiveRow = otherPositive.length > 0 ? {
             name: `Others (${otherPositive.length} stocks)`,
             portfolioContribution: otherPositive.reduce((sum, item) => sum + (item.portfolioContribution || 0), 0),
             isOthers: true,
         } : null;
 
-        // Bottom 4 negative and others
-        const bottomNegative = negativeContributors.slice(-4).reverse();
-        const otherNegative = negativeContributors.slice(0, -4);
+        // Bottom 8 negative and others
+        const bottomNegative = negativeContributors.slice(-8).reverse();
+        const otherNegative = negativeContributors.slice(0, -8);
         const othersNegativeRow = otherNegative.length > 0 ? {
             name: `Others (${otherNegative.length} stocks)`,
             portfolioContribution: otherNegative.reduce((sum, item) => sum + (item.portfolioContribution || 0), 0),
