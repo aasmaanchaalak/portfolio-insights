@@ -115,6 +115,8 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 rsi: matchedStock?.rsi || null,
                 marketCap: matchedStock?.marketCap || null,
                 roce: matchedStock?.roce || null,
+                entryDate: matchedStock?.entryDate || null,
+                entryPrice: matchedStock?.entryPrice || null,
             };
         });
     }, [gridKeyData, stocks]);
