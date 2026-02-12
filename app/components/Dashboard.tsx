@@ -633,19 +633,46 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         };
     }, [enrichedData, totalCurrentAmount]);
 
-    // Categorize transition alerts only (state changes)
+    // Categorize transition alerts into 4 groups
     const categorizedAlerts = useMemo(() => {
-        // Negative transitions (bearish signals)
-        const negativeTransitions = transitionAlerts.filter(a =>
-            ['DEATH_CROSS', 'CROSSED_BELOW_200DMA', 'CROSSED_BELOW_50DMA', 'PROFIT_GROWTH_DROPPED', 'SALES_GROWTH_DROPPED'].includes(a.alertType)
+        const weakTechnicals = transitionAlerts.filter(a =>
+            ['DEATH_CROSS', 'CROSSED_BELOW_200DMA', 'CROSSED_BELOW_50DMA'].includes(a.alertType)
         );
-        // Positive transitions (bullish signals)
-        const positiveTransitions = transitionAlerts.filter(a =>
-            ['GOLDEN_CROSS', 'CROSSED_ABOVE_200DMA', 'CROSSED_ABOVE_50DMA', 'PROFIT_GROWTH_RECOVERED', 'SALES_GROWTH_RECOVERED'].includes(a.alertType)
+        const weakGrowth = transitionAlerts.filter(a =>
+            ['PROFIT_GROWTH_DROPPED', 'SALES_GROWTH_DROPPED'].includes(a.alertType)
+        );
+        const goodTechnicals = transitionAlerts.filter(a =>
+            ['GOLDEN_CROSS', 'CROSSED_ABOVE_200DMA', 'CROSSED_ABOVE_50DMA'].includes(a.alertType)
+        );
+        const goodGrowth = transitionAlerts.filter(a =>
+            ['PROFIT_GROWTH_RECOVERED', 'SALES_GROWTH_RECOVERED'].includes(a.alertType)
         );
 
-        return { negativeTransitions, positiveTransitions };
+        return { weakTechnicals, weakGrowth, goodTechnicals, goodGrowth };
     }, [transitionAlerts]);
+
+    // Helper to get short indicator label
+    const getIndicatorLabel = (alertType: string): string => {
+        switch (alertType) {
+            case 'CROSSED_BELOW_50DMA':
+            case 'CROSSED_ABOVE_50DMA':
+                return '50DMA';
+            case 'CROSSED_BELOW_200DMA':
+            case 'CROSSED_ABOVE_200DMA':
+                return '200DMA';
+            case 'DEATH_CROSS':
+            case 'GOLDEN_CROSS':
+                return 'Cross';
+            case 'PROFIT_GROWTH_DROPPED':
+            case 'PROFIT_GROWTH_RECOVERED':
+                return 'Profit';
+            case 'SALES_GROWTH_DROPPED':
+            case 'SALES_GROWTH_RECOVERED':
+                return 'Sales';
+            default:
+                return '';
+        }
+    };
 
     // Portfolio Return Drivers
     const returnDrivers = useMemo(() => {
@@ -1015,7 +1042,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 </div>
             </section>
 
-            {/* Technical Alerts - Transition Alerts Only */}
+            {/* Technical Alerts - 4 Column Layout */}
             <section className="dashboard-section">
                 <h2 className="section-title">
                     Technical Alerts
@@ -1025,54 +1052,74 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 {transitionAlerts.length === 0 ? (
                     <div className="empty-alerts">No state changes detected since last update</div>
                 ) : (
-                    <div className="alerts-container">
-                        {/* Negative Transitions (Bearish) */}
-                        {categorizedAlerts.negativeTransitions.length > 0 && (
-                            <div className="alert-group">
-                                <h3 className="alert-group-title critical">Bearish Signals ({categorizedAlerts.negativeTransitions.length})</h3>
-                                <div className="alerts-list">
-                                    {categorizedAlerts.negativeTransitions.map(alert => (
-                                        <div key={alert.id} className={`alert-item ${getAlertPriorityClass(alert.alertType)}`}>
-                                            <span className="alert-icon">{getAlertIcon(alert.alertType)}</span>
-                                            <div className="alert-content">
-                                                <div className="alert-stock">{alert.stockName}</div>
-                                                <div className="alert-message">{alert.message}</div>
-                                            </div>
-                                            <div className="alert-details">
-                                                <div className="alert-price">₹{alert.currentPrice.toFixed(2)}</div>
-                                                <div className={`alert-change ${alert.changePercent >= 0 ? 'positive' : 'negative'}`}>
-                                                    {formatPercent(alert.changePercent)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                    <div className="alerts-grid">
+                        {/* Weak Technicals */}
+                        <div className="alert-column weak">
+                            <h3 className="alert-column-title">Weak Technicals ({categorizedAlerts.weakTechnicals.length})</h3>
+                            <div className="alert-column-list">
+                                {categorizedAlerts.weakTechnicals.map(alert => (
+                                    <div key={alert.id} className="alert-row">
+                                        <span className="alert-name">{alert.stockName}</span>
+                                        <span className="alert-change negative">{formatPercent(alert.changePercent)}</span>
+                                        <span className="alert-indicator">{getIndicatorLabel(alert.alertType)}</span>
+                                    </div>
+                                ))}
+                                {categorizedAlerts.weakTechnicals.length === 0 && (
+                                    <div className="alert-empty">None</div>
+                                )}
                             </div>
-                        )}
+                        </div>
 
-                        {/* Positive Transitions (Bullish) */}
-                        {categorizedAlerts.positiveTransitions.length > 0 && (
-                            <div className="alert-group">
-                                <h3 className="alert-group-title positive">Bullish Signals ({categorizedAlerts.positiveTransitions.length})</h3>
-                                <div className="alerts-list">
-                                    {categorizedAlerts.positiveTransitions.map(alert => (
-                                        <div key={alert.id} className={`alert-item ${getAlertPriorityClass(alert.alertType)}`}>
-                                            <span className="alert-icon">{getAlertIcon(alert.alertType)}</span>
-                                            <div className="alert-content">
-                                                <div className="alert-stock">{alert.stockName}</div>
-                                                <div className="alert-message">{alert.message}</div>
-                                            </div>
-                                            <div className="alert-details">
-                                                <div className="alert-price">₹{alert.currentPrice.toFixed(2)}</div>
-                                                <div className={`alert-change ${alert.changePercent >= 0 ? 'positive' : 'negative'}`}>
-                                                    {formatPercent(alert.changePercent)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                        {/* Weak Growth */}
+                        <div className="alert-column weak">
+                            <h3 className="alert-column-title">Weak Growth ({categorizedAlerts.weakGrowth.length})</h3>
+                            <div className="alert-column-list">
+                                {categorizedAlerts.weakGrowth.map(alert => (
+                                    <div key={alert.id} className="alert-row">
+                                        <span className="alert-name">{alert.stockName}</span>
+                                        <span className="alert-change negative">{formatPercent(alert.changePercent)}</span>
+                                        <span className="alert-indicator">{getIndicatorLabel(alert.alertType)}</span>
+                                    </div>
+                                ))}
+                                {categorizedAlerts.weakGrowth.length === 0 && (
+                                    <div className="alert-empty">None</div>
+                                )}
                             </div>
-                        )}
+                        </div>
+
+                        {/* Good Technicals */}
+                        <div className="alert-column good">
+                            <h3 className="alert-column-title">Good Technicals ({categorizedAlerts.goodTechnicals.length})</h3>
+                            <div className="alert-column-list">
+                                {categorizedAlerts.goodTechnicals.map(alert => (
+                                    <div key={alert.id} className="alert-row">
+                                        <span className="alert-name">{alert.stockName}</span>
+                                        <span className="alert-change positive">{formatPercent(alert.changePercent)}</span>
+                                        <span className="alert-indicator">{getIndicatorLabel(alert.alertType)}</span>
+                                    </div>
+                                ))}
+                                {categorizedAlerts.goodTechnicals.length === 0 && (
+                                    <div className="alert-empty">None</div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Good Growth */}
+                        <div className="alert-column good">
+                            <h3 className="alert-column-title">Good Growth ({categorizedAlerts.goodGrowth.length})</h3>
+                            <div className="alert-column-list">
+                                {categorizedAlerts.goodGrowth.map(alert => (
+                                    <div key={alert.id} className="alert-row">
+                                        <span className="alert-name">{alert.stockName}</span>
+                                        <span className="alert-change positive">{formatPercent(alert.changePercent)}</span>
+                                        <span className="alert-indicator">{getIndicatorLabel(alert.alertType)}</span>
+                                    </div>
+                                ))}
+                                {categorizedAlerts.goodGrowth.length === 0 && (
+                                    <div className="alert-empty">None</div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
             </section>
