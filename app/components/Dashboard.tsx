@@ -69,6 +69,25 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
     const [statesLoaded, setStatesLoaded] = useState(false);
     const [alertsLoaded, setAlertsLoaded] = useState(false);
     const hasProcessedStates = useRef(false);
+    const scrollPositionRef = useRef(0);
+
+    // Preserve scroll position on visibility change
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.hidden) {
+                // Save scroll position when tab becomes hidden
+                scrollPositionRef.current = window.scrollY;
+            } else {
+                // Restore scroll position when tab becomes visible
+                requestAnimationFrame(() => {
+                    window.scrollTo(0, scrollPositionRef.current);
+                });
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, []);
 
     // Enrich gridKey data with stock information
     const enrichedData = useMemo(() => {
@@ -368,6 +387,40 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                     isRead: false,
                 });
             }
+
+            // Approaching 52W High (wasn't near, now near)
+            if (!previous.near52WeekHigh && current.near52WeekHigh) {
+                const downFrom52WH = enrichedItem?.downFrom52WeekHigh || 0;
+                newTransitionAlerts.push({
+                    id: `${current.stockCode}-near-52w-high-${today}`,
+                    stockCode: current.stockCode,
+                    stockName: current.stockName,
+                    alertType: 'NEAR_52W_HIGH',
+                    message: `Near 52W High (${downFrom52WH.toFixed(1)}% away)`,
+                    currentPrice,
+                    thresholdValue: 5,
+                    changePercent: -downFrom52WH,
+                    triggeredAt: today,
+                    isRead: false,
+                });
+            }
+
+            // Approaching 52W Low (wasn't near, now near)
+            if (!previous.near52WeekLow && current.near52WeekLow) {
+                const upFrom52WL = enrichedItem?.upFrom52WeekLow || 0;
+                newTransitionAlerts.push({
+                    id: `${current.stockCode}-near-52w-low-${today}`,
+                    stockCode: current.stockCode,
+                    stockName: current.stockName,
+                    alertType: 'NEAR_52W_LOW',
+                    message: `Near 52W Low (${upFrom52WL.toFixed(1)}% above)`,
+                    currentPrice,
+                    thresholdValue: 10,
+                    changePercent: upFrom52WL,
+                    triggeredAt: today,
+                    isRead: false,
+                });
+            }
         });
 
         // Merge new alerts with stored alerts (stored alerts already persisted in Redis)
@@ -633,20 +686,42 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         };
     }, [enrichedData, totalCurrentAmount]);
 
-    // Categorize transition alerts into 4 groups
+    // Categorize transition alerts into 4 groups with sorting
     const categorizedAlerts = useMemo(() => {
-        const weakTechnicals = transitionAlerts.filter(a =>
-            ['DEATH_CROSS', 'CROSSED_BELOW_200DMA', 'CROSSED_BELOW_50DMA'].includes(a.alertType)
-        );
-        const weakGrowth = transitionAlerts.filter(a =>
-            ['PROFIT_GROWTH_DROPPED', 'SALES_GROWTH_DROPPED'].includes(a.alertType)
-        );
-        const goodTechnicals = transitionAlerts.filter(a =>
-            ['GOLDEN_CROSS', 'CROSSED_ABOVE_200DMA', 'CROSSED_ABOVE_50DMA'].includes(a.alertType)
-        );
-        const goodGrowth = transitionAlerts.filter(a =>
-            ['PROFIT_GROWTH_RECOVERED', 'SALES_GROWTH_RECOVERED'].includes(a.alertType)
-        );
+        // Sort order for technicals: 50DMA first, then 200DMA, then Cross, then 52W
+        const technicalOrder: Record<string, number> = {
+            'CROSSED_BELOW_50DMA': 1,
+            'CROSSED_ABOVE_50DMA': 1,
+            'CROSSED_BELOW_200DMA': 2,
+            'CROSSED_ABOVE_200DMA': 2,
+            'DEATH_CROSS': 3,
+            'GOLDEN_CROSS': 3,
+            'NEAR_52W_LOW': 4,
+            'NEAR_52W_HIGH': 4,
+        };
+        // Sort order for growth: Profit first, then Sales
+        const growthOrder: Record<string, number> = {
+            'PROFIT_GROWTH_DROPPED': 1,
+            'PROFIT_GROWTH_RECOVERED': 1,
+            'SALES_GROWTH_DROPPED': 2,
+            'SALES_GROWTH_RECOVERED': 2,
+        };
+
+        const weakTechnicals = transitionAlerts
+            .filter(a => ['DEATH_CROSS', 'CROSSED_BELOW_200DMA', 'CROSSED_BELOW_50DMA', 'NEAR_52W_LOW'].includes(a.alertType))
+            .sort((a, b) => (technicalOrder[a.alertType] || 99) - (technicalOrder[b.alertType] || 99));
+
+        const weakGrowth = transitionAlerts
+            .filter(a => ['PROFIT_GROWTH_DROPPED', 'SALES_GROWTH_DROPPED'].includes(a.alertType))
+            .sort((a, b) => (growthOrder[a.alertType] || 99) - (growthOrder[b.alertType] || 99));
+
+        const goodTechnicals = transitionAlerts
+            .filter(a => ['GOLDEN_CROSS', 'CROSSED_ABOVE_200DMA', 'CROSSED_ABOVE_50DMA', 'NEAR_52W_HIGH'].includes(a.alertType))
+            .sort((a, b) => (technicalOrder[a.alertType] || 99) - (technicalOrder[b.alertType] || 99));
+
+        const goodGrowth = transitionAlerts
+            .filter(a => ['PROFIT_GROWTH_RECOVERED', 'SALES_GROWTH_RECOVERED'].includes(a.alertType))
+            .sort((a, b) => (growthOrder[a.alertType] || 99) - (growthOrder[b.alertType] || 99));
 
         return { weakTechnicals, weakGrowth, goodTechnicals, goodGrowth };
     }, [transitionAlerts]);
@@ -663,6 +738,10 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             case 'DEATH_CROSS':
             case 'GOLDEN_CROSS':
                 return 'Cross';
+            case 'NEAR_52W_HIGH':
+                return '52W Hi';
+            case 'NEAR_52W_LOW':
+                return '52W Lo';
             case 'PROFIT_GROWTH_DROPPED':
             case 'PROFIT_GROWTH_RECOVERED':
                 return 'Profit';
