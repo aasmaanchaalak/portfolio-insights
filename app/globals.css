@@ -2376,6 +2376,20 @@ a:hover {
   color: var(--secondary-text-color);
 }
 
+.overview-card .card-subtext.benchmark {
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  opacity: 0.85;
+}
+
+.overview-card .card-subtext.benchmark.positive {
+  color: var(--success-color);
+}
+
+.overview-card .card-subtext.benchmark.negative {
+  color: var(--error-color);
+}
+
 /* Metrics Grid */
 .metrics-grid {
   display: grid;

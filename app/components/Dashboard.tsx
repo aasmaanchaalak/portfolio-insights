@@ -61,6 +61,15 @@ const formatPercent = (value: number | null, decimals: number = 2): string => {
     return `${value >= 0 ? '+' : ''}${value.toFixed(decimals)}%`;
 };
 
+interface NiftySmallcapData {
+    lastPrice: number;
+    dailyChange: number;
+    weeklyChange: number;
+    monthlyChange: number;
+    yearlyChange: number;
+    lastUpdated: string;
+}
+
 const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInvestments }) => {
     const [previousStates, setPreviousStates] = useState<TechnicalState[]>([]);
     const [transitionAlerts, setTransitionAlerts] = useState<Alert[]>([]);
@@ -68,6 +77,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
     const [performersPeriod, setPerformersPeriod] = useState<'daily' | 'yearly'>('daily');
     const [statesLoaded, setStatesLoaded] = useState(false);
     const [alertsLoaded, setAlertsLoaded] = useState(false);
+    const [niftySmallcap, setNiftySmallcap] = useState<NiftySmallcapData | null>(null);
     const hasProcessedStates = useRef(false);
     const scrollPositionRef = useRef(0);
 
@@ -203,6 +213,22 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             }
         };
         loadStoredAlerts();
+    }, []);
+
+    // Load Nifty Smallcap data on mount
+    useEffect(() => {
+        const loadNiftySmallcap = async () => {
+            try {
+                const response = await fetch('/api/nifty-smallcap');
+                if (response.ok) {
+                    const data = await response.json();
+                    setNiftySmallcap(data);
+                }
+            } catch (error) {
+                console.error('Error loading Nifty Smallcap data:', error);
+            }
+        };
+        loadNiftySmallcap();
     }, []);
 
     // Generate transition alerts and save current states (runs only once)
@@ -982,24 +1008,44 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                         <div className={`card-value ${pnlMetrics.dailyPercent >= 0 ? 'positive' : 'negative'}`}>
                             {formatPercent(pnlMetrics.dailyPercent)}
                         </div>
+                        {niftySmallcap && (
+                            <div className={`card-subtext benchmark ${niftySmallcap.dailyChange >= 0 ? 'positive' : 'negative'}`}>
+                                SC100: {formatPercent(niftySmallcap.dailyChange)}
+                            </div>
+                        )}
                     </div>
                     <div className="overview-card">
                         <div className="card-label">Weekly</div>
                         <div className={`card-value ${pnlMetrics.weeklyPercent >= 0 ? 'positive' : 'negative'}`}>
                             {formatPercent(pnlMetrics.weeklyPercent)}
                         </div>
+                        {niftySmallcap && (
+                            <div className={`card-subtext benchmark ${niftySmallcap.weeklyChange >= 0 ? 'positive' : 'negative'}`}>
+                                SC100: {formatPercent(niftySmallcap.weeklyChange)}
+                            </div>
+                        )}
                     </div>
                     <div className="overview-card">
                         <div className="card-label">Monthly</div>
                         <div className={`card-value ${pnlMetrics.monthlyPercent >= 0 ? 'positive' : 'negative'}`}>
                             {formatPercent(pnlMetrics.monthlyPercent)}
                         </div>
+                        {niftySmallcap && (
+                            <div className={`card-subtext benchmark ${niftySmallcap.monthlyChange >= 0 ? 'positive' : 'negative'}`}>
+                                SC100: {formatPercent(niftySmallcap.monthlyChange)}
+                            </div>
+                        )}
                     </div>
                     <div className="overview-card">
                         <div className="card-label">Yearly</div>
                         <div className={`card-value ${pnlMetrics.yearlyPercent >= 0 ? 'positive' : 'negative'}`}>
                             {formatPercent(pnlMetrics.yearlyPercent)}
                         </div>
+                        {niftySmallcap && (
+                            <div className={`card-subtext benchmark ${niftySmallcap.yearlyChange >= 0 ? 'positive' : 'negative'}`}>
+                                SC100: {formatPercent(niftySmallcap.yearlyChange)}
+                            </div>
+                        )}
                     </div>
                 </div>
             </section>
