@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { connectRedis } from '../../lib/redis';
+import { withAuth } from '../../lib/authMiddleware';
 
 const ALERTS_KEY = 'dashboard:alerts';
 const ALERT_TTL_HOURS = 24;
@@ -18,7 +19,7 @@ export interface StoredAlert {
   createdAt: string; // ISO timestamp for expiration
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const redis = await connectRedis();
 
@@ -91,3 +92,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(500).json({ error: 'Database connection failed' });
   }
 }
+
+export default withAuth(handler);

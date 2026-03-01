@@ -1,6 +1,8 @@
 # Portfolio Insights - Claude Documentation
 
 ## 🧹 Latest Changes
+- **NEW**: Email + Password authentication with allowlist (replaced hardcoded password)
+- **NEW**: All API endpoints are now protected with JWT authentication
 - **NEW**: Added Dashboard page with comprehensive portfolio metrics and technical alerts
 - **NEW**: Added RSI and marketCap fields to Stock interface (placeholders for future data)
 - Dashboard is now the default landing page
@@ -131,8 +133,48 @@ Combined Data → Calculate Amounts → Calculate Weightages → Calculate Portf
 ---
 
 ## 🔐 Authentication
-- **Password**: `saguncapital321` (hardcoded in `/Users/adityaagarwal/Downloads/portfolio-insights/app/page.tsx:7`)
-- **Storage**: Uses localStorage for persistence
+
+### System Overview
+- **Type**: Email + Password with Allowlist
+- **Sessions**: JWT tokens stored in httpOnly cookies
+- **API Protection**: All endpoints require authentication
+
+### Auth Flow
+1. **Registration**: Only emails in `ALLOWED_EMAILS` env var can register
+2. **Login**: Returns JWT access token (15 min) + refresh token (7 days)
+3. **Session**: Stored in Redis with 7-day expiry
+4. **Logout**: Clears cookies and Redis session
+
+### Configuration
+Edit `.env.local`:
+```env
+JWT_SECRET="your-secret-key"
+ALLOWED_EMAILS="user1@company.com,user2@company.com"
+```
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `lib/auth.ts` | Password hashing (bcrypt), JWT utilities |
+| `lib/authMiddleware.ts` | `withAuth()` wrapper for API protection |
+| `pages/api/auth/register.ts` | Registration (allowlist check) |
+| `pages/api/auth/login.ts` | Login, issues JWT cookies |
+| `pages/api/auth/verify.ts` | Validates current session |
+| `pages/api/auth/logout.ts` | Clears session |
+| `pages/api/auth/refresh.ts` | Refreshes access token |
+| `app/contexts/AuthContext.tsx` | React context for auth state |
+| `app/components/LoginPage.tsx` | Login/Register UI |
+
+### Redis Keys
+- `auth:users:{email}` - User data (email, passwordHash, name, timestamps)
+- `auth:sessions:{sessionId}` - Session data (7-day TTL)
+
+### Security Features
+- Passwords hashed with bcrypt (cost factor 12)
+- JWT in httpOnly cookies (XSS protection)
+- Short-lived access tokens (15 min)
+- Session invalidation on logout
+- Email allowlist for registration
 
 ---
 
@@ -149,11 +191,26 @@ Combined Data → Calculate Amounts → Calculate Weightages → Calculate Portf
 portfolio-insights/
 ├── app/
 │   ├── page.tsx              # Main application file
+│   ├── layout.tsx            # Root layout with AuthProvider
+│   ├── providers.tsx         # Client-side providers wrapper
 │   ├── globals.css           # Styling
-│   ├── components/
-│   │   └── Dashboard.tsx     # Dashboard component
-│   └── api/                  # API endpoints
-├── types.ts                  # TypeScript definitions
+│   ├── contexts/
+│   │   └── AuthContext.tsx   # Authentication context
+│   └── components/
+│       ├── Dashboard.tsx     # Dashboard component
+│       └── LoginPage.tsx     # Login/Register UI
+├── pages/api/
+│   ├── auth/                 # Auth endpoints (register, login, verify, logout, refresh)
+│   ├── portfolio.ts          # Portfolio data (protected)
+│   ├── gridkey.ts            # Holdings data (protected)
+│   └── ...                   # Other protected endpoints
+├── lib/
+│   ├── redis.ts              # Redis connection
+│   ├── auth.ts               # Auth utilities (JWT, bcrypt)
+│   └── authMiddleware.ts     # withAuth() API wrapper
+├── types/
+│   └── auth.ts               # Auth TypeScript interfaces
+├── types.ts                  # Main TypeScript definitions
 ├── package.json              # Dependencies
 └── CLAUDE.md                 # This documentation
 ```

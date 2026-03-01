@@ -1010,7 +1010,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                         </div>
                         {niftySmallcap && (
                             <div className={`card-subtext benchmark ${niftySmallcap.dailyChange >= 0 ? 'positive' : 'negative'}`}>
-                                SC100: {formatPercent(niftySmallcap.dailyChange)}
+                                SMLCAP100: {formatPercent(niftySmallcap.dailyChange)}
                             </div>
                         )}
                     </div>

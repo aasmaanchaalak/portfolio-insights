@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { NseIndia } from 'stock-nse-india';
 import { connectRedis } from '../../lib/redis';
+import { withAuth } from '../../lib/authMiddleware';
 
 const CACHE_KEY = 'nifty-smallcap:data';
 const CACHE_DURATION_SECONDS = 300; // 5 minutes cache
@@ -14,7 +15,7 @@ interface NiftySmallcapData {
     lastUpdated: string;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== 'GET') {
         res.setHeader('Allow', ['GET']);
         return res.status(405).end(`Method ${req.method} Not Allowed`);
@@ -73,3 +74,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(500).json({ error: 'Failed to fetch Nifty Smallcap data' });
     }
 }
+
+export default withAuth(handler);

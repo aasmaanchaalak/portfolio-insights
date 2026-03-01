@@ -8,6 +8,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Stock, GridKeyData } from '../types';
 import Dashboard from './components/Dashboard';
+import { useAuth } from './contexts/AuthContext';
+import LoginPage from './components/LoginPage';
 
 type SortKey = keyof Stock;
 type SortDirection = 'ascending' | 'descending';
@@ -2838,40 +2840,12 @@ interface PrivateInvestments {
 }
 
 const App: React.FC = () => {
+    const { user, loading: authLoading, logout } = useAuth();
     const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'momentum'>('dashboard');
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [privateInvestments, setPrivateInvestments] = useState<PrivateInvestments>({ totalInvested: 0, count: 0 });
     const [loading, setLoading] = useState(true);
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [passwordInput, setPasswordInput] = useState('');
-    const [passwordError, setPasswordError] = useState('');
-
-    const CORRECT_PASSWORD = 'saguncapital321';
-
-    // Check if user is already authenticated
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const authenticated = localStorage.getItem('portfolioAuth');
-            if (authenticated === 'true') {
-                setIsAuthenticated(true);
-            }
-        }
-    }, []);
-
-    const handlePasswordSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (passwordInput === CORRECT_PASSWORD) {
-            setIsAuthenticated(true);
-            if (typeof window !== 'undefined') {
-                localStorage.setItem('portfolioAuth', 'true');
-            }
-            setPasswordError('');
-        } else {
-            setPasswordError('Incorrect password. Please try again.');
-            setPasswordInput('');
-        }
-    };
 
     useEffect(() => {
         const loadData = async () => {
@@ -3000,29 +2974,16 @@ const App: React.FC = () => {
         }
     };
 
-    if (!isAuthenticated) {
+    if (authLoading) {
         return (
-            <div className="auth-container">
-                <div className="auth-card">
-                    <h1>Portfolio Insights</h1>
-                    <p>Please enter the password to access the application</p>
-                    <form onSubmit={handlePasswordSubmit}>
-                        <input
-                            type="password"
-                            value={passwordInput}
-                            onChange={(e) => setPasswordInput(e.target.value)}
-                            placeholder="Enter password"
-                            autoFocus
-                            className="password-input"
-                        />
-                        {passwordError && <div className="password-error">{passwordError}</div>}
-                        <button type="submit" className="password-submit">
-                            Access Portfolio
-                        </button>
-                    </form>
-                </div>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+                <div>Loading...</div>
             </div>
         );
+    }
+
+    if (!user) {
+        return <LoginPage />;
     }
 
     if (loading) {
@@ -3042,6 +3003,9 @@ const App: React.FC = () => {
                 <button className={page === 'momentum' ? 'active' : ''} onClick={() => setPage('momentum')}>Trend & Momentum</button>
                 <button className={page === 'upload' ? 'active' : ''} onClick={() => setPage('upload')}>Screener Data</button>
                 <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>
+                <button onClick={logout} style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid var(--border-color)' }}>
+                    Logout ({user.name})
+                </button>
             </nav>
             <main>
                 {page === 'dashboard' && <Dashboard gridKeyData={gridKeyData} stocks={stocks} privateInvestments={privateInvestments} />}

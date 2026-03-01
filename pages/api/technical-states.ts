@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { connectRedis } from '../../lib/redis';
+import { withAuth } from '../../lib/authMiddleware';
 
 const TECHNICAL_STATES_KEY = 'dashboard:technicalStates';
 
@@ -16,7 +17,7 @@ export interface StoredTechnicalState {
   timestamp: string;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const redis = await connectRedis();
 
@@ -52,3 +53,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(500).json({ error: 'Database connection failed' });
   }
 }
+
+export default withAuth(handler);

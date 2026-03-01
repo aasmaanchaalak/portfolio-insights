@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { connectRedis } from '../../lib/redis';
+import { withAuth } from '../../lib/authMiddleware';
 
 const PORTFOLIO_KEY = 'portfolio:data';
 const REMARKS_KEY_PREFIX = 'remarks:';
@@ -7,7 +8,7 @@ const ASSIGNMENT_KEY_PREFIX = 'assignment:';
 const BUCKET_KEY_PREFIX = 'bucket:';
 const ENTRY_DATA_KEY_PREFIX = 'entrydata:';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const redis = await connectRedis();
 
@@ -194,3 +195,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(500).json({ error: 'Database connection failed' });
   }
 }
+
+export default withAuth(handler);

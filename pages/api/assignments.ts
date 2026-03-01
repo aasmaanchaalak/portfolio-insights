@@ -1,9 +1,10 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { connectRedis } from '../../lib/redis';
+import { withAuth } from '../../lib/authMiddleware';
 
 const ASSIGNMENT_KEY_PREFIX = 'assignment:';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const redis = await connectRedis();
 
@@ -57,3 +58,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(500).json({ error: 'Database connection failed' });
   }
 }
+
+export default withAuth(handler);
