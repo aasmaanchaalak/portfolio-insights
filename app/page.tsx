@@ -8,6 +8,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Stock, GridKeyData } from '../types';
 import Dashboard from './components/Dashboard';
+import EntryDataPage from './components/EntryDataPage';
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 
@@ -2841,7 +2842,7 @@ interface PrivateInvestments {
 
 const App: React.FC = () => {
     const { user, loading: authLoading, logout } = useAuth();
-    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'momentum'>('dashboard');
+    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'momentum' | 'entrydata'>('dashboard');
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [privateInvestments, setPrivateInvestments] = useState<PrivateInvestments>({ totalInvested: 0, count: 0 });
@@ -3009,6 +3010,7 @@ const App: React.FC = () => {
                 <button className={page === 'momentum' ? 'active' : ''} onClick={() => setPage('momentum')}>Trend & Momentum</button>
                 <button className={page === 'upload' ? 'active' : ''} onClick={() => setPage('upload')}>Screener Data</button>
                 <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>
+                <button className={page === 'entrydata' ? 'active' : ''} onClick={() => setPage('entrydata')}>Entry Data</button>
                 <button onClick={logout} style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid var(--border-color)' }}>
                     Logout ({user.name})
                 </button>
@@ -3020,6 +3022,7 @@ const App: React.FC = () => {
                 {page === 'momentum' && <TrendMomentumPage gridKeyData={gridKeyData} stocks={stocks} />}
                 {page === 'upload' && <UploadPage onDataUploaded={handleDataUploaded} />}
                 {page === 'gridkey' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}
+                {page === 'entrydata' && <EntryDataPage gridKeyData={gridKeyData} stocks={stocks} />}
             </main>
         </>
     );
