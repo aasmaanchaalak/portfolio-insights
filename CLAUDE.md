@@ -19,7 +19,7 @@ App Component (Main Router)
 └── Shared State Management
 ```
 
-### 📱 6 Main Pages/Components
+### 📱 7 Main Pages/Components
 
 #### 1. **Dashboard** (`Dashboard`) - NEW
 - **Purpose**: Overview dashboard with portfolio metrics and technical alerts
@@ -75,6 +75,17 @@ App Component (Main Router)
 - **Features**: Quantity and buy price processing
 - **Updates**: Portfolio holdings, quantities, average buy prices
 
+#### 7. **Entry Data** (`EntryDataPage`)
+- **Purpose**: View and manage entry dates and prices for all holdings
+- **Location**: `app/components/EntryDataPage.tsx`
+- **Features**:
+  - Table of all stocks with entry date/price
+  - Filter by: All, Missing (no entry data), Recorded
+  - Search by stock name or code
+  - Inline editing of entry date and price
+  - Highlights stocks with missing data in red
+  - Pre-fills edit form with averageBuyPrice as default
+
 ---
 
 ## 🔄 Data Flow Architecture
@@ -125,7 +136,7 @@ Combined Data → Calculate Amounts → Calculate Weightages → Calculate Portf
 ---
 
 ## 🗂️ Component Structure
-- **Total Components**: 6 main page components
+- **Total Components**: 7 main page components
 - **Single Table**: Only 1 functional table (in PortfolioInsightsPage)
 - **Clean Architecture**: No unused/dead code remaining
 - **Modular Design**: Each page handles specific functionality
