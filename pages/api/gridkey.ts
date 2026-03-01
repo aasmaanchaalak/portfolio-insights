@@ -60,12 +60,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           }
         }
 
-        // If there are new stocks, fetch their current prices from portfolio data
+        // If there are new stocks, record their entry data
         if (newStockCodes.length > 0) {
           const portfolioDataStr = await redis.get(PORTFOLIO_KEY);
           const portfolioData = portfolioDataStr ? JSON.parse(portfolioDataStr) : [];
 
-          // Create a map of stock codes to current prices
+          // Create a map of stock codes to current prices from portfolio data
           const priceMap: Record<string, number> = {};
           for (const stock of portfolioData) {
             const code = stock.nseCode || stock.bseCode;
@@ -74,10 +74,20 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             }
           }
 
+          // Create a map of stock codes to average buy prices from GridKey data
+          const avgBuyPriceMap: Record<string, number> = {};
+          for (const item of gridKeyData) {
+            const code = item.nseCode || item.bseCode;
+            if (code && item.averageBuyPrice) {
+              avgBuyPriceMap[code] = item.averageBuyPrice;
+            }
+          }
+
           // Record entry data for new stocks
           const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
           for (const code of newStockCodes) {
-            const entryPrice = priceMap[code];
+            // Use current price from portfolio, fallback to average buy price from GridKey
+            const entryPrice = priceMap[code] || avgBuyPriceMap[code];
             if (entryPrice) {
               const entryData = { entryDate: today, entryPrice };
               await redis.set(`${ENTRY_DATA_KEY_PREFIX}${code}`, JSON.stringify(entryData));
