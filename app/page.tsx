@@ -2849,6 +2849,12 @@ const App: React.FC = () => {
 
     useEffect(() => {
         const loadData = async () => {
+            if (!user) {
+                setLoading(false);
+                return;
+            }
+
+            setLoading(true);
             try {
                 // Load portfolio data
                 const portfolioResponse = await fetch('/api/portfolio');
@@ -2875,7 +2881,7 @@ const App: React.FC = () => {
         };
 
         loadData();
-    }, []);
+    }, [user]);
 
     // Helper function to save portfolio value to history
     const savePortfolioValueToHistory = async () => {
