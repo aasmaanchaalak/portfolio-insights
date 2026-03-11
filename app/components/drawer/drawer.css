@@ -1,0 +1,203 @@
+/* Stock Detail Drawer Styles */
+
+/* Backdrop */
+.stock-drawer-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.stock-drawer-backdrop.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Drawer Container */
+.stock-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 480px;
+  height: 100vh;
+  background-color: var(--background-color);
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.stock-drawer.open {
+  transform: translateX(0);
+}
+
+/* Mobile: Full screen */
+@media (max-width: 768px) {
+  .stock-drawer {
+    width: 100%;
+    box-shadow: none;
+  }
+}
+
+/* Drawer Header */
+.drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--surface-color);
+  flex-shrink: 0;
+}
+
+.drawer-header-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.drawer-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--primary-text-color);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.drawer-stock-code {
+  font-size: 0.8rem;
+  color: var(--secondary-text-color);
+  font-family: monospace;
+}
+
+.drawer-close-btn {
+  background: none;
+  border: none;
+  color: var(--secondary-text-color);
+  cursor: pointer;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: background-color 0.2s, color 0.2s;
+  flex-shrink: 0;
+}
+
+.drawer-close-btn:hover {
+  background-color: var(--pill-bg-color);
+  color: var(--primary-text-color);
+}
+
+/* Drawer Tabs */
+.drawer-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  padding: 0 0.5rem;
+  background-color: var(--background-color);
+  flex-shrink: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.drawer-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.drawer-tab {
+  padding: 0.875rem 1rem;
+  background: none;
+  border: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--secondary-text-color);
+  cursor: pointer;
+  position: relative;
+  transition: color 0.2s;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.drawer-tab:hover:not(:disabled) {
+  color: var(--primary-text-color);
+}
+
+.drawer-tab.active {
+  color: var(--accent-color);
+}
+
+.drawer-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--accent-color);
+}
+
+.drawer-tab:disabled {
+  color: var(--border-color);
+  cursor: not-allowed;
+}
+
+.drawer-tab-badge {
+  font-size: 0.6rem;
+  background-color: var(--pill-bg-color);
+  color: var(--secondary-text-color);
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-weight: 600;
+}
+
+/* Drawer Content */
+.drawer-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+  background-color: var(--background-color);
+}
+
+/* Coming Soon State */
+.drawer-coming-soon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+  color: var(--secondary-text-color);
+}
+
+.coming-soon-icon {
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.drawer-coming-soon h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--primary-text-color);
+  margin: 0 0 0.5rem 0;
+}
+
+.drawer-coming-soon p {
+  font-size: 0.9rem;
+  margin: 0;
+}

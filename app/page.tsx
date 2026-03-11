@@ -11,6 +11,7 @@ import Dashboard from './components/Dashboard';
 import EntryDataPage from './components/EntryDataPage';
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
+import { StockDetailDrawer } from './components/drawer/StockDetailDrawer';
 
 type SortKey = keyof Stock;
 type SortDirection = 'ascending' | 'descending';
@@ -582,6 +583,10 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     const [remarksModalData, setRemarksModalData] = useState<any>(null);
     const [columnFilterOpen, setColumnFilterOpen] = useState<string | null>(null);
 
+    // Stock detail drawer state
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [selectedStock, setSelectedStock] = useState<{ code: string; name: string } | null>(null);
+
     const allInsightsColumns = [
         { key: 'quantity', label: 'Quantity' },
         { key: 'averageBuyPrice', label: 'Avg Buy Price' },
@@ -979,6 +984,15 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     };
 
     const handleStockNameClick = (item: any) => {
+        const stockCode = item.nseCode || item.bseCode;
+        const stockName = item.scripName || item.name;
+        if (stockCode) {
+            setSelectedStock({ code: stockCode, name: stockName });
+            setIsDrawerOpen(true);
+        }
+    };
+
+    const handleOpenRemarksModal = (item: any) => {
         setRemarksModalData(item);
         setRemarkValue(item.remarks || '');
     };
@@ -1673,6 +1687,17 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                     </div>
                 </div>
             )}
+
+            {/* Stock Detail Drawer */}
+            <StockDetailDrawer
+                isOpen={isDrawerOpen}
+                onClose={() => {
+                    setIsDrawerOpen(false);
+                    setSelectedStock(null);
+                }}
+                stockCode={selectedStock?.code || null}
+                stockName={selectedStock?.name || ''}
+            />
         </>
     );
 };
