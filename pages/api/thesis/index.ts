@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuth } from '../../../lib/authMiddleware';
+import { withAuth, AuthenticatedRequest } from '../../../lib/authMiddleware';
 import { createThesis } from '../../../lib/thesis/queries';
 import { CreateThesisRequest } from '../../../types/thesis';
 
@@ -11,12 +11,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   try {
     const data: CreateThesisRequest = req.body;
+    const userEmail = (req as AuthenticatedRequest).user?.email;
 
     if (!data.stockCode || !data.stockName) {
       return res.status(400).json({ error: 'stockCode and stockName are required' });
     }
 
-    const thesis = await createThesis(data);
+    const thesis = await createThesis(data, userEmail);
     res.status(201).json({ success: true, thesis });
   } catch (error: any) {
     console.error('Error creating thesis:', error);

@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuth } from '../../../lib/authMiddleware';
+import { withAuth, AuthenticatedRequest } from '../../../lib/authMiddleware';
 import {
   getThesisByStockCode,
   getRecentHistory,
@@ -9,6 +9,7 @@ import { UpdateThesisRequest } from '../../../types/thesis';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { stockCode } = req.query;
+  const userEmail = (req as AuthenticatedRequest).user?.email;
 
   if (!stockCode || typeof stockCode !== 'string') {
     return res.status(400).json({ error: 'Stock code is required' });
@@ -25,7 +26,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       });
     } else if (req.method === 'PUT') {
       const data: UpdateThesisRequest = req.body;
-      const thesis = await updateThesis(stockCode, data);
+      const thesis = await updateThesis(stockCode, data, userEmail);
 
       if (!thesis) {
         return res.status(404).json({ error: 'Thesis not found' });

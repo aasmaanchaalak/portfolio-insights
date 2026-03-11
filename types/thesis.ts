@@ -85,6 +85,7 @@ export interface ThesisHistoryEntry {
   oldValue: string | null;
   newValue: string | null;
   note: string | null;
+  userEmail: string | null;
   createdAt: string;
   changeGroupId: string | null;
 }

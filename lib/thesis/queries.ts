@@ -67,8 +67,8 @@ export async function getRecentHistory(
   return query<ThesisHistoryEntry>(
     `SELECT id, thesis_id as "thesisId", action_type as "actionType",
             field_changed as "fieldChanged", old_value as "oldValue",
-            new_value as "newValue", note, created_at as "createdAt",
-            change_group_id as "changeGroupId"
+            new_value as "newValue", note, user_email as "userEmail",
+            created_at as "createdAt", change_group_id as "changeGroupId"
      FROM thesis_history WHERE thesis_id = $1
      ORDER BY created_at DESC LIMIT $2`,
     [thesisId, limit]
@@ -94,8 +94,8 @@ export async function getHistory(
     query<ThesisHistoryEntry>(
       `SELECT id, thesis_id as "thesisId", action_type as "actionType",
               field_changed as "fieldChanged", old_value as "oldValue",
-              new_value as "newValue", note, created_at as "createdAt",
-              change_group_id as "changeGroupId"
+              new_value as "newValue", note, user_email as "userEmail",
+              created_at as "createdAt", change_group_id as "changeGroupId"
        FROM thesis_history WHERE thesis_id = $1
        ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
       [thesis.id, limit, offset]
@@ -113,7 +113,7 @@ export async function getHistory(
 }
 
 // Create a new thesis
-export async function createThesis(data: CreateThesisRequest): Promise<Thesis> {
+export async function createThesis(data: CreateThesisRequest, userEmail?: string): Promise<Thesis> {
   return transaction(async (client: PoolClient) => {
     const thesisId = generateUUID();
     const changeGroupId = generateUUID();
@@ -178,9 +178,9 @@ export async function createThesis(data: CreateThesisRequest): Promise<Thesis> {
 
     // Record creation in history
     await client.query(
-      `INSERT INTO thesis_history (id, thesis_id, action_type, new_value, change_group_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [generateUUID(), thesisId, 'thesis_created', JSON.stringify(data), changeGroupId]
+      `INSERT INTO thesis_history (id, thesis_id, action_type, new_value, user_email, change_group_id)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [generateUUID(), thesisId, 'thesis_created', JSON.stringify(data), userEmail || null, changeGroupId]
     );
 
     // Fetch and return the complete thesis
@@ -225,7 +225,8 @@ export async function createThesis(data: CreateThesisRequest): Promise<Thesis> {
 // Update an existing thesis
 export async function updateThesis(
   stockCode: string,
-  data: UpdateThesisRequest
+  data: UpdateThesisRequest,
+  userEmail?: string
 ): Promise<Thesis | null> {
   return transaction(async (client: PoolClient) => {
     // Get current thesis
@@ -375,8 +376,8 @@ export async function updateThesis(
                          change.field === 'lastReviewDate' ? 'review_completed' : 'thesis_updated';
 
       await client.query(
-        `INSERT INTO thesis_history (id, thesis_id, action_type, field_changed, old_value, new_value, note, change_group_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        `INSERT INTO thesis_history (id, thesis_id, action_type, field_changed, old_value, new_value, note, user_email, change_group_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [
           generateUUID(),
           thesisId,
@@ -385,6 +386,7 @@ export async function updateThesis(
           typeof change.oldValue === 'object' ? JSON.stringify(change.oldValue) : change.oldValue,
           typeof change.newValue === 'object' ? JSON.stringify(change.newValue) : change.newValue,
           data.changeNote || null,
+          userEmail || null,
           changeGroupId,
         ]
       );

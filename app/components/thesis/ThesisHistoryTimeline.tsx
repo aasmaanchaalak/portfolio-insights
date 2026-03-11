@@ -24,6 +24,13 @@ const ACTION_LABELS: Record<string, string> = {
   review_completed: 'Review completed',
 };
 
+// Get display name from email (first part before @, capitalized)
+function getUserDisplayName(email: string | null): string | null {
+  if (!email) return null;
+  const name = email.split('@')[0];
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
 export function ThesisHistoryTimeline({
   history: initialHistory,
   stockCode,
@@ -106,20 +113,26 @@ export function ThesisHistoryTimeline({
 
   return (
     <div className="history-timeline">
-      {history.map((entry, index) => (
-        <div key={entry.id} className="history-entry">
-          <div className="history-entry-marker" />
-          <div className="history-entry-content">
-            <div className="history-entry-header">
-              <span className="history-entry-action">{getActionLabel(entry)}</span>
-              <span className="history-entry-date">{formatDate(entry.createdAt)}</span>
+      {history.map((entry, index) => {
+        const userName = getUserDisplayName(entry.userEmail);
+        return (
+          <div key={entry.id} className="history-entry">
+            <div className="history-entry-marker" />
+            <div className="history-entry-content">
+              <div className="history-entry-header">
+                <span className="history-entry-action">
+                  {userName && <span className="history-entry-user">{userName}</span>}
+                  {getActionLabel(entry)}
+                </span>
+                <span className="history-entry-date">{formatDate(entry.createdAt)}</span>
+              </div>
+              {entry.note && (
+                <p className="history-entry-note">{entry.note}</p>
+              )}
             </div>
-            {entry.note && (
-              <p className="history-entry-note">{entry.note}</p>
-            )}
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {hasMore && (
         <button

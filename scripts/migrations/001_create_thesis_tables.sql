@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS thesis_history (
     old_value TEXT,
     new_value TEXT,
     note TEXT,
+    user_email VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     change_group_id UUID
 );
