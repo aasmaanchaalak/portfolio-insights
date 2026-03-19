@@ -792,7 +792,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 // Fallback to 6M → 3M only for old stocks without 1Y data
                 const ytdReturn = effective1YReturn ?? item.return6M ?? item.return3M ?? null;
                 const portfolioContribution = (ytdReturn !== null && weightage > 0)
-                    ? (ytdReturn * weightage) / 100
+                    ? (ytdReturn * weightage) / (100 + ytdReturn)
                     : null;
                 return {
                     name: item.scripName,
