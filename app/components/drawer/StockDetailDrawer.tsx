@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { DrawerHeader } from './DrawerHeader';
 import { DrawerTabs, DrawerTab } from './DrawerTabs';
 import { ThesisTrackerCard } from '../thesis/ThesisTrackerCard';
+import { PositioningSection } from '../positioning/PositioningSection';
 import {
   Thesis,
   ThesisHistoryEntry,
@@ -220,6 +221,8 @@ export function StockDetailDrawer({
         />
 
         <div className="drawer-content">
+          <PositioningSection stockCode={stockCode} />
+          <div className="drawer-content-divider" />
           {renderContent()}
         </div>
       </div>

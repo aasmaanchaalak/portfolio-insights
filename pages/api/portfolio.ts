@@ -1,12 +1,14 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { connectRedis } from '../../lib/redis';
 import { withAuth } from '../../lib/authMiddleware';
+import { StockPositioning } from '../../types/positioning';
 
 const PORTFOLIO_KEY = 'portfolio:data';
 const REMARKS_KEY_PREFIX = 'remarks:';
 const ASSIGNMENT_KEY_PREFIX = 'assignment:';
 const BUCKET_KEY_PREFIX = 'bucket:';
 const ENTRY_DATA_KEY_PREFIX = 'entrydata:';
+const POSITIONING_KEY_PREFIX = 'positioning:';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -71,7 +73,23 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           }
         }
 
-        // Merge remarks, assignments, buckets, and entry data into portfolio data
+        // Fetch positioning data and merge with portfolio data
+        const positioningKeys = await redis.keys(`${POSITIONING_KEY_PREFIX}*`);
+        const positioningMap: Record<string, StockPositioning> = {};
+
+        for (const key of positioningKeys) {
+          const code = key.replace(POSITIONING_KEY_PREFIX, '');
+          const value = await redis.get(key);
+          if (value) {
+            try {
+              positioningMap[code] = JSON.parse(value);
+            } catch (e) {
+              console.error(`Error parsing positioning for ${code}:`, e);
+            }
+          }
+        }
+
+        // Merge remarks, assignments, buckets, entry data, and positioning into portfolio data
         const enrichedData = portfolioData.map((stock: any) => {
           const code = stock.nseCode || stock.bseCode;
           const entryData = code && entryDataMap[code] ? entryDataMap[code] : null;
@@ -81,7 +99,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             assignedTo: code && assignmentsMap[code] ? assignmentsMap[code] : null,
             bucket: code && bucketsMap[code] ? bucketsMap[code] : null,
             entryDate: entryData ? entryData.entryDate : null,
-            entryPrice: entryData ? entryData.entryPrice : null
+            entryPrice: entryData ? entryData.entryPrice : null,
+            positioning: code && positioningMap[code] ? positioningMap[code] : null
           };
         });
 
@@ -175,8 +194,23 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             }
           }
 
-          // Remove remarks, assignments, buckets, and entry data from the stock data before storing
-          const { remarks, assignedTo, bucket, entryDate, entryPrice, ...stockWithoutExtras } = stock;
+          // If positioning is provided in the upload, save it to Redis
+          if (code && stock.positioning !== undefined) {
+            if (stock.positioning === null) {
+              // Delete positioning if null
+              redis.del(`${POSITIONING_KEY_PREFIX}${code}`).catch(err =>
+                console.error('Error deleting positioning:', err)
+              );
+            } else {
+              // Save the positioning
+              redis.set(`${POSITIONING_KEY_PREFIX}${code}`, JSON.stringify(stock.positioning)).catch(err =>
+                console.error('Error saving positioning:', err)
+              );
+            }
+          }
+
+          // Remove remarks, assignments, buckets, entry data, and positioning from the stock data before storing
+          const { remarks, assignedTo, bucket, entryDate, entryPrice, positioning, ...stockWithoutExtras } = stock;
           return stockWithoutExtras;
         });
 

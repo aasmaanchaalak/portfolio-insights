@@ -1,0 +1,621 @@
+/* ===========================================
+   POSITIONING SYSTEM STYLES
+   =========================================== */
+
+/* Base chip styles */
+.positioning-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  border-radius: 4px;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Chip sizes */
+.chip-size-small {
+  padding: 0.15rem 0.4rem;
+  font-size: 0.65rem;
+}
+
+.chip-size-medium {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+/* Chips container */
+.positioning-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.positioning-empty {
+  color: var(--secondary-text-color);
+  font-size: 0.85rem;
+}
+
+/* ============================================
+   CONVICTION COLORS
+   ============================================ */
+
+.chip-conviction-high {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.chip-conviction-medium {
+  background-color: #fef9c3;
+  color: #854d0e;
+}
+
+.chip-conviction-low {
+  background-color: #e5e7eb;
+  color: #4b5563;
+}
+
+/* ============================================
+   STRATEGY COLORS
+   ============================================ */
+
+.chip-strategy-core_compounder {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.chip-strategy-cyclical {
+  background-color: #fed7aa;
+  color: #c2410c;
+}
+
+.chip-strategy-optionality {
+  background-color: #e9d5ff;
+  color: #7c3aed;
+}
+
+.chip-strategy-special_situation {
+  background-color: #ccfbf1;
+  color: #0f766e;
+}
+
+.chip-strategy-trading {
+  background-color: #e5e7eb;
+  color: #4b5563;
+}
+
+/* ============================================
+   ACTION COLORS
+   ============================================ */
+
+.chip-action-add {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.chip-action-hold {
+  background-color: #fef9c3;
+  color: #854d0e;
+}
+
+.chip-action-trim {
+  background-color: #fed7aa;
+  color: #c2410c;
+}
+
+.chip-action-exit {
+  background-color: #fee2e2;
+  color: #dc2626;
+}
+
+/* ============================================
+   POSITIONING FILTERS
+   ============================================ */
+
+.positioning-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1rem;
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.filter-group-horizontal {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filter-group-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--secondary-text-color);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  min-width: 70px;
+}
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.filter-chip {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+  background-color: var(--background-color);
+  color: var(--secondary-text-color);
+}
+
+.filter-chip:hover {
+  background-color: var(--pill-bg-color);
+}
+
+.filter-chip.selected {
+  border-color: currentColor;
+}
+
+/* Filter chip colors when selected */
+.filter-chip.conviction-high.selected {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.filter-chip.conviction-medium.selected {
+  background-color: #fef9c3;
+  color: #854d0e;
+}
+
+.filter-chip.conviction-low.selected {
+  background-color: #e5e7eb;
+  color: #4b5563;
+}
+
+.filter-chip.strategy-core_compounder.selected {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.filter-chip.strategy-cyclical.selected {
+  background-color: #fed7aa;
+  color: #c2410c;
+}
+
+.filter-chip.strategy-optionality.selected {
+  background-color: #e9d5ff;
+  color: #7c3aed;
+}
+
+.filter-chip.strategy-special_situation.selected {
+  background-color: #ccfbf1;
+  color: #0f766e;
+}
+
+.filter-chip.strategy-trading.selected {
+  background-color: #e5e7eb;
+  color: #4b5563;
+}
+
+.filter-chip.action-add.selected {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.filter-chip.action-hold.selected {
+  background-color: #fef9c3;
+  color: #854d0e;
+}
+
+.filter-chip.action-trim.selected {
+  background-color: #fed7aa;
+  color: #c2410c;
+}
+
+.filter-chip.action-exit.selected {
+  background-color: #fee2e2;
+  color: #dc2626;
+}
+
+.clear-filters-btn {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  background-color: transparent;
+  color: var(--accent-color);
+  border: 1px solid var(--accent-color);
+  transition: all 0.15s ease;
+}
+
+.clear-filters-btn:hover {
+  background-color: var(--accent-color);
+  color: white;
+}
+
+/* ============================================
+   POSITIONING SECTION (Drawer)
+   ============================================ */
+
+.positioning-section {
+  padding: 1.5rem;
+}
+
+.positioning-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.positioning-section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--secondary-text-color);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.positioning-edit-btn {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  background-color: var(--surface-color);
+  color: var(--primary-text-color);
+  border: 1px solid var(--border-color);
+  transition: all 0.15s ease;
+}
+
+.positioning-edit-btn:hover {
+  background-color: var(--accent-color);
+  color: white;
+  border-color: var(--accent-color);
+}
+
+.positioning-display {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 1rem;
+  background-color: var(--surface-color);
+  border-radius: 8px;
+}
+
+.positioning-display-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 100px;
+}
+
+.positioning-display-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--secondary-text-color);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.positioning-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.positioning-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.positioning-form-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--primary-text-color);
+}
+
+.positioning-form-select {
+  padding: 0.6rem 0.75rem;
+  font-size: 0.9rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--background-color);
+  color: var(--primary-text-color);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.positioning-form-select:hover {
+  border-color: var(--accent-color);
+}
+
+.positioning-form-select:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.15);
+}
+
+.positioning-form-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.positioning-save-btn {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  background-color: var(--accent-color);
+  color: white;
+  border: none;
+  transition: background-color 0.15s ease;
+}
+
+.positioning-save-btn:hover {
+  background-color: var(--accent-hover-color);
+}
+
+.positioning-save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.positioning-cancel-btn {
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  background-color: var(--surface-color);
+  color: var(--primary-text-color);
+  border: 1px solid var(--border-color);
+  transition: all 0.15s ease;
+}
+
+.positioning-cancel-btn:hover {
+  background-color: var(--pill-bg-color);
+}
+
+.positioning-empty-state {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--secondary-text-color);
+}
+
+.positioning-empty-state p {
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.positioning-set-btn {
+  padding: 0.6rem 1.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  background-color: var(--accent-color);
+  color: white;
+  border: none;
+  transition: background-color 0.15s ease;
+}
+
+.positioning-set-btn:hover {
+  background-color: var(--accent-hover-color);
+}
+
+/* ============================================
+   DASHBOARD POSITIONING SECTION
+   ============================================ */
+
+.positioning-dashboard-section {
+  margin-bottom: 2rem;
+}
+
+.positioning-allocation-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 900px) {
+  .positioning-allocation-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.positioning-allocation-card {
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.positioning-allocation-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--secondary-text-color);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.positioning-allocation-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.positioning-allocation-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+  cursor: pointer;
+}
+
+.positioning-allocation-row:hover .positioning-tooltip {
+  display: block;
+}
+
+.positioning-allocation-label {
+  min-width: 70px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--primary-text-color);
+}
+
+.positioning-allocation-bar-container {
+  flex: 1;
+  height: 20px;
+  background-color: var(--background-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.positioning-allocation-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  display: flex;
+  align-items: center;
+  padding-left: 0.5rem;
+}
+
+.positioning-allocation-value {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.positioning-allocation-percent {
+  min-width: 45px;
+  text-align: right;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--primary-text-color);
+}
+
+/* Allocation bar colors */
+.positioning-bar-high, .positioning-bar-add {
+  background-color: #22c55e;
+}
+
+.positioning-bar-medium, .positioning-bar-hold {
+  background-color: #eab308;
+}
+
+.positioning-bar-low {
+  background-color: #6b7280;
+}
+
+.positioning-bar-trim {
+  background-color: #f97316;
+}
+
+.positioning-bar-exit {
+  background-color: #ef4444;
+}
+
+.positioning-bar-core_compounder {
+  background-color: #3b82f6;
+}
+
+.positioning-bar-cyclical {
+  background-color: #f97316;
+}
+
+.positioning-bar-optionality {
+  background-color: #8b5cf6;
+}
+
+.positioning-bar-special_situation {
+  background-color: #14b8a6;
+}
+
+.positioning-bar-trading {
+  background-color: #6b7280;
+}
+
+/* Positioning tooltip (on hover) */
+.positioning-tooltip {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 80px;
+  z-index: 100;
+  background-color: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 0.75rem;
+  min-width: 200px;
+  max-height: 250px;
+  overflow-y: auto;
+  margin-top: 0.25rem;
+}
+
+.positioning-tooltip-header {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--secondary-text-color);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.positioning-tooltip-stocks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.positioning-tooltip-stock {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.2rem 0;
+  font-size: 0.8rem;
+}
+
+.positioning-tooltip-stock-name {
+  flex: 1;
+  font-weight: 500;
+  color: var(--primary-text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: 0.5rem;
+}
+
+.positioning-tooltip-stock-value {
+  font-weight: 600;
+  color: var(--secondary-text-color);
+}
+
+/* Table cell positioning */
+.positioning-cell {
+  padding: 0.5rem 0.75rem;
+}
+
+.stock-table .positioning-col {
+  min-width: 180px;
+}

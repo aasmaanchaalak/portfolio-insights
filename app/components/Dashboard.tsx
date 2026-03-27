@@ -2,6 +2,17 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Stock, GridKeyData } from '../../types';
+import {
+  Conviction,
+  StrategyType,
+  ActionIntent,
+  CONVICTION_LABELS,
+  STRATEGY_LABELS,
+  ACTION_LABELS,
+  ALL_CONVICTIONS,
+  ALL_STRATEGIES,
+  ALL_ACTIONS,
+} from '../../types/positioning';
 
 interface PrivateInvestments {
     totalInvested: number;
@@ -884,18 +895,23 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             return1M: number[],
             return3M: number[],
             totalValue: number,
-            count: number
+            count: number,
+            stocks: { name: string; return1M: number | null }[]
         }> = {};
 
         enrichedData.forEach(item => {
             const sector = item.industry || item.industryGroup || 'Unknown';
             if (!sectorMap[sector]) {
-                sectorMap[sector] = { return1M: [], return3M: [], totalValue: 0, count: 0 };
+                sectorMap[sector] = { return1M: [], return3M: [], totalValue: 0, count: 0, stocks: [] };
             }
             if (item.return1M !== null) sectorMap[sector].return1M.push(item.return1M);
             if (item.return3M !== null) sectorMap[sector].return3M.push(item.return3M);
             sectorMap[sector].totalValue += item.calculatedAmount || 0;
             sectorMap[sector].count++;
+            sectorMap[sector].stocks.push({
+                name: item.scripName || 'Unknown',
+                return1M: item.return1M
+            });
         });
 
         const sectorData = Object.entries(sectorMap)
@@ -908,6 +924,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                     : null,
                 totalValue: data.totalValue,
                 count: data.count,
+                stocks: data.stocks.sort((a, b) => (b.return1M || 0) - (a.return1M || 0)),
             }))
             .sort((a, b) => b.avgReturn1M - a.avgReturn1M);
 
@@ -916,6 +933,89 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             topLosers: sectorData.slice(-5).reverse(),
         };
     }, [enrichedData]);
+
+    // Portfolio Positioning Breakdown
+    const positioningBreakdown = useMemo(() => {
+        const totalValue = enrichedData.reduce((sum, item) => sum + (item.calculatedAmount || 0), 0);
+
+        const convictionMap: Record<string, { value: number; stocks: { name: string; value: number }[] }> = {};
+        const strategyMap: Record<string, { value: number; stocks: { name: string; value: number }[] }> = {};
+        const actionMap: Record<string, { value: number; stocks: { name: string; value: number }[] }> = {};
+
+        let untaggedValue = 0;
+        let untaggedStocks: { name: string; value: number }[] = [];
+
+        enrichedData.forEach(item => {
+            const value = item.calculatedAmount || 0;
+            const stockName = item.scripName || 'Unknown';
+            const positioning = item.positioning;
+
+            if (positioning) {
+                // Conviction breakdown
+                if (!convictionMap[positioning.conviction]) {
+                    convictionMap[positioning.conviction] = { value: 0, stocks: [] };
+                }
+                convictionMap[positioning.conviction].value += value;
+                convictionMap[positioning.conviction].stocks.push({ name: stockName, value });
+
+                // Strategy breakdown
+                if (!strategyMap[positioning.strategyType]) {
+                    strategyMap[positioning.strategyType] = { value: 0, stocks: [] };
+                }
+                strategyMap[positioning.strategyType].value += value;
+                strategyMap[positioning.strategyType].stocks.push({ name: stockName, value });
+
+                // Action breakdown
+                if (!actionMap[positioning.actionIntent]) {
+                    actionMap[positioning.actionIntent] = { value: 0, stocks: [] };
+                }
+                actionMap[positioning.actionIntent].value += value;
+                actionMap[positioning.actionIntent].stocks.push({ name: stockName, value });
+            } else {
+                untaggedValue += value;
+                untaggedStocks.push({ name: stockName, value });
+            }
+        });
+
+        const convictions = ALL_CONVICTIONS.map(key => ({
+            key,
+            label: CONVICTION_LABELS[key],
+            value: convictionMap[key]?.value || 0,
+            percentage: totalValue > 0 ? ((convictionMap[key]?.value || 0) / totalValue) * 100 : 0,
+            stocks: convictionMap[key]?.stocks || [],
+        }));
+
+        const strategies = ALL_STRATEGIES.map(key => ({
+            key,
+            label: STRATEGY_LABELS[key],
+            value: strategyMap[key]?.value || 0,
+            percentage: totalValue > 0 ? ((strategyMap[key]?.value || 0) / totalValue) * 100 : 0,
+            stocks: strategyMap[key]?.stocks || [],
+        }));
+
+        const actions = ALL_ACTIONS.map(key => ({
+            key,
+            label: ACTION_LABELS[key],
+            value: actionMap[key]?.value || 0,
+            percentage: totalValue > 0 ? ((actionMap[key]?.value || 0) / totalValue) * 100 : 0,
+            stocks: actionMap[key]?.stocks || [],
+        }));
+
+        return {
+            convictions,
+            strategies,
+            actions,
+            untagged: {
+                value: untaggedValue,
+                percentage: totalValue > 0 ? (untaggedValue / totalValue) * 100 : 0,
+                stocks: untaggedStocks,
+            },
+            totalTagged: totalValue - untaggedValue,
+        };
+    }, [enrichedData]);
+
+    // State for sector hover tooltip
+    const [hoveredSector, setHoveredSector] = useState<string | null>(null);
 
     // Top and Bottom Performers (Daily and Yearly)
     const performers = useMemo(() => {
@@ -1351,13 +1451,33 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                         <h3 className="sector-list-title positive">Top 5 Gaining Sectors (1M)</h3>
                         <div className="sector-list">
                             {sectorPerformance.topGainers.map((sector, index) => (
-                                <div key={index} className="sector-list-item">
+                                <div
+                                    key={index}
+                                    className="sector-list-item with-hover"
+                                    onMouseEnter={() => setHoveredSector(`gainer-${index}`)}
+                                    onMouseLeave={() => setHoveredSector(null)}
+                                >
                                     <span className="sector-rank">{index + 1}</span>
                                     <span className="sector-name">{sector.sector}</span>
                                     <span className="sector-count">({sector.count} stocks)</span>
                                     <span className={`sector-return ${sector.avgReturn1M >= 0 ? 'positive' : 'negative'}`}>
                                         {formatPercent(sector.avgReturn1M)}
                                     </span>
+                                    {hoveredSector === `gainer-${index}` && (
+                                        <div className="sector-tooltip">
+                                            <div className="sector-tooltip-header">Stocks in {sector.sector}</div>
+                                            <div className="sector-tooltip-stocks">
+                                                {sector.stocks.map((stock, i) => (
+                                                    <div key={i} className="sector-tooltip-stock">
+                                                        <span className="stock-name">{stock.name}</span>
+                                                        <span className={`stock-return ${(stock.return1M || 0) >= 0 ? 'positive' : 'negative'}`}>
+                                                            {stock.return1M !== null ? formatPercent(stock.return1M) : 'N/A'}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -1366,13 +1486,33 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                         <h3 className="sector-list-title negative">Bottom 5 Sectors (1M)</h3>
                         <div className="sector-list">
                             {sectorPerformance.topLosers.map((sector, index) => (
-                                <div key={index} className="sector-list-item">
+                                <div
+                                    key={index}
+                                    className="sector-list-item with-hover"
+                                    onMouseEnter={() => setHoveredSector(`loser-${index}`)}
+                                    onMouseLeave={() => setHoveredSector(null)}
+                                >
                                     <span className="sector-rank">{index + 1}</span>
                                     <span className="sector-name">{sector.sector}</span>
                                     <span className="sector-count">({sector.count} stocks)</span>
                                     <span className={`sector-return ${sector.avgReturn1M >= 0 ? 'positive' : 'negative'}`}>
                                         {formatPercent(sector.avgReturn1M)}
                                     </span>
+                                    {hoveredSector === `loser-${index}` && (
+                                        <div className="sector-tooltip">
+                                            <div className="sector-tooltip-header">Stocks in {sector.sector}</div>
+                                            <div className="sector-tooltip-stocks">
+                                                {sector.stocks.map((stock, i) => (
+                                                    <div key={i} className="sector-tooltip-stock">
+                                                        <span className="stock-name">{stock.name}</span>
+                                                        <span className={`stock-return ${(stock.return1M || 0) >= 0 ? 'positive' : 'negative'}`}>
+                                                            {stock.return1M !== null ? formatPercent(stock.return1M) : 'N/A'}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

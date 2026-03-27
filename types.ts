@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { StockPositioning } from './types/positioning';
+
 export interface Stock {
   name: string;
   bseCode: string | null;
@@ -32,6 +34,7 @@ export interface Stock {
   bucket?: string | null;
   entryDate?: string | null;  // ISO date string (YYYY-MM-DD) when stock was first added
   entryPrice?: number | null; // Price when stock was first added
+  positioning?: StockPositioning; // Conviction, strategy, action intent
 }
 
 export interface GridKeyData {

@@ -174,6 +174,12 @@
   background-color: var(--background-color);
 }
 
+.drawer-content-divider {
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 1rem -1.5rem;
+}
+
 /* Coming Soon State */
 .drawer-coming-soon {
   display: flex;

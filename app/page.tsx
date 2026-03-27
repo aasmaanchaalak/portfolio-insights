@@ -12,6 +12,9 @@ import EntryDataPage from './components/EntryDataPage';
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import { StockDetailDrawer } from './components/drawer/StockDetailDrawer';
+import { PositioningChips } from './components/positioning/PositioningChip';
+import { PositioningFilters, PositioningFilterState, INITIAL_POSITIONING_FILTERS } from './components/positioning/PositioningFilters';
+import { StockPositioning, Conviction, StrategyType, ActionIntent } from '../types/positioning';
 
 type SortKey = keyof Stock;
 type SortDirection = 'ascending' | 'descending';
@@ -567,6 +570,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         remarksSearch: '',
         trend: 'All',
     });
+    const [positioningFilters, setPositioningFilters] = useState<PositioningFilterState>(INITIAL_POSITIONING_FILTERS);
     const [rangeFilters, setRangeFilters] = useState({
         gainPercentageMin: '',
         gainPercentageMax: '',
@@ -617,6 +621,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         { key: 'remarks', label: 'Remarks' },
         { key: 'assignedTo', label: 'Assigned To' },
         { key: 'bucket', label: 'Bucket' },
+        { key: 'positioning', label: 'Positioning' },
     ];
 
     const initialVisibleColumns = allInsightsColumns.reduce((acc, col) => {
@@ -875,6 +880,26 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             filtered = filtered.filter(item => (item as any).trend === filters.trend);
         }
 
+        // Apply positioning filters
+        if (positioningFilters.convictions.length > 0) {
+            filtered = filtered.filter(item => {
+                const positioning = (item as any).positioning;
+                return positioning && positioningFilters.convictions.includes(positioning.conviction);
+            });
+        }
+        if (positioningFilters.strategies.length > 0) {
+            filtered = filtered.filter(item => {
+                const positioning = (item as any).positioning;
+                return positioning && positioningFilters.strategies.includes(positioning.strategyType);
+            });
+        }
+        if (positioningFilters.actions.length > 0) {
+            filtered = filtered.filter(item => {
+                const positioning = (item as any).positioning;
+                return positioning && positioningFilters.actions.includes(positioning.actionIntent);
+            });
+        }
+
         // Apply range filters
         filtered = filtered.filter(item => {
             const data = item as any;
@@ -939,7 +964,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             return 0;
         });
         return filtered;
-    }, [enrichedDataWithWeightage, sortConfig, filters, rangeFilters]);
+    }, [enrichedDataWithWeightage, sortConfig, filters, rangeFilters, positioningFilters]);
 
     const SortIndicator: React.FC<{ columnKey: string }> = ({ columnKey }) => {
         if (sortConfig.key !== columnKey) return null;
@@ -1240,6 +1265,11 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                         </div>
                     </div>
 
+                    <PositioningFilters
+                        filters={positioningFilters}
+                        onChange={setPositioningFilters}
+                    />
+
                     {showFilterPopover && (
                         <div className="popover-backdrop" onClick={() => setShowFilterPopover(false)}>
                             <div className="popover-content" onClick={e => e.stopPropagation()}>
@@ -1532,6 +1562,11 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         <span>Bucket <SortIndicator columnKey="bucket" /></span>
                                     </div>
                                 </th>}
+                                {visibleColumns['positioning'] && <th className="positioning-col">
+                                    <div className="th-content">
+                                        <span>Positioning</span>
+                                    </div>
+                                </th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -1624,6 +1659,13 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                                 <option key={bucket} value={bucket}>{bucket}</option>
                                             ))}
                                         </select>
+                                    </td>}
+                                    {visibleColumns['positioning'] && <td className="positioning-cell">
+                                        <PositioningChips
+                                            conviction={(item as any).positioning?.conviction}
+                                            strategyType={(item as any).positioning?.strategyType}
+                                            actionIntent={(item as any).positioning?.actionIntent}
+                                        />
                                     </td>}
                                 </tr>
                             ))}
