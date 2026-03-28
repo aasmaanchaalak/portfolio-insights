@@ -1683,6 +1683,37 @@ a:hover {
   font-size: 0.75rem;
 }
 
+/* Scrollable growth legend for many stocks */
+.growth-legend-scrollable {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.growth-legend-scrollable .growth-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  padding: 0.25rem 0;
+}
+
+.growth-legend-scrollable .growth-legend-name {
+  flex: 1;
+  min-width: 100px;
+  max-width: 150px;
+}
+
+.growth-legend-scrollable .growth-legend-values {
+  flex-shrink: 0;
+  text-align: right;
+}
+
 @media (max-width: 768px) {
   .bar-item {
     grid-template-columns: 120px 1fr;

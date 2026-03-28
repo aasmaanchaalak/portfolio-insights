@@ -2000,89 +2000,121 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
         );
     };
 
-    // Growth Metrics Chart
+    // Growth Metrics Chart - Price Growth vs Profit Growth (4 quadrants)
     const GrowthChart = () => {
         const stocksWithGrowth = enrichedData
             .filter(item => {
                 const profit = (item as any).yoyQuarterlyProfitGrowth;
-                const sales = (item as any).yoyQuarterlySalesGrowth;
-                return (profit !== null && profit !== undefined) || (sales !== null && sales !== undefined);
+                const price = (item as any).return1Y;
+                return (profit != null) || (price != null);
             })
             .map(item => ({
                 name: item.scripName,
                 profitGrowth: (item as any).yoyQuarterlyProfitGrowth ?? 0,
-                salesGrowth: (item as any).yoyQuarterlySalesGrowth ?? 0
-            }))
-            .sort((a, b) => b.profitGrowth - a.profitGrowth)
-            .slice(0, 10);
+                priceGrowth: (item as any).return1Y ?? 0
+            }));
+
+        // Cap values between -100 and 100 for plotting
+        const cap = (val: number) => Math.max(-100, Math.min(100, val));
 
         if (stocksWithGrowth.length === 0) {
             return (
                 <div className="chart-card">
-                    <h3>Top 10 Stocks by Profit Growth</h3>
+                    <h3>Price vs Profit Growth</h3>
                     <div className="empty-state">
-                        <p>No growth data available. Upload Screener data with profit/sales growth metrics.</p>
+                        <p>No growth data available. Upload Screener data with profit growth and price return data.</p>
                     </div>
                 </div>
             );
         }
 
+        // Chart dimensions: 600x400, with margins for labels
+        // Center at (300, 200), range -100 to +100 on both axes
+        const chartWidth = 600;
+        const chartHeight = 400;
+        const margin = { top: 30, right: 30, bottom: 40, left: 50 };
+        const plotWidth = chartWidth - margin.left - margin.right;
+        const plotHeight = chartHeight - margin.top - margin.bottom;
+        const centerX = margin.left + plotWidth / 2;
+        const centerY = margin.top + plotHeight / 2;
+
+        // Scale: -100 to +100 maps to plot area
+        const scaleX = (val: number) => margin.left + ((cap(val) + 100) / 200) * plotWidth;
+        const scaleY = (val: number) => margin.top + plotHeight - ((cap(val) + 100) / 200) * plotHeight;
+
+        // Determine quadrant color for each stock
+        const getQuadrantColor = (profit: number, price: number) => {
+            if (profit >= 0 && price >= 0) return '#22c55e'; // Q1: Winners (green)
+            if (profit < 0 && price >= 0) return '#f59e0b';  // Q2: Price up, profit down (orange)
+            if (profit >= 0 && price < 0) return '#3b82f6';  // Q4: Profit up, price down (blue - undervalued?)
+            return '#ef4444'; // Q3: Losers (red)
+        };
+
         return (
             <div className="chart-card">
-                <h3>Top 10 Stocks by Profit Growth</h3>
+                <h3>Price vs Profit Growth</h3>
+                <p className="chart-subtitle">All portfolio stocks - values capped at ±100% for display</p>
                 <div className="scatter-chart">
-                    <div className="scatter-axis-label-y">Sales Growth %</div>
-                    <svg width="100%" height="400" viewBox="0 0 600 400">
-                        {/* Grid lines */}
-                        {[-20, 0, 20, 40, 60].map(y => (
-                            <line key={`h-${y}`} x1="50" x2="580" y1={350 - (y + 30) * 3} y2={350 - (y + 30) * 3} stroke="var(--border-color)" strokeWidth="1" />
-                        ))}
-                        {[-20, 0, 20, 40, 60].map(x => (
-                            <line key={`v-${x}`} x1={50 + (x + 30) * 5.5} x2={50 + (x + 30) * 5.5} y1="20" y2="350" stroke="var(--border-color)" strokeWidth="1" />
-                        ))}
+                    <div className="scatter-axis-label-y">Price Growth (1Y) %</div>
+                    <svg width="100%" height={chartHeight} viewBox={`0 0 ${chartWidth} ${chartHeight}`}>
+                        {/* Quadrant backgrounds */}
+                        <rect x={centerX} y={margin.top} width={plotWidth/2} height={plotHeight/2} fill="#22c55e" opacity="0.05" />
+                        <rect x={margin.left} y={margin.top} width={plotWidth/2} height={plotHeight/2} fill="#f59e0b" opacity="0.05" />
+                        <rect x={centerX} y={centerY} width={plotWidth/2} height={plotHeight/2} fill="#3b82f6" opacity="0.05" />
+                        <rect x={margin.left} y={centerY} width={plotWidth/2} height={plotHeight/2} fill="#ef4444" opacity="0.05" />
 
-                        {/* Axis labels */}
-                        <line x1="50" x2="580" y1="350" y2="350" stroke="var(--primary-text-color)" strokeWidth="2" />
-                        <line x1="50" x2="50" y1="20" y2="350" stroke="var(--primary-text-color)" strokeWidth="2" />
+                        {/* Grid lines */}
+                        {[-100, -50, 0, 50, 100].map(val => (
+                            <line key={`h-${val}`} x1={margin.left} x2={chartWidth - margin.right} y1={scaleY(val)} y2={scaleY(val)} stroke="var(--border-color)" strokeWidth={val === 0 ? 2 : 1} strokeDasharray={val === 0 ? "0" : "4,4"} />
+                        ))}
+                        {[-100, -50, 0, 50, 100].map(val => (
+                            <line key={`v-${val}`} x1={scaleX(val)} x2={scaleX(val)} y1={margin.top} y2={chartHeight - margin.bottom} stroke="var(--border-color)" strokeWidth={val === 0 ? 2 : 1} strokeDasharray={val === 0 ? "0" : "4,4"} />
+                        ))}
 
                         {/* Data points */}
                         {stocksWithGrowth.map((stock, index) => {
-                            const x = 50 + Math.max(-30, Math.min(60, stock.profitGrowth)) * 5.5 + 165;
-                            const y = 350 - (Math.max(-30, Math.min(60, stock.salesGrowth)) * 3 + 90);
+                            const x = scaleX(stock.profitGrowth);
+                            const y = scaleY(stock.priceGrowth);
+                            const color = getQuadrantColor(stock.profitGrowth, stock.priceGrowth);
                             return (
                                 <g key={index}>
                                     <circle
                                         cx={x}
                                         cy={y}
-                                        r="6"
-                                        fill={`hsl(${120 - index * 12}, 70%, 50%)`}
-                                        opacity="0.7"
+                                        r="5"
+                                        fill={color}
+                                        opacity="0.8"
+                                        stroke="white"
+                                        strokeWidth="1"
                                     />
-                                    <title>{stock.name}: Profit {stock.profitGrowth.toFixed(1)}%, Sales {stock.salesGrowth.toFixed(1)}%</title>
+                                    <title>{stock.name}: Profit {stock.profitGrowth.toFixed(1)}%, Price {stock.priceGrowth.toFixed(1)}%</title>
                                 </g>
                             );
                         })}
 
-                        {/* Axis numbers */}
-                        <text x="40" y="355" fontSize="12" fill="var(--secondary-text-color)" textAnchor="end">-20</text>
-                        <text x="40" y="265" fontSize="12" fill="var(--secondary-text-color)" textAnchor="end">0</text>
-                        <text x="40" y="175" fontSize="12" fill="var(--secondary-text-color)" textAnchor="end">20</text>
-                        <text x="40" y="85" fontSize="12" fill="var(--secondary-text-color)" textAnchor="end">40</text>
+                        {/* Axis labels */}
+                        {[-100, -50, 0, 50, 100].map(val => (
+                            <text key={`y-label-${val}`} x={margin.left - 8} y={scaleY(val) + 4} fontSize="10" fill="var(--secondary-text-color)" textAnchor="end">{val}</text>
+                        ))}
+                        {[-100, -50, 0, 50, 100].map(val => (
+                            <text key={`x-label-${val}`} x={scaleX(val)} y={chartHeight - margin.bottom + 15} fontSize="10" fill="var(--secondary-text-color)" textAnchor="middle">{val}</text>
+                        ))}
 
-                        <text x="50" y="370" fontSize="12" fill="var(--secondary-text-color)" textAnchor="middle">-20</text>
-                        <text x="215" y="370" fontSize="12" fill="var(--secondary-text-color)" textAnchor="middle">0</text>
-                        <text x="380" y="370" fontSize="12" fill="var(--secondary-text-color)" textAnchor="middle">20</text>
-                        <text x="545" y="370" fontSize="12" fill="var(--secondary-text-color)" textAnchor="middle">40</text>
+                        {/* Quadrant labels */}
+                        <text x={centerX + plotWidth/4} y={margin.top + 20} fontSize="11" fill="#22c55e" textAnchor="middle" fontWeight="600">Winners</text>
+                        <text x={margin.left + plotWidth/4} y={margin.top + 20} fontSize="11" fill="#f59e0b" textAnchor="middle" fontWeight="600">Momentum</text>
+                        <text x={centerX + plotWidth/4} y={chartHeight - margin.bottom - 10} fontSize="11" fill="#3b82f6" textAnchor="middle" fontWeight="600">Undervalued?</text>
+                        <text x={margin.left + plotWidth/4} y={chartHeight - margin.bottom - 10} fontSize="11" fill="#ef4444" textAnchor="middle" fontWeight="600">Losers</text>
                     </svg>
                     <div className="scatter-axis-label-x">Profit Growth %</div>
                 </div>
-                <div className="growth-legend">
+                <div className="growth-legend-scrollable">
                     {stocksWithGrowth.map((stock, index) => (
                         <div key={index} className="growth-legend-item">
-                            <span className="growth-legend-dot" style={{ backgroundColor: `hsl(${120 - index * 12}, 70%, 50%)` }} />
+                            <span className="growth-legend-dot" style={{ backgroundColor: getQuadrantColor(stock.profitGrowth, stock.priceGrowth) }} />
                             <span className="growth-legend-name">{stock.name}</span>
                             <span className="growth-legend-values">
-                                P: {stock.profitGrowth.toFixed(0)}% | S: {stock.salesGrowth.toFixed(0)}%
+                                Profit: {stock.profitGrowth.toFixed(0)}% | Price: {stock.priceGrowth.toFixed(0)}%
                             </span>
                         </div>
                     ))}
@@ -2170,8 +2202,8 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                                         <div key={i} className="sector-breakdown-row">
                                             <span className="breakdown-stock-name">{stock.name}</span>
                                             <span className="breakdown-stock-value">{stock.portfolioPercent.toFixed(1)}%</span>
-                                            <span className={`breakdown-stock-percent ${stock.return1Y !== null ? (stock.return1Y >= 0 ? 'positive' : 'negative') : ''}`}>
-                                                {stock.return1Y !== null ? `${stock.return1Y >= 0 ? '+' : ''}${stock.return1Y.toFixed(1)}%` : 'N/A'}
+                                            <span className={`breakdown-stock-percent ${stock.return1Y != null ? (stock.return1Y >= 0 ? 'positive' : 'negative') : ''}`}>
+                                                {stock.return1Y != null ? `${stock.return1Y >= 0 ? '+' : ''}${Number(stock.return1Y).toFixed(1)}%` : 'N/A'}
                                             </span>
                                         </div>
                                     ))}
