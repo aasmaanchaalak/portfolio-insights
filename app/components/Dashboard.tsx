@@ -1158,9 +1158,9 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                         <div className="metric-value">
                             {weightedMetrics.avgPE !== null ? weightedMetrics.avgPE.toFixed(2) : 'N/A'}
                         </div>
-                        {niftySmallcap && niftySmallcap.pe !== null && (
+                        {niftySmallcap && niftySmallcap.pe != null && (
                             <div className="card-subtext benchmark">
-                                SMLCAP100: {niftySmallcap.pe.toFixed(2)}
+                                SMLCAP100: {Number(niftySmallcap.pe).toFixed(2)}
                             </div>
                         )}
                     </div>
