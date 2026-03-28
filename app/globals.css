@@ -1714,6 +1714,74 @@ a:hover {
   text-align: right;
 }
 
+/* Growth Distribution Bars */
+.growth-distribution-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.growth-distribution-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.growth-distribution-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--secondary-text-color);
+  margin-bottom: 0.25rem;
+}
+
+.growth-dist-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.growth-dist-label {
+  min-width: 80px;
+  font-size: 0.75rem;
+  color: var(--primary-text-color);
+  text-align: right;
+}
+
+.growth-dist-bar-container {
+  flex: 1;
+  height: 20px;
+  background-color: var(--surface-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.growth-dist-bar {
+  height: 100%;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 0.4rem;
+  min-width: fit-content;
+  transition: width 0.3s ease;
+}
+
+.growth-dist-count {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 768px) {
+  .growth-distribution-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 768px) {
   .bar-item {
     grid-template-columns: 120px 1fr;

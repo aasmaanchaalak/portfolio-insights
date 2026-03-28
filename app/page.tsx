@@ -727,21 +727,21 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                 // Add all portfolio fields
                 industryGroup: matchedStock?.industryGroup || null,
                 industry: matchedStock?.industry || null,
-                priceToEarning: matchedStock?.priceToEarning || null,
-                yoyQuarterlyProfitGrowth: matchedStock?.yoyQuarterlyProfitGrowth || null,
-                yoyQuarterlySalesGrowth: matchedStock?.yoyQuarterlySalesGrowth || null,
+                priceToEarning: matchedStock?.priceToEarning ?? null,
+                yoyQuarterlyProfitGrowth: matchedStock?.yoyQuarterlyProfitGrowth ?? null,
+                yoyQuarterlySalesGrowth: matchedStock?.yoyQuarterlySalesGrowth ?? null,
                 dma50: dma50,
                 dma200: dma200,
                 dma50ChangePercent: dma50ChangePercent,
                 dma200ChangePercent: dma200ChangePercent,
-                downFrom52WeekHigh: matchedStock?.downFrom52WeekHigh || null,
-                upFrom52WeekLow: matchedStock?.upFrom52WeekLow || null,
-                return1D: matchedStock?.return1D || null,
-                return1W: matchedStock?.return1W || null,
-                return1M: matchedStock?.return1M || null,
-                return3M: matchedStock?.return3M || null,
-                return6M: matchedStock?.return6M || null,
-                return1Y: matchedStock?.return1Y || null,
+                downFrom52WeekHigh: matchedStock?.downFrom52WeekHigh ?? null,
+                upFrom52WeekLow: matchedStock?.upFrom52WeekLow ?? null,
+                return1D: matchedStock?.return1D ?? null,
+                return1W: matchedStock?.return1W ?? null,
+                return1M: matchedStock?.return1M ?? null,
+                return3M: matchedStock?.return3M ?? null,
+                return6M: matchedStock?.return6M ?? null,
+                return1Y: matchedStock?.return1Y ?? null,
                 remarks: matchedStock?.remarks || null,
                 assignedTo: matchedStock?.assignedTo || null,
                 bucket: matchedStock?.bucket || null,
@@ -2108,16 +2108,66 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                     </svg>
                     <div className="scatter-axis-label-x">Profit Growth %</div>
                 </div>
-                <div className="growth-legend-scrollable">
-                    {stocksWithGrowth.map((stock, index) => (
-                        <div key={index} className="growth-legend-item">
-                            <span className="growth-legend-dot" style={{ backgroundColor: getQuadrantColor(stock.profitGrowth, stock.priceGrowth) }} />
-                            <span className="growth-legend-name">{stock.name}</span>
-                            <span className="growth-legend-values">
-                                Profit: {stock.profitGrowth.toFixed(0)}% | Price: {stock.priceGrowth.toFixed(0)}%
-                            </span>
-                        </div>
-                    ))}
+{/* Distribution bars */}
+                <div className="growth-distribution-grid">
+                    {/* Profit Growth Distribution */}
+                    <div className="growth-distribution-section">
+                        <div className="growth-distribution-title">Profit Growth Distribution</div>
+                        {(() => {
+                            const ranges = [
+                                { label: '< -20%', min: -Infinity, max: -20, color: '#ef4444' },
+                                { label: '-20% to 0%', min: -20, max: 0, color: '#f97316' },
+                                { label: '0% to 20%', min: 0, max: 20, color: '#eab308' },
+                                { label: '20% to 50%', min: 20, max: 50, color: '#22c55e' },
+                                { label: '> 50%', min: 50, max: Infinity, color: '#16a34a' }
+                            ];
+                            const counts = ranges.map(r => ({
+                                ...r,
+                                count: stocksWithGrowth.filter(s => s.profitGrowth > r.min && s.profitGrowth <= r.max).length,
+                                stocks: stocksWithGrowth.filter(s => s.profitGrowth > r.min && s.profitGrowth <= r.max)
+                            }));
+                            const maxCount = Math.max(...counts.map(c => c.count), 1);
+                            return counts.map((r, i) => (
+                                <div key={i} className="growth-dist-row">
+                                    <span className="growth-dist-label">{r.label}</span>
+                                    <div className="growth-dist-bar-container">
+                                        <div className="growth-dist-bar" style={{ width: `${(r.count / maxCount) * 100}%`, backgroundColor: r.color }}>
+                                            {r.count > 0 && <span className="growth-dist-count">{r.count}</span>}
+                                        </div>
+                                    </div>
+                                </div>
+                            ));
+                        })()}
+                    </div>
+                    {/* Price Growth Distribution */}
+                    <div className="growth-distribution-section">
+                        <div className="growth-distribution-title">Price Growth Distribution (1Y)</div>
+                        {(() => {
+                            const ranges = [
+                                { label: '< -20%', min: -Infinity, max: -20, color: '#ef4444' },
+                                { label: '-20% to 0%', min: -20, max: 0, color: '#f97316' },
+                                { label: '0% to 20%', min: 0, max: 20, color: '#eab308' },
+                                { label: '20% to 50%', min: 20, max: 50, color: '#22c55e' },
+                                { label: '> 50%', min: 50, max: Infinity, color: '#16a34a' }
+                            ];
+                            const counts = ranges.map(r => ({
+                                ...r,
+                                count: stocksWithGrowth.filter(s => s.priceGrowth > r.min && s.priceGrowth <= r.max).length,
+                                stocks: stocksWithGrowth.filter(s => s.priceGrowth > r.min && s.priceGrowth <= r.max)
+                            }));
+                            const maxCount = Math.max(...counts.map(c => c.count), 1);
+                            return counts.map((r, i) => (
+                                <div key={i} className="growth-dist-row">
+                                    <span className="growth-dist-label">{r.label}</span>
+                                    <div className="growth-dist-bar-container">
+                                        <div className="growth-dist-bar" style={{ width: `${(r.count / maxCount) * 100}%`, backgroundColor: r.color }}>
+                                            {r.count > 0 && <span className="growth-dist-count">{r.count}</span>}
+                                        </div>
+                                    </div>
+                                </div>
+                            ));
+                        })()}
+                    </div>
                 </div>
             </div>
         );

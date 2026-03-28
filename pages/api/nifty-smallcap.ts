@@ -12,6 +12,7 @@ interface NiftySmallcapData {
     weeklyChange: number;
     monthlyChange: number;
     yearlyChange: number;
+    pe: number | null;
     lastUpdated: string;
 }
 
@@ -62,6 +63,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             weeklyChange: weeklyChange !== null ? parseFloat(weeklyChange.toFixed(2)) : 0,
             monthlyChange: smallcap.perChange30d || 0,
             yearlyChange: smallcap.perChange365d || 0,
+            pe: smallcap.pe || smallcap.PE || null,
             lastUpdated: new Date().toISOString(),
         };
 
