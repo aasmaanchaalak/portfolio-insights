@@ -3,9 +3,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Stock, GridKeyData } from '../../types';
 import {
-  Conviction,
-  StrategyType,
-  ActionIntent,
   CONVICTION_LABELS,
   STRATEGY_LABELS,
   ACTION_LABELS,
@@ -13,6 +10,7 @@ import {
   ALL_STRATEGIES,
   ALL_ACTIONS,
 } from '../../types/positioning';
+import './positioning/positioning.css';
 
 interface PrivateInvestments {
     totalInvested: number;
@@ -948,7 +946,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         enrichedData.forEach(item => {
             const value = item.calculatedAmount || 0;
             const stockName = item.scripName || 'Unknown';
-            const positioning = item.positioning;
+            const positioning = (item as any).positioning;
 
             if (positioning) {
                 // Conviction breakdown
@@ -1440,6 +1438,128 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                             })}
                         </div>
                     </>
+                )}
+            </section>
+
+            {/* Portfolio Positioning */}
+            <section className="dashboard-section positioning-dashboard-section">
+                <h2 className="section-title">Portfolio Positioning</h2>
+                {positioningBreakdown.totalTagged === 0 ? (
+                    <div className="empty-state">
+                        <p>No stocks have positioning set. Set positioning in the stock detail drawer.</p>
+                    </div>
+                ) : (
+                    <div className="positioning-allocation-grid">
+                        {/* By Conviction */}
+                        <div className="positioning-allocation-card">
+                            <h3 className="positioning-allocation-title">By Conviction</h3>
+                            <div className="positioning-allocation-bars">
+                                {positioningBreakdown.convictions.filter(c => c.value > 0).map(item => (
+                                    <div key={item.key} className="positioning-allocation-row">
+                                        <span className="positioning-allocation-label">{item.label}</span>
+                                        <div className="positioning-allocation-bar-container">
+                                            <div
+                                                className={`positioning-allocation-bar positioning-bar-${item.key}`}
+                                                style={{ width: `${Math.max(item.percentage, 2)}%` }}
+                                            />
+                                        </div>
+                                        <span className="positioning-allocation-percent">{item.percentage.toFixed(1)}%</span>
+                                        <div className="positioning-tooltip">
+                                            <div className="positioning-tooltip-header">{item.label} Conviction</div>
+                                            <div className="positioning-tooltip-stocks">
+                                                {item.stocks.slice(0, 10).map((stock, i) => (
+                                                    <div key={i} className="positioning-tooltip-stock">
+                                                        <span className="positioning-tooltip-stock-name">{stock.name}</span>
+                                                        <span className="positioning-tooltip-stock-value">{formatCurrency(stock.value)}</span>
+                                                    </div>
+                                                ))}
+                                                {item.stocks.length > 10 && (
+                                                    <div className="positioning-tooltip-stock">
+                                                        <span className="positioning-tooltip-stock-name">+{item.stocks.length - 10} more</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* By Strategy */}
+                        <div className="positioning-allocation-card">
+                            <h3 className="positioning-allocation-title">By Strategy</h3>
+                            <div className="positioning-allocation-bars">
+                                {positioningBreakdown.strategies.filter(s => s.value > 0).map(item => (
+                                    <div key={item.key} className="positioning-allocation-row">
+                                        <span className="positioning-allocation-label">{item.label}</span>
+                                        <div className="positioning-allocation-bar-container">
+                                            <div
+                                                className={`positioning-allocation-bar positioning-bar-${item.key}`}
+                                                style={{ width: `${Math.max(item.percentage, 2)}%` }}
+                                            />
+                                        </div>
+                                        <span className="positioning-allocation-percent">{item.percentage.toFixed(1)}%</span>
+                                        <div className="positioning-tooltip">
+                                            <div className="positioning-tooltip-header">{item.label}</div>
+                                            <div className="positioning-tooltip-stocks">
+                                                {item.stocks.slice(0, 10).map((stock, i) => (
+                                                    <div key={i} className="positioning-tooltip-stock">
+                                                        <span className="positioning-tooltip-stock-name">{stock.name}</span>
+                                                        <span className="positioning-tooltip-stock-value">{formatCurrency(stock.value)}</span>
+                                                    </div>
+                                                ))}
+                                                {item.stocks.length > 10 && (
+                                                    <div className="positioning-tooltip-stock">
+                                                        <span className="positioning-tooltip-stock-name">+{item.stocks.length - 10} more</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* By Action */}
+                        <div className="positioning-allocation-card">
+                            <h3 className="positioning-allocation-title">By Action Intent</h3>
+                            <div className="positioning-allocation-bars">
+                                {positioningBreakdown.actions.filter(a => a.value > 0).map(item => (
+                                    <div key={item.key} className="positioning-allocation-row">
+                                        <span className="positioning-allocation-label">{item.label}</span>
+                                        <div className="positioning-allocation-bar-container">
+                                            <div
+                                                className={`positioning-allocation-bar positioning-bar-${item.key}`}
+                                                style={{ width: `${Math.max(item.percentage, 2)}%` }}
+                                            />
+                                        </div>
+                                        <span className="positioning-allocation-percent">{item.percentage.toFixed(1)}%</span>
+                                        <div className="positioning-tooltip">
+                                            <div className="positioning-tooltip-header">{item.label}</div>
+                                            <div className="positioning-tooltip-stocks">
+                                                {item.stocks.slice(0, 10).map((stock, i) => (
+                                                    <div key={i} className="positioning-tooltip-stock">
+                                                        <span className="positioning-tooltip-stock-name">{stock.name}</span>
+                                                        <span className="positioning-tooltip-stock-value">{formatCurrency(stock.value)}</span>
+                                                    </div>
+                                                ))}
+                                                {item.stocks.length > 10 && (
+                                                    <div className="positioning-tooltip-stock">
+                                                        <span className="positioning-tooltip-stock-name">+{item.stocks.length - 10} more</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {positioningBreakdown.untagged.percentage > 0 && (
+                    <p className="positioning-untagged-note">
+                        {positioningBreakdown.untagged.percentage.toFixed(1)}% of portfolio ({positioningBreakdown.untagged.stocks.length} stocks) has no positioning set
+                    </p>
                 )}
             </section>
 

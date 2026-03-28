@@ -1475,6 +1475,109 @@ a:hover {
   align-items: center;
 }
 
+.bar-item.clickable {
+  grid-template-columns: 200px 1fr 24px;
+  cursor: pointer;
+  padding: 0.5rem;
+  margin: -0.5rem;
+  border-radius: 6px;
+  transition: background-color 0.15s ease;
+}
+
+.bar-item.clickable:hover {
+  background-color: var(--surface-color);
+}
+
+.bar-item.clickable.expanded {
+  background-color: var(--surface-color);
+}
+
+.bar-expand-icon {
+  font-size: 0.7rem;
+  color: var(--secondary-text-color);
+  transition: transform 0.15s ease;
+}
+
+.bar-item-expandable {
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-subtitle {
+  font-size: 0.8rem;
+  color: var(--secondary-text-color);
+  margin-top: -0.5rem;
+  margin-bottom: 1rem;
+}
+
+/* Sector Breakdown Styles */
+.sector-breakdown {
+  margin-left: 216px;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding: 0.75rem;
+  background-color: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sector-breakdown-header {
+  display: grid;
+  grid-template-columns: 1fr 120px 100px;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--secondary-text-color);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.sector-breakdown-row {
+  display: grid;
+  grid-template-columns: 1fr 120px 100px;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sector-breakdown-row:last-child {
+  border-bottom: none;
+}
+
+.breakdown-stock-name {
+  font-weight: 500;
+  color: var(--primary-text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.breakdown-stock-value {
+  text-align: right;
+  color: var(--primary-text-color);
+}
+
+.breakdown-stock-percent {
+  text-align: right;
+  color: var(--secondary-text-color);
+}
+
 .bar-label {
   font-weight: 500;
   color: var(--primary-text-color);
@@ -1540,6 +1643,10 @@ a:hover {
     gap: 0.5rem;
   }
 
+  .bar-item.clickable {
+    grid-template-columns: 120px 1fr 20px;
+  }
+
   .bar-label {
     font-size: 0.8rem;
   }
@@ -1555,6 +1662,16 @@ a:hover {
   .chart-selector button {
     padding: 0.5rem 1rem;
     font-size: 0.85rem;
+  }
+
+  .sector-breakdown {
+    margin-left: 0;
+  }
+
+  .sector-breakdown-header,
+  .sector-breakdown-row {
+    grid-template-columns: 1fr 80px 60px;
+    font-size: 0.75rem;
   }
 }
 

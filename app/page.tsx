@@ -2025,44 +2025,89 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
         );
     };
 
-    // Sector Distribution
+    // Sector Distribution - state for expanded sector
+    const [expandedSector, setExpandedSector] = useState<string | null>(null);
+
     const SectorChart = () => {
-        const sectorMap: Record<string, number> = {};
+        const sectorMap: Record<string, { value: number; stocks: { name: string; value: number; percentage: number }[] }> = {};
         enrichedData.forEach(item => {
-            const sector = (item as any).industryGroup || 'Unknown';
+            const sector = (item as any).industry || 'Unknown';
             const value = (item as any).calculatedAmount || 0;
-            sectorMap[sector] = (sectorMap[sector] || 0) + value;
+            const stockName = item.scripName || 'Unknown';
+
+            if (!sectorMap[sector]) {
+                sectorMap[sector] = { value: 0, stocks: [] };
+            }
+            sectorMap[sector].value += value;
+            sectorMap[sector].stocks.push({ name: stockName, value, percentage: 0 });
+        });
+
+        // Calculate percentages within each sector
+        Object.values(sectorMap).forEach(sector => {
+            sector.stocks.forEach(stock => {
+                stock.percentage = sector.value > 0 ? (stock.value / sector.value) * 100 : 0;
+            });
+            // Sort stocks by value descending
+            sector.stocks.sort((a, b) => b.value - a.value);
         });
 
         const sectors = Object.entries(sectorMap)
-            .map(([name, value]) => ({
+            .map(([name, data]) => ({
                 name,
-                value,
-                percentage: totalCurrentAmount > 0 ? (value / totalCurrentAmount) * 100 : 0
+                value: data.value,
+                stocks: data.stocks,
+                percentage: totalCurrentAmount > 0 ? (data.value / totalCurrentAmount) * 100 : 0
             }))
             .sort((a, b) => b.value - a.value)
-            .slice(0, 8);
+            .slice(0, 12);
 
         const maxValue = Math.max(...sectors.map(s => s.value));
 
+        const handleBarClick = (sectorName: string) => {
+            setExpandedSector(expandedSector === sectorName ? null : sectorName);
+        };
+
         return (
             <div className="chart-card">
-                <h3>Sector Allocation</h3>
+                <h3>Industry Allocation</h3>
+                <p className="chart-subtitle">Click on a bar to see stock breakdown</p>
                 <div className="bar-chart">
                     {sectors.map((sector, index) => (
-                        <div key={index} className="bar-item">
-                            <div className="bar-label">{sector.name}</div>
-                            <div className="bar-container">
-                                <div
-                                    className="bar-fill"
-                                    style={{
-                                        width: `${(sector.value / maxValue) * 100}%`,
-                                        backgroundColor: `hsl(${index * 45}, 65%, 55%)`
-                                    }}
-                                >
-                                    <span className="bar-value">₹{sector.value.toLocaleString('en-IN', { maximumFractionDigits: 0 })} ({sector.percentage.toFixed(1)}%)</span>
+                        <div key={index} className="bar-item-expandable">
+                            <div
+                                className={`bar-item clickable ${expandedSector === sector.name ? 'expanded' : ''}`}
+                                onClick={() => handleBarClick(sector.name)}
+                            >
+                                <div className="bar-label">{sector.name}</div>
+                                <div className="bar-container">
+                                    <div
+                                        className="bar-fill"
+                                        style={{
+                                            width: `${(sector.value / maxValue) * 100}%`,
+                                            backgroundColor: `hsl(${index * 30}, 65%, 55%)`
+                                        }}
+                                    >
+                                        <span className="bar-value">₹{sector.value.toLocaleString('en-IN', { maximumFractionDigits: 0 })} ({sector.percentage.toFixed(1)}%)</span>
+                                    </div>
                                 </div>
+                                <span className="bar-expand-icon">{expandedSector === sector.name ? '▼' : '▶'}</span>
                             </div>
+                            {expandedSector === sector.name && (
+                                <div className="sector-breakdown">
+                                    <div className="sector-breakdown-header">
+                                        <span className="breakdown-col">Stock</span>
+                                        <span className="breakdown-col">Value</span>
+                                        <span className="breakdown-col">% of Sector</span>
+                                    </div>
+                                    {sector.stocks.map((stock, i) => (
+                                        <div key={i} className="sector-breakdown-row">
+                                            <span className="breakdown-stock-name">{stock.name}</span>
+                                            <span className="breakdown-stock-value">₹{stock.value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                                            <span className="breakdown-stock-percent">{stock.percentage.toFixed(1)}%</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>

@@ -619,3 +619,15 @@
 .stock-table .positioning-col {
   min-width: 180px;
 }
+
+/* Untagged note */
+.positioning-untagged-note {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background-color: var(--surface-color);
+  border: 1px dashed var(--border-color);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--secondary-text-color);
+  text-align: center;
+}
