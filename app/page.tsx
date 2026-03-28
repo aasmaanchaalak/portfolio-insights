@@ -746,7 +746,8 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                 assignedTo: matchedStock?.assignedTo || null,
                 bucket: matchedStock?.bucket || null,
                 entryDate: matchedStock?.entryDate || null,
-                entryPrice: matchedStock?.entryPrice || null
+                entryPrice: matchedStock?.entryPrice || null,
+                positioning: matchedStock?.positioning || null
             };
         });
     }, [gridKeyData, stocks]);
@@ -1854,18 +1855,21 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
         );
     };
 
-    // Performance Distribution Chart
+    // Performance Distribution Chart - state for expanded range
+    const [expandedRange, setExpandedRange] = useState<string | null>(null);
+
     const PerformanceChart = () => {
         const [performanceMode, setPerformanceMode] = useState<'alltime' | '1year'>('alltime');
 
-        const ranges = [
-            { label: '< -20%', min: -Infinity, max: -20, count: 0 },
-            { label: '-20% to -10%', min: -20, max: -10, count: 0 },
-            { label: '-10% to 0%', min: -10, max: 0, count: 0 },
-            { label: '0% to 10%', min: 0, max: 10, count: 0 },
-            { label: '10% to 20%', min: 10, max: 20, count: 0 },
-            { label: '20% to 50%', min: 20, max: 50, count: 0 },
-            { label: '> 50%', min: 50, max: Infinity, count: 0 },
+        const ranges: { label: string; min: number; max: number; count: number; stocks: { name: string; gain: number; value: number }[] }[] = [
+            { label: '< -20%', min: -Infinity, max: -20, count: 0, stocks: [] },
+            { label: '-20% to -10%', min: -20, max: -10, count: 0, stocks: [] },
+            { label: '-10% to 0%', min: -10, max: 0, count: 0, stocks: [] },
+            { label: '0% to 10%', min: 0, max: 10, count: 0, stocks: [] },
+            { label: '10% to 20%', min: 10, max: 20, count: 0, stocks: [] },
+            { label: '20% to 50%', min: 20, max: 50, count: 0, stocks: [] },
+            { label: '50% to 100%', min: 50, max: 100, count: 0, stocks: [] },
+            { label: '> 100%', min: 100, max: Infinity, count: 0, stocks: [] },
         ];
 
         // Function to get the best available return for 1Y mode with fallback
@@ -1873,7 +1877,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
             if (performanceMode === 'alltime') {
                 return item.gainPercentage;
             }
-            
+
             // For 1Y mode, use fallback: 1Y -> 6M -> 3M
             const matchedStock = stocks.find(stock => {
                 if (item.nseCode && stock.nseCode) {
@@ -1904,11 +1908,27 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
             const gain = getBestReturn(item);
             if (gain !== null && gain !== undefined) {
                 const range = ranges.find(r => gain >= r.min && gain < r.max);
-                if (range) range.count++;
+                if (range) {
+                    range.count++;
+                    range.stocks.push({
+                        name: item.scripName,
+                        gain: gain,
+                        value: (item as any).calculatedAmount || 0
+                    });
+                }
             }
         });
 
+        // Sort stocks within each range by gain
+        ranges.forEach(range => {
+            range.stocks.sort((a, b) => b.gain - a.gain);
+        });
+
         const maxCount = Math.max(...ranges.map(r => r.count));
+
+        const handleBarClick = (label: string) => {
+            setExpandedRange(expandedRange === label ? null : label);
+        };
 
         return (
             <div className="chart-card">
@@ -1916,17 +1936,17 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                     <div>
                         <h3>Gain/Loss Distribution</h3>
                         <p className="chart-subtitle">
-                            {performanceMode === 'alltime' ? 'Total returns since purchase' : 'Returns over 1 year period (with fallbacks)'}
+                            {performanceMode === 'alltime' ? 'Total returns since purchase' : 'Returns over 1 year period (with fallbacks)'} - Click on a bar to see stocks
                         </p>
                     </div>
                     <div className="performance-toggle">
-                        <button 
+                        <button
                             className={`performance-btn ${performanceMode === 'alltime' ? 'active' : ''}`}
                             onClick={() => setPerformanceMode('alltime')}
                         >
                             All-time
                         </button>
-                        <button 
+                        <button
                             className={`performance-btn ${performanceMode === '1year' ? 'active' : ''}`}
                             onClick={() => setPerformanceMode('1year')}
                         >
@@ -1936,19 +1956,43 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                 </div>
                 <div className="bar-chart">
                     {ranges.map((range, index) => (
-                        <div key={index} className="bar-item">
-                            <div className="bar-label">{range.label}</div>
-                            <div className="bar-container">
-                                <div
-                                    className="bar-fill"
-                                    style={{
-                                        width: maxCount > 0 ? `${(range.count / maxCount) * 100}%` : '0%',
-                                        backgroundColor: range.min < 0 ? 'var(--error-color)' : 'var(--success-color)'
-                                    }}
-                                >
-                                    <span className="bar-value">{range.count} stocks</span>
+                        <div key={index} className="bar-item-expandable">
+                            <div
+                                className={`bar-item clickable ${expandedRange === range.label ? 'expanded' : ''}`}
+                                onClick={() => handleBarClick(range.label)}
+                            >
+                                <div className="bar-label">{range.label}</div>
+                                <div className="bar-container">
+                                    <div
+                                        className="bar-fill"
+                                        style={{
+                                            width: maxCount > 0 ? `${(range.count / maxCount) * 100}%` : '0%',
+                                            backgroundColor: range.min < 0 ? 'var(--error-color)' : 'var(--success-color)'
+                                        }}
+                                    >
+                                        <span className="bar-value">{range.count} stocks</span>
+                                    </div>
                                 </div>
+                                <span className="bar-expand-icon">{expandedRange === range.label ? '▼' : '▶'}</span>
                             </div>
+                            {expandedRange === range.label && range.stocks.length > 0 && (
+                                <div className="sector-breakdown">
+                                    <div className="sector-breakdown-header">
+                                        <span className="breakdown-col">Stock</span>
+                                        <span className="breakdown-col">Value</span>
+                                        <span className="breakdown-col">Gain %</span>
+                                    </div>
+                                    {range.stocks.map((stock, i) => (
+                                        <div key={i} className="sector-breakdown-row">
+                                            <span className="breakdown-stock-name">{stock.name}</span>
+                                            <span className="breakdown-stock-value">₹{stock.value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                                            <span className={`breakdown-stock-percent ${stock.gain >= 0 ? 'positive' : 'negative'}`}>
+                                                {stock.gain >= 0 ? '+' : ''}{stock.gain.toFixed(1)}%
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -1962,15 +2006,26 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
             .filter(item => {
                 const profit = (item as any).yoyQuarterlyProfitGrowth;
                 const sales = (item as any).yoyQuarterlySalesGrowth;
-                return profit !== null || sales !== null;
+                return (profit !== null && profit !== undefined) || (sales !== null && sales !== undefined);
             })
             .map(item => ({
                 name: item.scripName,
-                profitGrowth: (item as any).yoyQuarterlyProfitGrowth || 0,
-                salesGrowth: (item as any).yoyQuarterlySalesGrowth || 0
+                profitGrowth: (item as any).yoyQuarterlyProfitGrowth ?? 0,
+                salesGrowth: (item as any).yoyQuarterlySalesGrowth ?? 0
             }))
             .sort((a, b) => b.profitGrowth - a.profitGrowth)
             .slice(0, 10);
+
+        if (stocksWithGrowth.length === 0) {
+            return (
+                <div className="chart-card">
+                    <h3>Top 10 Stocks by Profit Growth</h3>
+                    <div className="empty-state">
+                        <p>No growth data available. Upload Screener data with profit/sales growth metrics.</p>
+                    </div>
+                </div>
+            );
+        }
 
         return (
             <div className="chart-card">
@@ -2021,6 +2076,17 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                     </svg>
                     <div className="scatter-axis-label-x">Profit Growth %</div>
                 </div>
+                <div className="growth-legend">
+                    {stocksWithGrowth.map((stock, index) => (
+                        <div key={index} className="growth-legend-item">
+                            <span className="growth-legend-dot" style={{ backgroundColor: `hsl(${120 - index * 12}, 70%, 50%)` }} />
+                            <span className="growth-legend-name">{stock.name}</span>
+                            <span className="growth-legend-values">
+                                P: {stock.profitGrowth.toFixed(0)}% | S: {stock.salesGrowth.toFixed(0)}%
+                            </span>
+                        </div>
+                    ))}
+                </div>
             </div>
         );
     };
@@ -2029,25 +2095,27 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
     const [expandedSector, setExpandedSector] = useState<string | null>(null);
 
     const SectorChart = () => {
-        const sectorMap: Record<string, { value: number; stocks: { name: string; value: number; percentage: number }[] }> = {};
+        const sectorMap: Record<string, { value: number; stocks: { name: string; value: number; portfolioPercent: number; return1Y: number | null }[] }> = {};
         enrichedData.forEach(item => {
             const sector = (item as any).industry || 'Unknown';
             const value = (item as any).calculatedAmount || 0;
             const stockName = item.scripName || 'Unknown';
+            const return1Y = (item as any).return1Y;
 
             if (!sectorMap[sector]) {
                 sectorMap[sector] = { value: 0, stocks: [] };
             }
             sectorMap[sector].value += value;
-            sectorMap[sector].stocks.push({ name: stockName, value, percentage: 0 });
+            sectorMap[sector].stocks.push({
+                name: stockName,
+                value,
+                portfolioPercent: totalCurrentAmount > 0 ? (value / totalCurrentAmount) * 100 : 0,
+                return1Y
+            });
         });
 
-        // Calculate percentages within each sector
+        // Sort stocks by value descending within each sector
         Object.values(sectorMap).forEach(sector => {
-            sector.stocks.forEach(stock => {
-                stock.percentage = sector.value > 0 ? (stock.value / sector.value) * 100 : 0;
-            });
-            // Sort stocks by value descending
             sector.stocks.sort((a, b) => b.value - a.value);
         });
 
@@ -2058,8 +2126,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                 stocks: data.stocks,
                 percentage: totalCurrentAmount > 0 ? (data.value / totalCurrentAmount) * 100 : 0
             }))
-            .sort((a, b) => b.value - a.value)
-            .slice(0, 12);
+            .sort((a, b) => b.value - a.value);
 
         const maxValue = Math.max(...sectors.map(s => s.value));
 
@@ -2096,14 +2163,16 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                                 <div className="sector-breakdown">
                                     <div className="sector-breakdown-header">
                                         <span className="breakdown-col">Stock</span>
-                                        <span className="breakdown-col">Value</span>
-                                        <span className="breakdown-col">% of Sector</span>
+                                        <span className="breakdown-col">% of Portfolio</span>
+                                        <span className="breakdown-col">1Y Return</span>
                                     </div>
                                     {sector.stocks.map((stock, i) => (
                                         <div key={i} className="sector-breakdown-row">
                                             <span className="breakdown-stock-name">{stock.name}</span>
-                                            <span className="breakdown-stock-value">₹{stock.value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
-                                            <span className="breakdown-stock-percent">{stock.percentage.toFixed(1)}%</span>
+                                            <span className="breakdown-stock-value">{stock.portfolioPercent.toFixed(1)}%</span>
+                                            <span className={`breakdown-stock-percent ${stock.return1Y !== null ? (stock.return1Y >= 0 ? 'positive' : 'negative') : ''}`}>
+                                                {stock.return1Y !== null ? `${stock.return1Y >= 0 ? '+' : ''}${stock.return1Y.toFixed(1)}%` : 'N/A'}
+                                            </span>
                                         </div>
                                     ))}
                                 </div>
