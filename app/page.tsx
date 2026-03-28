@@ -2003,16 +2003,29 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
     // Growth Metrics Chart - Price Growth vs Profit Growth (4 quadrants)
     const GrowthChart = () => {
         const stocksWithGrowth = enrichedData
-            .filter(item => {
-                const profit = (item as any).yoyQuarterlyProfitGrowth;
-                const price = (item as any).return1Y;
-                return (profit != null) || (price != null);
+            .map(item => {
+                // Find matched stock to get return1Y directly (like PerformanceChart does)
+                const matchedStock = stocks.find(stock => {
+                    if (item.nseCode && stock.nseCode) {
+                        return item.nseCode.toLowerCase() === stock.nseCode.toLowerCase();
+                    }
+                    if (item.bseCode && stock.bseCode) {
+                        return item.bseCode.toLowerCase() === stock.bseCode.toLowerCase();
+                    }
+                    return false;
+                });
+
+                const profit = matchedStock?.yoyQuarterlyProfitGrowth;
+                const price = matchedStock?.return1Y;
+
+                return {
+                    name: item.scripName,
+                    profitGrowth: profit ?? 0,
+                    priceGrowth: price ?? 0,
+                    hasData: (profit != null) || (price != null)
+                };
             })
-            .map(item => ({
-                name: item.scripName,
-                profitGrowth: (item as any).yoyQuarterlyProfitGrowth ?? 0,
-                priceGrowth: (item as any).return1Y ?? 0
-            }));
+            .filter(item => item.hasData);
 
         // Cap values between -100 and 100 for plotting
         const cap = (val: number) => Math.max(-100, Math.min(100, val));
@@ -2182,7 +2195,18 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
             const sector = (item as any).industry || 'Unknown';
             const value = (item as any).calculatedAmount || 0;
             const stockName = item.scripName || 'Unknown';
-            const return1Y = (item as any).return1Y;
+
+            // Find matched stock to get return1Y directly
+            const matchedStock = stocks.find(stock => {
+                if (item.nseCode && stock.nseCode) {
+                    return item.nseCode.toLowerCase() === stock.nseCode.toLowerCase();
+                }
+                if (item.bseCode && stock.bseCode) {
+                    return item.bseCode.toLowerCase() === stock.bseCode.toLowerCase();
+                }
+                return false;
+            });
+            const return1Y = matchedStock?.return1Y ?? null;
 
             if (!sectorMap[sector]) {
                 sectorMap[sector] = { value: 0, stocks: [] };
@@ -2815,12 +2839,12 @@ const TrendMomentumPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] 
                 return false;
             });
 
-            const currentPrice = matchedStock?.currentPrice || null;
-            const dma50 = matchedStock?.dma50 || null;
-            const dma200 = matchedStock?.dma200 || null;
-            const return1M = matchedStock?.return1M || null;
-            const return3M = matchedStock?.return3M || null;
-            const return1Y = matchedStock?.return1Y || null;
+            const currentPrice = matchedStock?.currentPrice ?? null;
+            const dma50 = matchedStock?.dma50 ?? null;
+            const dma200 = matchedStock?.dma200 ?? null;
+            const return1M = matchedStock?.return1M ?? null;
+            const return3M = matchedStock?.return3M ?? null;
+            const return1Y = matchedStock?.return1Y ?? null;
 
             // Calculate trend signals
             const priceAboveDMA50 = currentPrice !== null && dma50 !== null ? currentPrice > dma50 : null;
