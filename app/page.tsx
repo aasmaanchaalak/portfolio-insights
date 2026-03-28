@@ -2090,18 +2090,28 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                             const y = scaleY(stock.priceGrowth);
                             const color = getQuadrantColor(stock.profitGrowth, stock.priceGrowth);
                             return (
-                                <g key={index}>
-                                    <circle
-                                        cx={x}
-                                        cy={y}
-                                        r="5"
-                                        fill={color}
-                                        opacity="0.8"
-                                        stroke="white"
-                                        strokeWidth="1"
-                                    />
-                                    <title>{stock.name}: Profit {stock.profitGrowth.toFixed(1)}%, Price {stock.priceGrowth.toFixed(1)}%</title>
-                                </g>
+                                <circle
+                                    key={index}
+                                    cx={x}
+                                    cy={y}
+                                    r="6"
+                                    fill={color}
+                                    opacity="0.8"
+                                    stroke="white"
+                                    strokeWidth="1.5"
+                                    style={{ cursor: 'pointer' }}
+                                    onMouseEnter={(e) => {
+                                        const rect = e.currentTarget.ownerSVGElement?.getBoundingClientRect();
+                                        setHoveredStock({
+                                            name: stock.name,
+                                            profitGrowth: stock.profitGrowth,
+                                            priceGrowth: stock.priceGrowth,
+                                            x: rect ? e.clientX - rect.left : x,
+                                            y: rect ? e.clientY - rect.top : y
+                                        });
+                                    }}
+                                    onMouseLeave={() => setHoveredStock(null)}
+                                />
                             );
                         })}
 
@@ -2119,72 +2129,86 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                         <text x={centerX + plotWidth/4} y={chartHeight - margin.bottom - 10} fontSize="11" fill="#3b82f6" textAnchor="middle" fontWeight="600">Undervalued?</text>
                         <text x={margin.left + plotWidth/4} y={chartHeight - margin.bottom - 10} fontSize="11" fill="#ef4444" textAnchor="middle" fontWeight="600">Losers</text>
                     </svg>
+                    {/* Tooltip on hover */}
+                    {hoveredStock && (
+                        <div
+                            className="scatter-tooltip"
+                            style={{
+                                left: hoveredStock.x + 10,
+                                top: hoveredStock.y - 10
+                            }}
+                        >
+                            <div className="scatter-tooltip-name">{hoveredStock.name}</div>
+                            <div className="scatter-tooltip-values">
+                                <span>Profit: <strong>{hoveredStock.profitGrowth >= 0 ? '+' : ''}{hoveredStock.profitGrowth.toFixed(1)}%</strong></span>
+                                <span>Price: <strong>{hoveredStock.priceGrowth >= 0 ? '+' : ''}{hoveredStock.priceGrowth.toFixed(1)}%</strong></span>
+                            </div>
+                        </div>
+                    )}
                     <div className="scatter-axis-label-x">Profit Growth %</div>
                 </div>
-{/* Distribution bars */}
-                <div className="growth-distribution-grid">
-                    {/* Profit Growth Distribution */}
-                    <div className="growth-distribution-section">
-                        <div className="growth-distribution-title">Profit Growth Distribution</div>
-                        {(() => {
-                            const ranges = [
-                                { label: '< -20%', min: -Infinity, max: -20, color: '#ef4444' },
-                                { label: '-20% to 0%', min: -20, max: 0, color: '#f97316' },
-                                { label: '0% to 20%', min: 0, max: 20, color: '#eab308' },
-                                { label: '20% to 50%', min: 20, max: 50, color: '#22c55e' },
-                                { label: '> 50%', min: 50, max: Infinity, color: '#16a34a' }
-                            ];
-                            const counts = ranges.map(r => ({
-                                ...r,
-                                count: stocksWithGrowth.filter(s => s.profitGrowth > r.min && s.profitGrowth <= r.max).length,
-                                stocks: stocksWithGrowth.filter(s => s.profitGrowth > r.min && s.profitGrowth <= r.max)
-                            }));
-                            const maxCount = Math.max(...counts.map(c => c.count), 1);
-                            return counts.map((r, i) => (
-                                <div key={i} className="growth-dist-row">
+{/* Profit Growth Distribution with click to expand */}
+                <div className="growth-distribution-single">
+                    <div className="growth-distribution-title">Profit Growth Distribution (Click to see stocks)</div>
+                    {(() => {
+                        const ranges = [
+                            { label: '< -20%', min: -Infinity, max: -20, color: '#ef4444' },
+                            { label: '-20% to 0%', min: -20, max: 0, color: '#f97316' },
+                            { label: '0% to 20%', min: 0, max: 20, color: '#eab308' },
+                            { label: '20% to 50%', min: 20, max: 50, color: '#22c55e' },
+                            { label: '> 50%', min: 50, max: Infinity, color: '#16a34a' }
+                        ];
+                        const counts = ranges.map(r => ({
+                            ...r,
+                            count: stocksWithGrowth.filter(s => s.profitGrowth > r.min && s.profitGrowth <= r.max).length,
+                            stocks: stocksWithGrowth.filter(s => s.profitGrowth > r.min && s.profitGrowth <= r.max)
+                        }));
+                        const maxCount = Math.max(...counts.map(c => c.count), 1);
+                        return counts.map((r, i) => (
+                            <div key={i} className="bar-item-expandable">
+                                <div
+                                    className={`growth-dist-row clickable ${expandedProfitRange === r.label ? 'expanded' : ''}`}
+                                    onClick={() => setExpandedProfitRange(expandedProfitRange === r.label ? null : r.label)}
+                                >
                                     <span className="growth-dist-label">{r.label}</span>
                                     <div className="growth-dist-bar-container">
                                         <div className="growth-dist-bar" style={{ width: `${(r.count / maxCount) * 100}%`, backgroundColor: r.color }}>
                                             {r.count > 0 && <span className="growth-dist-count">{r.count}</span>}
                                         </div>
                                     </div>
+                                    <span className="bar-expand-icon">{expandedProfitRange === r.label ? '▼' : '▶'}</span>
                                 </div>
-                            ));
-                        })()}
-                    </div>
-                    {/* Price Growth Distribution */}
-                    <div className="growth-distribution-section">
-                        <div className="growth-distribution-title">Price Growth Distribution (1Y)</div>
-                        {(() => {
-                            const ranges = [
-                                { label: '< -20%', min: -Infinity, max: -20, color: '#ef4444' },
-                                { label: '-20% to 0%', min: -20, max: 0, color: '#f97316' },
-                                { label: '0% to 20%', min: 0, max: 20, color: '#eab308' },
-                                { label: '20% to 50%', min: 20, max: 50, color: '#22c55e' },
-                                { label: '> 50%', min: 50, max: Infinity, color: '#16a34a' }
-                            ];
-                            const counts = ranges.map(r => ({
-                                ...r,
-                                count: stocksWithGrowth.filter(s => s.priceGrowth > r.min && s.priceGrowth <= r.max).length,
-                                stocks: stocksWithGrowth.filter(s => s.priceGrowth > r.min && s.priceGrowth <= r.max)
-                            }));
-                            const maxCount = Math.max(...counts.map(c => c.count), 1);
-                            return counts.map((r, i) => (
-                                <div key={i} className="growth-dist-row">
-                                    <span className="growth-dist-label">{r.label}</span>
-                                    <div className="growth-dist-bar-container">
-                                        <div className="growth-dist-bar" style={{ width: `${(r.count / maxCount) * 100}%`, backgroundColor: r.color }}>
-                                            {r.count > 0 && <span className="growth-dist-count">{r.count}</span>}
+                                {expandedProfitRange === r.label && r.stocks.length > 0 && (
+                                    <div className="sector-breakdown">
+                                        <div className="sector-breakdown-header">
+                                            <span className="breakdown-col">Stock</span>
+                                            <span className="breakdown-col">Profit Growth</span>
+                                            <span className="breakdown-col">Price Growth</span>
                                         </div>
+                                        {r.stocks.sort((a, b) => b.profitGrowth - a.profitGrowth).map((stock, idx) => (
+                                            <div key={idx} className="sector-breakdown-row">
+                                                <span className="breakdown-stock-name">{stock.name}</span>
+                                                <span className={`breakdown-stock-percent ${stock.profitGrowth >= 0 ? 'positive' : 'negative'}`}>
+                                                    {stock.profitGrowth >= 0 ? '+' : ''}{stock.profitGrowth.toFixed(1)}%
+                                                </span>
+                                                <span className={`breakdown-stock-percent ${stock.priceGrowth >= 0 ? 'positive' : 'negative'}`}>
+                                                    {stock.priceGrowth >= 0 ? '+' : ''}{stock.priceGrowth.toFixed(1)}%
+                                                </span>
+                                            </div>
+                                        ))}
                                     </div>
-                                </div>
-                            ));
-                        })()}
-                    </div>
+                                )}
+                            </div>
+                        ));
+                    })()}
                 </div>
             </div>
         );
     };
+
+    // Growth chart - state for expanded profit growth range and hovered stock
+    const [expandedProfitRange, setExpandedProfitRange] = useState<string | null>(null);
+    const [hoveredStock, setHoveredStock] = useState<{ name: string; profitGrowth: number; priceGrowth: number; x: number; y: number } | null>(null);
 
     // Sector Distribution - state for expanded sector
     const [expandedSector, setExpandedSector] = useState<string | null>(null);

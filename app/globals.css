@@ -1776,6 +1776,78 @@ a:hover {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
+/* Single column growth distribution */
+.growth-distribution-single {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.growth-distribution-single .growth-distribution-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--secondary-text-color);
+  margin-bottom: 0.75rem;
+}
+
+.growth-dist-row.clickable {
+  cursor: pointer;
+  padding: 0.4rem 0;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.growth-dist-row.clickable:hover {
+  background-color: var(--surface-color);
+}
+
+.growth-dist-row.clickable .bar-expand-icon {
+  font-size: 0.7rem;
+  color: var(--secondary-text-color);
+  margin-left: 0.5rem;
+}
+
+/* Scatter chart tooltip */
+.scatter-tooltip {
+  position: absolute;
+  background-color: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  pointer-events: none;
+  min-width: 140px;
+}
+
+.scatter-tooltip-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--primary-text-color);
+  margin-bottom: 0.3rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.scatter-tooltip-values {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.75rem;
+  color: var(--secondary-text-color);
+}
+
+.scatter-tooltip-values strong {
+  color: var(--primary-text-color);
+}
+
+/* Scatter chart container needs relative positioning for tooltip */
+.scatter-chart {
+  position: relative;
+}
+
 @media (max-width: 768px) {
   .growth-distribution-grid {
     grid-template-columns: 1fr;
