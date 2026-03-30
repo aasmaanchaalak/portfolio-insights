@@ -15,6 +15,7 @@ import { StockDetailDrawer } from './components/drawer/StockDetailDrawer';
 import { PositioningChips } from './components/positioning/PositioningChip';
 import { PositioningFilters, PositioningFilterState, INITIAL_POSITIONING_FILTERS } from './components/positioning/PositioningFilters';
 import { StockPositioning, Conviction, StrategyType, ActionIntent } from '../types/positioning';
+import { PETracker } from './components/pe/PETracker';
 
 type SortKey = keyof Stock;
 type SortDirection = 'ascending' | 'descending';
@@ -3153,7 +3154,7 @@ interface PrivateInvestments {
 
 const App: React.FC = () => {
     const { user, loading: authLoading, logout } = useAuth();
-    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'momentum' | 'entrydata'>('dashboard');
+    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'momentum' | 'entrydata' | 'pe'>('dashboard');
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [privateInvestments, setPrivateInvestments] = useState<PrivateInvestments>({ totalInvested: 0, count: 0 });
@@ -3322,6 +3323,7 @@ const App: React.FC = () => {
                 <button className={page === 'upload' ? 'active' : ''} onClick={() => setPage('upload')}>Screener Data</button>
                 <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>
                 <button className={page === 'entrydata' ? 'active' : ''} onClick={() => setPage('entrydata')}>Entry Data</button>
+                <button className={page === 'pe' ? 'active' : ''} onClick={() => setPage('pe')}>PE Tracker</button>
                 <button onClick={logout} style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid var(--border-color)' }}>
                     Logout ({user.name})
                 </button>
@@ -3334,6 +3336,7 @@ const App: React.FC = () => {
                 {page === 'upload' && <UploadPage onDataUploaded={handleDataUploaded} />}
                 {page === 'gridkey' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}
                 {page === 'entrydata' && <EntryDataPage gridKeyData={gridKeyData} stocks={stocks} />}
+                {page === 'pe' && <PETracker />}
             </main>
         </>
     );
