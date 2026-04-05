@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { serialize } from 'cookie';
-import { connectRedis } from '../../../lib/redis';
 import { verifyToken, COOKIE_OPTIONS } from '../../../lib/auth';
+import { deleteSession } from '../../../lib/queries';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -15,8 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (token) {
       const payload = await verifyToken(token);
       if (payload) {
-        const redis = await connectRedis();
-        await redis.del(`auth:sessions:${payload.sessionId}`);
+        await deleteSession(payload.sessionId);
       }
     }
 

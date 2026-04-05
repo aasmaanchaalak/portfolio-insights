@@ -88,6 +88,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
     const [statesLoaded, setStatesLoaded] = useState(false);
     const [alertsLoaded, setAlertsLoaded] = useState(false);
     const [niftySmallcap, setNiftySmallcap] = useState<NiftySmallcapData | null>(null);
+    const [positioningData, setPositioningData] = useState<Record<string, { conviction: string; strategyType: string; actionIntent: string }>>({});
     const hasProcessedStates = useRef(false);
     const scrollPositionRef = useRef(0);
 
@@ -239,6 +240,22 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             }
         };
         loadNiftySmallcap();
+    }, []);
+
+    // Load positioning data on mount
+    useEffect(() => {
+        const loadPositioning = async () => {
+            try {
+                const response = await fetch('/api/positioning');
+                if (response.ok) {
+                    const data = await response.json();
+                    setPositioningData(data);
+                }
+            } catch (error) {
+                console.error('Error loading positioning data:', error);
+            }
+        };
+        loadPositioning();
     }, []);
 
     // Generate transition alerts and save current states (runs only once)
@@ -947,7 +964,8 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         enrichedData.forEach(item => {
             const value = item.calculatedAmount || 0;
             const stockName = item.scripName || 'Unknown';
-            const positioning = (item as any).positioning;
+            const stockCode = item.nseCode || item.bseCode || '';
+            const positioning = stockCode ? positioningData[stockCode] : null;
 
             if (positioning) {
                 // Conviction breakdown
@@ -1011,7 +1029,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             },
             totalTagged: totalValue - untaggedValue,
         };
-    }, [enrichedData]);
+    }, [enrichedData, positioningData]);
 
     // State for sector hover tooltip
     const [hoveredSector, setHoveredSector] = useState<string | null>(null);

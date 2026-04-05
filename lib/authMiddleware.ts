@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse, NextApiHandler } from 'next';
 import { verifyToken } from './auth';
-import { connectRedis } from './redis';
+import { getSession } from './queries';
 
 export interface AuthenticatedRequest extends NextApiRequest {
   user: {
@@ -24,8 +24,7 @@ export function withAuth(handler: NextApiHandler): NextApiHandler {
         return res.status(401).json({ error: 'Invalid or expired token' });
       }
 
-      const redis = await connectRedis();
-      const session = await redis.get(`auth:sessions:${payload.sessionId}`);
+      const session = await getSession(payload.sessionId);
 
       if (!session) {
         return res.status(401).json({ error: 'Session expired' });

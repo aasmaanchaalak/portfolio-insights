@@ -1,31 +1,30 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { connectRedis } from '../../lib/redis';
 import { withAuth } from '../../lib/authMiddleware';
-
-const GRIDKEY_KEY = 'gridkey:data';
-const PRIVATE_INVESTMENTS_KEY = 'gridkey:privateInvestments';
-const PORTFOLIO_KEY = 'portfolio:data';
-const ENTRY_DATA_KEY_PREFIX = 'entrydata:';
+import {
+  getGridKeyData,
+  saveGridKeyData,
+  getPrivateInvestments,
+  savePrivateInvestments,
+  getPortfolioData,
+  getAllEntryData,
+  setEntryData,
+} from '../../lib/queries';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const redis = await connectRedis();
-
     if (req.method === 'GET') {
       try {
-        const [data, privateInvData] = await Promise.all([
-          redis.get(GRIDKEY_KEY),
-          redis.get(PRIVATE_INVESTMENTS_KEY)
+        const [gridKeyData, privateInvestments] = await Promise.all([
+          getGridKeyData(),
+          getPrivateInvestments()
         ]);
 
-        const gridKeyData = data ? JSON.parse(data) : [];
-        const privateInvestments = privateInvData
-          ? JSON.parse(privateInvData)
-          : { totalInvested: 0, count: 0 };
-
-        res.status(200).json({ gridKeyData, privateInvestments });
+        res.status(200).json({
+          gridKeyData: gridKeyData || [],
+          privateInvestments
+        });
       } catch (error) {
-        console.error('Error reading GridKey data from Redis:', error);
+        console.error('Error reading GridKey data:', error);
         res.status(500).json({ error: 'Failed to read GridKey data' });
       }
     } else if (req.method === 'POST') {
@@ -37,19 +36,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         }
 
         // Get existing GridKey data to detect new stocks
-        const existingDataStr = await redis.get(GRIDKEY_KEY);
-        const existingData = existingDataStr ? JSON.parse(existingDataStr) : [];
+        const existingData = await getGridKeyData() || [];
         const existingCodes = new Set(
           existingData
             .map((item: any) => item.nseCode || item.bseCode)
             .filter((code: string | null) => code)
         );
 
-        // Get existing entry data keys
-        const entryDataKeys = await redis.keys(`${ENTRY_DATA_KEY_PREFIX}*`);
-        const existingEntryDataCodes = new Set(
-          entryDataKeys.map(key => key.replace(ENTRY_DATA_KEY_PREFIX, ''))
-        );
+        // Get existing entry data codes
+        const existingEntryData = await getAllEntryData();
+        const existingEntryDataCodes = new Set(Object.keys(existingEntryData));
 
         // Find new stocks (in new data but not in existing data AND don't have entry data yet)
         const newStockCodes: string[] = [];
@@ -62,8 +58,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
         // If there are new stocks, record their entry data
         if (newStockCodes.length > 0) {
-          const portfolioDataStr = await redis.get(PORTFOLIO_KEY);
-          const portfolioData = portfolioDataStr ? JSON.parse(portfolioDataStr) : [];
+          const portfolioData = await getPortfolioData() || [];
 
           // Create a map of stock codes to current prices from portfolio data
           const priceMap: Record<string, number> = {};
@@ -89,8 +84,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             // Use current price from portfolio, fallback to average buy price from GridKey
             const entryPrice = priceMap[code] || avgBuyPriceMap[code];
             if (entryPrice) {
-              const entryData = { entryDate: today, entryPrice };
-              await redis.set(`${ENTRY_DATA_KEY_PREFIX}${code}`, JSON.stringify(entryData));
+              await setEntryData(code, today, entryPrice);
               console.log(`Recorded entry data for new stock ${code}: date=${today}, price=${entryPrice}`);
             }
           }
@@ -98,8 +92,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
         // Save the GridKey data
         await Promise.all([
-          redis.set(GRIDKEY_KEY, JSON.stringify(gridKeyData)),
-          redis.set(PRIVATE_INVESTMENTS_KEY, JSON.stringify(privateInvestments || { totalInvested: 0, count: 0 }))
+          saveGridKeyData(gridKeyData),
+          savePrivateInvestments(
+            privateInvestments?.totalInvested || 0,
+            privateInvestments?.count || 0
+          )
         ]);
 
         res.status(200).json({
@@ -108,7 +105,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           newStocksDetected: newStockCodes.length
         });
       } catch (error) {
-        console.error('Error saving GridKey data to Redis:', error);
+        console.error('Error saving GridKey data:', error);
         res.status(500).json({ error: 'Failed to save GridKey data' });
       }
     } else {
@@ -116,7 +113,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error) {
-    console.error('Redis connection error:', error);
+    console.error('Database error:', error);
     res.status(500).json({ error: 'Database connection failed' });
   }
 }

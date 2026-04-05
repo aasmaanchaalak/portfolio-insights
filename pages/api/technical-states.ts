@@ -1,33 +1,15 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { connectRedis } from '../../lib/redis';
 import { withAuth } from '../../lib/authMiddleware';
-
-const TECHNICAL_STATES_KEY = 'dashboard:technicalStates';
-
-export interface StoredTechnicalState {
-  stockCode: string;
-  stockName: string;
-  above50DMA: boolean;
-  above200DMA: boolean;
-  dma50Above200: boolean;
-  near52WeekHigh: boolean;
-  near52WeekLow: boolean;
-  profitGrowthAbove15: boolean;
-  salesGrowthAbove15: boolean;
-  timestamp: string;
-}
+import { getTechnicalStates, saveTechnicalStates, TechnicalState } from '../../lib/queries';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const redis = await connectRedis();
-
     if (req.method === 'GET') {
       try {
-        const data = await redis.get(TECHNICAL_STATES_KEY);
-        const states = data ? JSON.parse(data) : [];
+        const states = await getTechnicalStates();
         res.status(200).json(states);
       } catch (error) {
-        console.error('Error reading technical states from Redis:', error);
+        console.error('Error reading technical states:', error);
         res.status(500).json({ error: 'Failed to read technical states' });
       }
     } else if (req.method === 'POST') {
@@ -38,10 +20,23 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           return res.status(400).json({ error: 'States must be an array' });
         }
 
-        await redis.set(TECHNICAL_STATES_KEY, JSON.stringify(states));
+        const technicalStates: TechnicalState[] = states.map((state: any) => ({
+          stockCode: state.stockCode,
+          stockName: state.stockName,
+          above50DMA: state.above50DMA,
+          above200DMA: state.above200DMA,
+          dma50Above200: state.dma50Above200,
+          near52WeekHigh: state.near52WeekHigh,
+          near52WeekLow: state.near52WeekLow,
+          profitGrowthAbove15: state.profitGrowthAbove15,
+          salesGrowthAbove15: state.salesGrowthAbove15,
+          timestamp: state.timestamp || new Date().toISOString(),
+        }));
+
+        await saveTechnicalStates(technicalStates);
         res.status(200).json({ success: true, message: 'Technical states saved successfully' });
       } catch (error) {
-        console.error('Error saving technical states to Redis:', error);
+        console.error('Error saving technical states:', error);
         res.status(500).json({ error: 'Failed to save technical states' });
       }
     } else {
@@ -49,7 +44,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error) {
-    console.error('Redis connection error:', error);
+    console.error('Database error:', error);
     res.status(500).json({ error: 'Database connection failed' });
   }
 }

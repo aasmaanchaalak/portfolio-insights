@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { serialize } from 'cookie';
-import { connectRedis } from '../../../lib/redis';
 import { verifyToken, createAccessToken, ACCESS_COOKIE_OPTIONS } from '../../../lib/auth';
+import { getSession } from '../../../lib/queries';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -22,8 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Invalid refresh token' });
     }
 
-    const redis = await connectRedis();
-    const session = await redis.get(`auth:sessions:${payload.sessionId}`);
+    const session = await getSession(payload.sessionId);
 
     if (!session) {
       return res.status(401).json({ error: 'Session expired' });

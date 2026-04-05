@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { connectRedis } from '../../../lib/redis';
 import { hashPassword, verifyPassword } from '../../../lib/auth';
+import { getUserByEmail, updateUserPassword } from '../../../lib/queries';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -19,15 +19,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'New password must be at least 8 characters' });
     }
 
-    const redis = await connectRedis();
-    const userKey = `auth:users:${email.toLowerCase().trim()}`;
-    const userData = await redis.get(userKey);
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await getUserByEmail(normalizedEmail);
 
-    if (!userData) {
+    if (!user) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
-
-    const user = JSON.parse(userData);
 
     // Verify current password
     const isValid = await verifyPassword(currentPassword, user.passwordHash);
@@ -37,10 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Hash new password and update
     const newPasswordHash = await hashPassword(newPassword);
-    user.passwordHash = newPasswordHash;
-    user.updatedAt = new Date().toISOString();
-
-    await redis.set(userKey, JSON.stringify(user));
+    await updateUserPassword(normalizedEmail, newPasswordHash);
 
     res.status(200).json({ success: true, message: 'Password changed successfully' });
   } catch (error) {

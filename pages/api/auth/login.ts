@@ -1,6 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { serialize } from 'cookie';
-import { connectRedis } from '../../../lib/redis';
 import {
   verifyPassword,
   createAccessToken,
@@ -10,7 +9,7 @@ import {
   ACCESS_COOKIE_OPTIONS,
   REFRESH_COOKIE_OPTIONS,
 } from '../../../lib/auth';
-import { User, Session } from '../../../types/auth';
+import { getUserByEmail, createSession, updateUserLastLogin } from '../../../lib/queries';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -26,14 +25,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const redis = await connectRedis();
 
-    const userData = await redis.get(`auth:users:${normalizedEmail}`);
-    if (!userData) {
+    const user = await getUserByEmail(normalizedEmail);
+    if (!user) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
-
-    const user: User = JSON.parse(userData);
 
     const isValid = await verifyPassword(password, user.passwordHash);
     if (!isValid) {
@@ -41,17 +37,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const sessionId = generateSessionId();
-    const session: Session = {
-      userId: normalizedEmail,
-      createdAt: new Date().toISOString(),
-      expiresAt: getSessionExpiry(),
-    };
+    const expiresAt = new Date(getSessionExpiry());
 
-    await redis.set(`auth:sessions:${sessionId}`, JSON.stringify(session));
-    await redis.expire(`auth:sessions:${sessionId}`, 7 * 24 * 60 * 60);
-
-    user.lastLoginAt = new Date().toISOString();
-    await redis.set(`auth:users:${normalizedEmail}`, JSON.stringify(user));
+    await createSession(sessionId, normalizedEmail, expiresAt);
+    await updateUserLastLogin(normalizedEmail);
 
     const accessToken = await createAccessToken(normalizedEmail, sessionId);
     const refreshToken = await createRefreshToken(normalizedEmail, sessionId);

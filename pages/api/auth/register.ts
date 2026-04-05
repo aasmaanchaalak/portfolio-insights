@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { connectRedis } from '../../../lib/redis';
 import { hashPassword, isEmailAllowed } from '../../../lib/auth';
-import { User } from '../../../types/auth';
+import { getUserByEmail, createUser } from '../../../lib/queries';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -26,24 +25,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Password must be at least 8 characters' });
     }
 
-    const redis = await connectRedis();
-
-    const existingUser = await redis.get(`auth:users:${normalizedEmail}`);
+    const existingUser = await getUserByEmail(normalizedEmail);
     if (existingUser) {
       return res.status(409).json({ error: 'An account with this email already exists' });
     }
 
     const passwordHash = await hashPassword(password);
-
-    const user: User = {
-      email: normalizedEmail,
-      passwordHash,
-      name: name.trim(),
-      createdAt: new Date().toISOString(),
-      lastLoginAt: null,
-    };
-
-    await redis.set(`auth:users:${normalizedEmail}`, JSON.stringify(user));
+    await createUser(normalizedEmail, passwordHash, name.trim());
 
     return res.status(201).json({ success: true, message: 'Registration successful' });
   } catch (error) {

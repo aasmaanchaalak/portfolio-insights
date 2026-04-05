@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { connectRedis } from '../../../lib/redis';
 import { verifyToken } from '../../../lib/auth';
-import { User } from '../../../types/auth';
+import { getSession, getUserByEmail } from '../../../lib/queries';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -22,19 +21,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ authenticated: false });
     }
 
-    const redis = await connectRedis();
-    const session = await redis.get(`auth:sessions:${payload.sessionId}`);
+    const session = await getSession(payload.sessionId);
 
     if (!session) {
       return res.status(200).json({ authenticated: false });
     }
 
-    const userData = await redis.get(`auth:users:${payload.userId}`);
-    if (!userData) {
+    const user = await getUserByEmail(payload.userId);
+    if (!user) {
       return res.status(200).json({ authenticated: false });
     }
-
-    const user: User = JSON.parse(userData);
 
     return res.status(200).json({
       authenticated: true,
