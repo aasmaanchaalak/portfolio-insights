@@ -4,18 +4,21 @@ import { query, queryOne } from './db';
 
 // ============ Users ============
 
+export type UserRole = 'portfolio' | 'analyst';
+
 export interface User {
   id: string;
   email: string;
   passwordHash: string;
   name: string | null;
+  role: UserRole;
   createdAt: string;
   lastLoginAt: string | null;
 }
 
 export async function getUserByEmail(email: string): Promise<User | null> {
   const row = await queryOne<any>(`
-    SELECT id, email, password_hash, name, created_at, last_login_at
+    SELECT id, email, password_hash, name, role, created_at, last_login_at
     FROM users WHERE email = $1
   `, [email]);
 
@@ -26,17 +29,18 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     email: row.email,
     passwordHash: row.password_hash,
     name: row.name,
+    role: row.role || 'analyst',
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at,
   };
 }
 
-export async function createUser(email: string, passwordHash: string, name?: string): Promise<User> {
+export async function createUser(email: string, passwordHash: string, name?: string, role: UserRole = 'analyst'): Promise<User> {
   const rows = await query<any>(`
-    INSERT INTO users (email, password_hash, name)
-    VALUES ($1, $2, $3)
-    RETURNING id, email, password_hash, name, created_at, last_login_at
-  `, [email, passwordHash, name || null]);
+    INSERT INTO users (email, password_hash, name, role)
+    VALUES ($1, $2, $3, $4)
+    RETURNING id, email, password_hash, name, role, created_at, last_login_at
+  `, [email, passwordHash, name || null, role]);
 
   const row = rows[0];
   return {
@@ -44,6 +48,7 @@ export async function createUser(email: string, passwordHash: string, name?: str
     email: row.email,
     passwordHash: row.password_hash,
     name: row.name,
+    role: row.role || 'analyst',
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at,
   };
@@ -59,6 +64,44 @@ export async function updateUserPassword(email: string, passwordHash: string): P
   await query(`
     UPDATE users SET password_hash = $1 WHERE email = $2
   `, [passwordHash, email]);
+}
+
+// ============ Admin Functions ============
+
+export interface UserSummary {
+  id: string;
+  email: string;
+  name: string | null;
+  role: UserRole;
+  createdAt: string;
+  lastLoginAt: string | null;
+}
+
+export async function getAllUsers(): Promise<UserSummary[]> {
+  const rows = await query<any>(`
+    SELECT id, email, name, role, created_at, last_login_at
+    FROM users
+    ORDER BY created_at DESC
+  `);
+
+  return rows.map(row => ({
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    role: row.role || 'analyst',
+    createdAt: row.created_at,
+    lastLoginAt: row.last_login_at,
+  }));
+}
+
+export async function updateUserRole(email: string, role: UserRole): Promise<void> {
+  await query(`
+    UPDATE users SET role = $1 WHERE email = $2
+  `, [role, email]);
+}
+
+export async function deleteUser(email: string): Promise<void> {
+  await query(`DELETE FROM users WHERE email = $1`, [email]);
 }
 
 // ============ Sessions ============

@@ -21,6 +21,7 @@ interface DashboardProps {
     gridKeyData: GridKeyData[];
     stocks: Stock[];
     privateInvestments: PrivateInvestments;
+    isAnalyst?: boolean;
 }
 
 interface TechnicalState {
@@ -80,7 +81,7 @@ interface NiftySmallcapData {
     lastUpdated: string;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInvestments }) => {
+const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInvestments, isAnalyst = false }) => {
     const [previousStates, setPreviousStates] = useState<TechnicalState[]>([]);
     const [transitionAlerts, setTransitionAlerts] = useState<Alert[]>([]);
     const [storedAlerts, setStoredAlerts] = useState<Alert[]>([]);
@@ -1110,10 +1111,10 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 <div className="overview-cards">
                     <div className="overview-card">
                         <div className="card-label">Total Value</div>
-                        <div className="card-value">{formatCurrency(totalCurrentAmount)}</div>
+                        <div className="card-value">{isAnalyst ? '••••••' : formatCurrency(totalCurrentAmount)}</div>
                         <div className="card-subtext">{stockCount} stocks</div>
                     </div>
-                    {privateInvestments.count > 0 && (
+                    {!isAnalyst && privateInvestments.count > 0 && (
                         <div className="overview-card">
                             <div className="card-label">Private Investments</div>
                             <div className="card-value">{formatCurrency(privateInvestments.totalInvested)}</div>
@@ -1242,12 +1243,14 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                             {healthMetrics.top5Concentration.toFixed(1)}%
                         </div>
                     </div>
-                    <div className="metric-card">
-                        <div className="metric-label">Avg Stock Value</div>
-                        <div className="metric-value">
-                            {weightedMetrics.avgStockValue !== null ? formatCurrency(weightedMetrics.avgStockValue) : 'N/A'}
+                    {!isAnalyst && (
+                        <div className="metric-card">
+                            <div className="metric-label">Avg Stock Value</div>
+                            <div className="metric-value">
+                                {weightedMetrics.avgStockValue !== null ? formatCurrency(weightedMetrics.avgStockValue) : 'N/A'}
+                            </div>
                         </div>
-                    </div>
+                    )}
                     <div className="metric-card">
                         <div className="metric-label">Weighted All-time Gain</div>
                         <div className={`metric-value ${(weightedMetrics.weightedAllTimeGain || 0) >= 0 ? 'positive' : 'negative'}`}>

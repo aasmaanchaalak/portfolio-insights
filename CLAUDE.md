@@ -1,10 +1,13 @@
 # Portfolio Insights - Claude Documentation
 
 ## 🧹 Latest Changes
+- **NEW**: Migrated from Redis to PostgreSQL for all data storage
+- **NEW**: Admin Panel for user management (accessible only by aditya@saguncapital.com)
+- **NEW**: Role-based access control with two roles: `portfolio` (full access) and `analyst` (restricted)
+- **NEW**: Analyst role restrictions - cannot see: invested amounts, portfolio value, quantity, absolute gains
 - **NEW**: Email + Password authentication with allowlist (replaced hardcoded password)
 - **NEW**: All API endpoints are now protected with JWT authentication
 - **NEW**: Added Dashboard page with comprehensive portfolio metrics and technical alerts
-- **NEW**: Added RSI and marketCap fields to Stock interface (placeholders for future data)
 - Dashboard is now the default landing page
 
 ---
@@ -93,12 +96,12 @@ App Component (Main Router)
 ### Data Sources
 1. **Screener.in CSV**: Stock prices, returns, P/E ratios, growth metrics
 2. **GridKey CSV**: Holdings quantities, average buy prices
-3. **API Storage**: Redis backend for persistence
+3. **API Storage**: PostgreSQL backend for persistence
 
 ### Data Processing Pipeline
 ```
-Screener Upload → Parse CSV → Store in Redis → Load on App Start
-GridKey Upload → Parse CSV → Store in Redis → Combine with Screener Data
+Screener Upload → Parse CSV → Store in PostgreSQL → Load on App Start
+GridKey Upload → Parse CSV → Store in PostgreSQL → Combine with Screener Data
 Combined Data → Calculate Amounts → Calculate Weightages → Calculate Portfolio Contribution
 ```
 
@@ -143,24 +146,37 @@ Combined Data → Calculate Amounts → Calculate Weightages → Calculate Portf
 
 ---
 
-## 🔐 Authentication
+## 🔐 Authentication & Authorization
 
 ### System Overview
 - **Type**: Email + Password with Allowlist
 - **Sessions**: JWT tokens stored in httpOnly cookies
 - **API Protection**: All endpoints require authentication
+- **Database**: PostgreSQL (migrated from Redis)
+
+### User Roles
+| Role | Description |
+|------|-------------|
+| `portfolio` | Full access to all data including financial amounts |
+| `analyst` | Restricted: Cannot see invested amounts, portfolio value, quantity, absolute gains |
+
+### Admin Panel
+- **URL**: Admin tab in navigation (only visible to admin)
+- **Admin**: aditya@saguncapital.com
+- **Features**: View all users, change user roles
 
 ### Auth Flow
-1. **Registration**: Only emails in `ALLOWED_EMAILS` env var can register
+1. **Registration**: Only emails in `ALLOWED_EMAILS` env var can register (defaults to `analyst` role)
 2. **Login**: Returns JWT access token (15 min) + refresh token (7 days)
-3. **Session**: Stored in Redis with 7-day expiry
-4. **Logout**: Clears cookies and Redis session
+3. **Session**: Stored in PostgreSQL with 7-day expiry
+4. **Logout**: Clears cookies and database session
 
 ### Configuration
 Edit `.env.local`:
 ```env
 JWT_SECRET="your-secret-key"
 ALLOWED_EMAILS="user1@company.com,user2@company.com"
+DATABASE_URL="postgres://user:password@host:port/database"
 ```
 
 ### Key Files
@@ -168,17 +184,20 @@ ALLOWED_EMAILS="user1@company.com,user2@company.com"
 |------|---------|
 | `lib/auth.ts` | Password hashing (bcrypt), JWT utilities |
 | `lib/authMiddleware.ts` | `withAuth()` wrapper for API protection |
+| `lib/queries.ts` | PostgreSQL queries (users, sessions, data) |
 | `pages/api/auth/register.ts` | Registration (allowlist check) |
 | `pages/api/auth/login.ts` | Login, issues JWT cookies |
 | `pages/api/auth/verify.ts` | Validates current session |
 | `pages/api/auth/logout.ts` | Clears session |
 | `pages/api/auth/refresh.ts` | Refreshes access token |
+| `pages/api/admin/users.ts` | Admin API for user management |
 | `app/contexts/AuthContext.tsx` | React context for auth state |
 | `app/components/LoginPage.tsx` | Login/Register UI |
+| `app/components/AdminPanel.tsx` | Admin panel for user management |
 
-### Redis Keys
-- `auth:users:{email}` - User data (email, passwordHash, name, timestamps)
-- `auth:sessions:{sessionId}` - Session data (7-day TTL)
+### Database Tables (PostgreSQL)
+- `users` - User data (email, passwordHash, name, role, timestamps)
+- `sessions` - Session data with expiry
 
 ### Security Features
 - Passwords hashed with bcrypt (cost factor 12)
@@ -186,6 +205,7 @@ ALLOWED_EMAILS="user1@company.com,user2@company.com"
 - Short-lived access tokens (15 min)
 - Session invalidation on logout
 - Email allowlist for registration
+- Role-based data access restrictions
 
 ---
 
@@ -206,19 +226,26 @@ portfolio-insights/
 │   ├── providers.tsx         # Client-side providers wrapper
 │   ├── globals.css           # Styling
 │   ├── contexts/
-│   │   └── AuthContext.tsx   # Authentication context
+│   │   └── AuthContext.tsx   # Authentication context (with roles)
 │   └── components/
 │       ├── Dashboard.tsx     # Dashboard component
+│       ├── AdminPanel.tsx    # Admin panel for user management
 │       └── LoginPage.tsx     # Login/Register UI
 ├── pages/api/
 │   ├── auth/                 # Auth endpoints (register, login, verify, logout, refresh)
+│   ├── admin/
+│   │   └── users.ts          # Admin API for user management
 │   ├── portfolio.ts          # Portfolio data (protected)
 │   ├── gridkey.ts            # Holdings data (protected)
 │   └── ...                   # Other protected endpoints
 ├── lib/
-│   ├── redis.ts              # Redis connection
+│   ├── db.ts                 # PostgreSQL connection
+│   ├── queries.ts            # All PostgreSQL queries
 │   ├── auth.ts               # Auth utilities (JWT, bcrypt)
 │   └── authMiddleware.ts     # withAuth() API wrapper
+├── scripts/migrations/       # Database migrations
+│   ├── 003_redis_to_postgres.sql  # Main data migration
+│   └── 004_add_user_roles.sql     # Role-based access control
 ├── types/
 │   └── auth.ts               # Auth TypeScript interfaces
 ├── types.ts                  # Main TypeScript definitions

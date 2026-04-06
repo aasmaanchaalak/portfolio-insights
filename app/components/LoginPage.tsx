@@ -76,6 +76,16 @@ export default function LoginPage() {
             minLength={8}
             disabled={loading}
           />
+          {mode === 'register' && (
+            <p style={{
+              color: 'var(--secondary-text-color)',
+              fontSize: '0.75rem',
+              margin: '-0.5rem 0 0.75rem 0',
+              textAlign: 'center'
+            }}>
+              Please don&apos;t use a password you use somewhere else
+            </p>
+          )}
           <button type="submit" className="password-submit" disabled={loading}>
             {loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Register'}
           </button>

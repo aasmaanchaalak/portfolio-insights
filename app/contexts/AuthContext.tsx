@@ -2,18 +2,25 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 
+type UserRole = 'portfolio' | 'analyst';
+
 interface User {
   email: string;
   name: string;
+  role: UserRole;
 }
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  isAdmin: boolean;
+  isAnalyst: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
 }
+
+const ADMIN_EMAIL = 'aditya@saguncapital.com';
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -21,12 +28,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const isAdmin = user?.email === ADMIN_EMAIL;
+  const isAnalyst = user?.role === 'analyst';
+
   const checkAuth = useCallback(async () => {
     try {
       const res = await fetch('/api/auth/verify');
       const data = await res.json();
       if (data.authenticated) {
-        setUser(data.user);
+        setUser({
+          email: data.user.email,
+          name: data.user.name,
+          role: data.user.role || 'analyst',
+        });
       } else {
         setUser(null);
       }
@@ -69,7 +83,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(data.error || 'Login failed');
     }
 
-    setUser(data.user);
+    setUser({
+      email: data.user.email,
+      name: data.user.name,
+      role: data.user.role || 'analyst',
+    });
   };
 
   const logout = async () => {
@@ -96,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, register }}>
+    <AuthContext.Provider value={{ user, loading, isAdmin, isAnalyst, login, logout, register }}>
       {children}
     </AuthContext.Provider>
   );

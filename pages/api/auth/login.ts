@@ -52,7 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json({
       success: true,
-      user: { email: user.email, name: user.name },
+      user: { email: user.email, name: user.name, role: user.role || 'analyst' },
     });
   } catch (error) {
     console.error('Login error:', error);

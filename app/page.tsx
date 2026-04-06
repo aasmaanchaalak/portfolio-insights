@@ -9,6 +9,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Stock, GridKeyData } from '../types';
 import Dashboard from './components/Dashboard';
 import EntryDataPage from './components/EntryDataPage';
+import AdminPanel from './components/AdminPanel';
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import { StockDetailDrawer } from './components/drawer/StockDetailDrawer';
@@ -558,7 +559,10 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateIn
     );
 };
 
-const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void }> = ({ gridKeyData, stocks, onStocksUpdate }) => {
+// Columns that should be hidden from analysts (financial amounts)
+const ANALYST_RESTRICTED_COLUMNS = ['quantity', 'investedAmount', 'calculatedAmount', 'absoluteGain'];
+
+const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void; isAnalyst?: boolean }> = ({ gridKeyData, stocks, onStocksUpdate, isAnalyst = false }) => {
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' }>({
         key: 'scripName',
         direction: 'ascending',
@@ -646,6 +650,19 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     };
 
     const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(loadColumnPreferences);
+
+    // Helper to check if a column should be visible (considering analyst restrictions)
+    const isColumnVisible = (key: string) => {
+        if (isAnalyst && ANALYST_RESTRICTED_COLUMNS.includes(key)) {
+            return false;
+        }
+        return !!visibleColumns[key];
+    };
+
+    // Filter columns for column toggle UI (hide restricted columns for analysts)
+    const availableColumns = isAnalyst
+        ? allInsightsColumns.filter(col => !ANALYST_RESTRICTED_COLUMNS.includes(col.key))
+        : allInsightsColumns;
 
     const toggleColumn = (key: string) => {
         setVisibleColumns(prev => {
@@ -1322,7 +1339,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                     <div className="column-toggles-container">
                                         <label>Show/Hide Columns</label>
                                         <div className="column-toggles">
-                                            {allInsightsColumns.map(col => (
+                                            {availableColumns.map(col => (
                                                 <div key={col.key} className="toggle-group">
                                                     <input
                                                         type="checkbox"
@@ -1349,32 +1366,32 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         <span>Stock Name <SortIndicator columnKey="scripName" /></span>
                                     </div>
                                 </th>
-                                {visibleColumns['quantity'] && <th className="text-right" onClick={() => requestSort('quantity')}>
+                                {isColumnVisible('quantity') && <th className="text-right" onClick={() => requestSort('quantity')}>
                                     <div className="th-content">
                                         <span>Quantity <SortIndicator columnKey="quantity" /></span>
                                     </div>
                                 </th>}
-                                {visibleColumns['averageBuyPrice'] && <th className="text-right avg-buy-price-col" onClick={() => requestSort('averageBuyPrice')}>
+                                {isColumnVisible('averageBuyPrice') && <th className="text-right avg-buy-price-col" onClick={() => requestSort('averageBuyPrice')}>
                                     <div className="th-content">
                                         <span>Avg Buy Price <SortIndicator columnKey="averageBuyPrice" /></span>
                                     </div>
                                 </th>}
-                                {visibleColumns['investedAmount'] && <th className="text-right" onClick={() => requestSort('investedAmount')}>
+                                {isColumnVisible('investedAmount') && <th className="text-right" onClick={() => requestSort('investedAmount')}>
                                     <div className="th-content">
                                         <span>Invested Amount <SortIndicator columnKey="investedAmount" /></span>
                                     </div>
                                 </th>}
-                                {visibleColumns['currentPrice'] && <th className="text-right" onClick={() => requestSort('currentPrice')}>
+                                {isColumnVisible('currentPrice') && <th className="text-right" onClick={() => requestSort('currentPrice')}>
                                     <div className="th-content">
                                         <span>Current Price <SortIndicator columnKey="currentPrice" /></span>
                                     </div>
                                 </th>}
-                                {visibleColumns['calculatedAmount'] && <th className="text-right" onClick={() => requestSort('calculatedAmount')}>
+                                {isColumnVisible('calculatedAmount') && <th className="text-right" onClick={() => requestSort('calculatedAmount')}>
                                     <div className="th-content">
                                         <span>Current Amount <SortIndicator columnKey="calculatedAmount" /></span>
                                     </div>
                                 </th>}
-                                {visibleColumns['absoluteGain'] && <th className="text-right" onClick={() => requestSort('absoluteGain')}>
+                                {isColumnVisible('absoluteGain') && <th className="text-right" onClick={() => requestSort('absoluteGain')}>
                                     <div className="th-content">
                                         <span>Absolute Gain <SortIndicator columnKey="absoluteGain" /></span>
                                     </div>
@@ -1583,12 +1600,12 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                             {item.scripName}
                                         </span>
                                     </td>
-                                    {visibleColumns['quantity'] && <td className="text-right">{item.quantity !== null && item.quantity !== undefined ? item.quantity.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : 'N/A'}</td>}
-                                    {visibleColumns['averageBuyPrice'] && <td className="text-right avg-buy-price-col">{item.averageBuyPrice !== null && item.averageBuyPrice !== undefined ? `₹${item.averageBuyPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
-                                    {visibleColumns['investedAmount'] && <td className="text-right">{(item as any).investedAmount !== null && (item as any).investedAmount !== undefined ? `₹${(item as any).investedAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
-                                    {visibleColumns['currentPrice'] && <td className="text-right">{(item as any).currentPrice !== null && (item as any).currentPrice !== undefined ? `₹${(item as any).currentPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
-                                    {visibleColumns['calculatedAmount'] && <td className="text-right current-amount-cell">{(item as any).calculatedAmount !== null && (item as any).calculatedAmount !== undefined ? `₹${(item as any).calculatedAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
-                                    {visibleColumns['absoluteGain'] && <td className="text-right" style={{ color: (item as any).absoluteGain !== null ? ((item as any).absoluteGain >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>
+                                    {isColumnVisible('quantity') && <td className="text-right">{item.quantity !== null && item.quantity !== undefined ? item.quantity.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : 'N/A'}</td>}
+                                    {isColumnVisible('averageBuyPrice') && <td className="text-right avg-buy-price-col">{item.averageBuyPrice !== null && item.averageBuyPrice !== undefined ? `₹${item.averageBuyPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
+                                    {isColumnVisible('investedAmount') && <td className="text-right">{(item as any).investedAmount !== null && (item as any).investedAmount !== undefined ? `₹${(item as any).investedAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
+                                    {isColumnVisible('currentPrice') && <td className="text-right">{(item as any).currentPrice !== null && (item as any).currentPrice !== undefined ? `₹${(item as any).currentPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
+                                    {isColumnVisible('calculatedAmount') && <td className="text-right current-amount-cell">{(item as any).calculatedAmount !== null && (item as any).calculatedAmount !== undefined ? `₹${(item as any).calculatedAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
+                                    {isColumnVisible('absoluteGain') && <td className="text-right" style={{ color: (item as any).absoluteGain !== null ? ((item as any).absoluteGain >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>
                                         {(item as any).absoluteGain !== null && (item as any).absoluteGain !== undefined ? `₹${(item as any).absoluteGain.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}
                                     </td>}
                                     {visibleColumns['gainPercentage'] && <td className="text-right" style={{ color: (item as any).gainPercentage !== null ? ((item as any).gainPercentage >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit', fontWeight: 500 }}>
@@ -1747,7 +1764,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
 };
 
 
-const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = ({ gridKeyData, stocks }) => {
+const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAnalyst?: boolean }> = ({ gridKeyData, stocks, isAnalyst = false }) => {
     const [selectedChart, setSelectedChart] = useState<'allocation' | 'performance' | 'growth' | 'sectors' | 'rotation' | 'value'>('allocation');
     const [portfolioHistory, setPortfolioHistory] = useState<{date: string; value: number; timestamp: number}[]>([]);
 
@@ -1836,7 +1853,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                                         backgroundColor: `hsl(${210 - (index % 12) * 20}, 70%, 50%)`
                                     }}
                                 >
-                                    <span className="bar-value">₹{item.value.toLocaleString('en-IN', { maximumFractionDigits: 0 })} ({item.percentage.toFixed(1)}%)</span>
+                                    <span className="bar-value">{isAnalyst ? `${item.percentage.toFixed(1)}%` : `₹${item.value.toLocaleString('en-IN', { maximumFractionDigits: 0 })} (${item.percentage.toFixed(1)}%)`}</span>
                                 </div>
                             </div>
                         </div>
@@ -1980,13 +1997,11 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                                 <div className="sector-breakdown">
                                     <div className="sector-breakdown-header">
                                         <span className="breakdown-col">Stock</span>
-                                        <span className="breakdown-col">Value</span>
                                         <span className="breakdown-col">Gain %</span>
                                     </div>
                                     {range.stocks.map((stock, i) => (
                                         <div key={i} className="sector-breakdown-row">
                                             <span className="breakdown-stock-name">{stock.name}</span>
-                                            <span className="breakdown-stock-value">₹{stock.value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
                                             <span className={`breakdown-stock-percent ${stock.gain >= 0 ? 'positive' : 'negative'}`}>
                                                 {stock.gain >= 0 ? '+' : ''}{stock.gain.toFixed(1)}%
                                             </span>
@@ -2285,7 +2300,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                                             backgroundColor: `hsl(${index * 30}, 65%, 55%)`
                                         }}
                                     >
-                                        <span className="bar-value">₹{sector.value.toLocaleString('en-IN', { maximumFractionDigits: 0 })} ({sector.percentage.toFixed(1)}%)</span>
+                                        <span className="bar-value">{sector.percentage.toFixed(1)}%</span>
                                     </div>
                                 </div>
                                 <span className="bar-expand-icon">{expandedSector === sector.name ? '▼' : '▶'}</span>
@@ -2834,7 +2849,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[] }> = 
                 <button className={selectedChart === 'growth' ? 'active' : ''} onClick={() => setSelectedChart('growth')}>Growth Metrics</button>
                 <button className={selectedChart === 'sectors' ? 'active' : ''} onClick={() => setSelectedChart('sectors')}>Sectors</button>
                 <button className={selectedChart === 'rotation' ? 'active' : ''} onClick={() => setSelectedChart('rotation')}>Sector Rotation</button>
-                <button className={selectedChart === 'value' ? 'active' : ''} onClick={() => setSelectedChart('value')}>Portfolio Value</button>
+                {!isAnalyst && <button className={selectedChart === 'value' ? 'active' : ''} onClick={() => setSelectedChart('value')}>Portfolio Value</button>}
             </div>
 
             <div className="charts-container">
@@ -3153,8 +3168,8 @@ interface PrivateInvestments {
 }
 
 const App: React.FC = () => {
-    const { user, loading: authLoading, logout } = useAuth();
-    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'momentum' | 'entrydata' | 'pe'>('dashboard');
+    const { user, loading: authLoading, logout, isAdmin, isAnalyst } = useAuth();
+    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'momentum' | 'entrydata' | 'pe' | 'admin'>('dashboard');
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [privateInvestments, setPrivateInvestments] = useState<PrivateInvestments>({ totalInvested: 0, count: 0 });
@@ -3324,19 +3339,23 @@ const App: React.FC = () => {
                 <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>
                 <button className={page === 'entrydata' ? 'active' : ''} onClick={() => setPage('entrydata')}>Entry Data</button>
                 <button className={page === 'pe' ? 'active' : ''} onClick={() => setPage('pe')}>PE Tracker</button>
+                {isAdmin && (
+                    <button className={page === 'admin' ? 'active' : ''} onClick={() => setPage('admin')} style={{ background: page === 'admin' ? 'var(--accent-color)' : 'rgba(234, 179, 8, 0.15)', color: page === 'admin' ? 'white' : '#eab308' }}>Admin</button>
+                )}
                 <button onClick={logout} style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid var(--border-color)' }}>
                     Logout ({user.name})
                 </button>
             </nav>
             <main>
-                {page === 'dashboard' && <Dashboard gridKeyData={gridKeyData} stocks={stocks} privateInvestments={privateInvestments} />}
-                {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={stocks} onStocksUpdate={setStocks} />}
-                {page === 'analysis' && <AnalysisPage gridKeyData={gridKeyData} stocks={stocks} />}
+                {page === 'dashboard' && <Dashboard gridKeyData={gridKeyData} stocks={stocks} privateInvestments={privateInvestments} isAnalyst={isAnalyst} />}
+                {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={stocks} onStocksUpdate={setStocks} isAnalyst={isAnalyst} />}
+                {page === 'analysis' && <AnalysisPage gridKeyData={gridKeyData} stocks={stocks} isAnalyst={isAnalyst} />}
                 {page === 'momentum' && <TrendMomentumPage gridKeyData={gridKeyData} stocks={stocks} />}
                 {page === 'upload' && <UploadPage onDataUploaded={handleDataUploaded} />}
                 {page === 'gridkey' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}
                 {page === 'entrydata' && <EntryDataPage gridKeyData={gridKeyData} stocks={stocks} />}
                 {page === 'pe' && <PETracker />}
+                {page === 'admin' && <AdminPanel />}
             </main>
         </>
     );
