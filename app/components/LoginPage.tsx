@@ -83,7 +83,6 @@ export default function LoginPage() {
               margin: '-0.5rem 0 0.75rem 0',
               textAlign: 'center'
             }}>
-              Please don&apos;t use a password you use somewhere else
             </p>
           )}
           <button type="submit" className="password-submit" disabled={loading}>
