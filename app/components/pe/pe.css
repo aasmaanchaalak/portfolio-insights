@@ -1134,6 +1134,52 @@
   padding: 2rem;
 }
 
+.pe-quick-note-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.pe-quick-note-input {
+  flex: 1;
+  padding: 0.6rem 0.875rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--surface-color);
+  color: var(--text-color);
+  font-size: 0.9rem;
+}
+
+.pe-quick-note-input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.pe-quick-note-input::placeholder {
+  color: var(--secondary-text-color);
+}
+
+.pe-quick-note-btn {
+  padding: 0.6rem 1rem;
+  background-color: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pe-quick-note-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.pe-quick-note-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .pe-add-comm-form {
   background-color: var(--surface-color);
   border: 1px solid var(--border-color);

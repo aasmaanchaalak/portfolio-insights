@@ -12,16 +12,27 @@ interface UserSummary {
   lastLoginAt: string | null;
 }
 
+interface AllowedEmail {
+  id: string;
+  email: string;
+  addedBy: string | null;
+  createdAt: string;
+}
+
 export default function AdminPanel() {
   const { isAdmin } = useAuth();
   const [users, setUsers] = useState<UserSummary[]>([]);
+  const [allowedEmails, setAllowedEmails] = useState<AllowedEmail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [updating, setUpdating] = useState<string | null>(null);
+  const [newEmail, setNewEmail] = useState('');
+  const [addingEmail, setAddingEmail] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
       fetchUsers();
+      fetchAllowedEmails();
     }
   }, [isAdmin]);
 
@@ -38,6 +49,67 @@ export default function AdminPanel() {
       setError(err instanceof Error ? err.message : 'Failed to fetch users');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAllowedEmails = async () => {
+    try {
+      const res = await fetch('/api/admin/allowed-emails');
+      if (!res.ok) {
+        throw new Error('Failed to fetch allowed emails');
+      }
+      const data = await res.json();
+      setAllowedEmails(data);
+    } catch (err) {
+      console.error('Error fetching allowed emails:', err);
+    }
+  };
+
+  const addAllowedEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEmail.trim()) return;
+
+    try {
+      setAddingEmail(true);
+      const res = await fetch('/api/admin/allowed-emails', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newEmail.trim() }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to add email');
+      }
+
+      const addedEmail = await res.json();
+      setAllowedEmails(prev => [addedEmail, ...prev]);
+      setNewEmail('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add email');
+    } finally {
+      setAddingEmail(false);
+    }
+  };
+
+  const removeAllowedEmail = async (email: string) => {
+    if (!confirm(`Remove ${email} from allowlist? They won't be able to register again.`)) return;
+
+    try {
+      const res = await fetch('/api/admin/allowed-emails', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to remove email');
+      }
+
+      setAllowedEmails(prev => prev.filter(e => e.email !== email));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove email');
     }
   };
 
@@ -162,6 +234,74 @@ export default function AdminPanel() {
           </table>
         </div>
       )}
+
+      {/* Allowed Emails Section */}
+      <div className="admin-header" style={{ marginTop: '2.5rem' }}>
+        <h2>Registration Allowlist</h2>
+        <p className="admin-subtitle">Manage which emails can register for an account</p>
+      </div>
+
+      <form onSubmit={addAllowedEmail} className="add-email-form">
+        <input
+          type="email"
+          value={newEmail}
+          onChange={(e) => setNewEmail(e.target.value)}
+          placeholder="Enter email to allow registration"
+          className="email-input"
+          disabled={addingEmail}
+        />
+        <button type="submit" className="add-email-btn" disabled={addingEmail || !newEmail.trim()}>
+          {addingEmail ? 'Adding...' : 'Add Email'}
+        </button>
+      </form>
+
+      <div className="admin-table-container">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Status</th>
+              <th>Added</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {allowedEmails.map(item => {
+              const isRegistered = users.some(u => u.email === item.email);
+              return (
+                <tr key={item.id}>
+                  <td>{item.email}</td>
+                  <td>
+                    <span className={`status-badge ${isRegistered ? 'registered' : 'pending'}`}>
+                      {isRegistered ? 'Registered' : 'Pending'}
+                    </span>
+                  </td>
+                  <td>{formatDate(item.createdAt)}</td>
+                  <td>
+                    {item.email === 'aditya@saguncapital.com' ? (
+                      <span className="admin-protected">Protected</span>
+                    ) : (
+                      <button
+                        onClick={() => removeAllowedEmail(item.email)}
+                        className="remove-btn"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+            {allowedEmails.length === 0 && (
+              <tr>
+                <td colSpan={4} style={{ textAlign: 'center', color: 'var(--secondary-text-color)' }}>
+                  No allowed emails configured
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       <style jsx>{`
         .admin-panel {
@@ -314,6 +454,79 @@ export default function AdminPanel() {
         .role-select:disabled {
           opacity: 0.5;
           cursor: not-allowed;
+        }
+
+        .add-email-form {
+          display: flex;
+          gap: 0.75rem;
+          margin-bottom: 1rem;
+        }
+
+        .email-input {
+          flex: 1;
+          padding: 0.6rem 1rem;
+          border: 1px solid var(--border-color);
+          border-radius: 6px;
+          background: var(--bg-color);
+          color: var(--text-color);
+          font-size: 0.9rem;
+        }
+
+        .email-input:focus {
+          outline: none;
+          border-color: var(--accent-color);
+        }
+
+        .add-email-btn {
+          padding: 0.6rem 1.25rem;
+          background: var(--accent-color);
+          color: white;
+          border: none;
+          border-radius: 6px;
+          font-size: 0.9rem;
+          font-weight: 500;
+          cursor: pointer;
+        }
+
+        .add-email-btn:hover:not(:disabled) {
+          opacity: 0.9;
+        }
+
+        .add-email-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .status-badge {
+          display: inline-block;
+          padding: 0.25rem 0.75rem;
+          border-radius: 12px;
+          font-size: 0.75rem;
+          font-weight: 600;
+        }
+
+        .status-badge.registered {
+          background: rgba(34, 197, 94, 0.15);
+          color: var(--profit-green);
+        }
+
+        .status-badge.pending {
+          background: rgba(234, 179, 8, 0.15);
+          color: #eab308;
+        }
+
+        .remove-btn {
+          padding: 0.3rem 0.75rem;
+          background: rgba(239, 68, 68, 0.1);
+          color: var(--loss-red);
+          border: 1px solid var(--loss-red);
+          border-radius: 6px;
+          font-size: 0.8rem;
+          cursor: pointer;
+        }
+
+        .remove-btn:hover {
+          background: rgba(239, 68, 68, 0.2);
         }
       `}</style>
     </div>

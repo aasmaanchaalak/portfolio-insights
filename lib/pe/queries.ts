@@ -622,14 +622,14 @@ export async function createCommunication(
   `, [
     companyId,
     data.communicationType,
-    data.subject ?? null,
-    data.summary ?? null,
-    data.detailedNotes ?? null,
+    data.subject || null,
+    data.summary || null,
+    data.detailedNotes || null,
     data.communicationDate,
-    data.participants ?? null,
+    data.participants || null,
     data.followUpRequired ?? false,
-    data.followUpDate ?? null,
-    data.followUpNotes ?? null,
+    data.followUpDate || null,
+    data.followUpNotes || null,
     userEmail,
   ]);
   return transformRow<PECommunication>(rows[0]);
@@ -673,7 +673,7 @@ export async function updateCommunication(
   }
   if (data.followUpDate !== undefined) {
     sets.push(`follow_up_date = $${idx++}`);
-    values.push(data.followUpDate);
+    values.push(data.followUpDate || null);
   }
   if (data.followUpNotes !== undefined) {
     sets.push(`follow_up_notes = $${idx++}`);

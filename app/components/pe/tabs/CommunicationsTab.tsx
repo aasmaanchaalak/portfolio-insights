@@ -24,6 +24,8 @@ export function CommunicationsTab({ companyId }: CommunicationsTabProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [quickNote, setQuickNote] = useState('');
+  const [isAddingQuickNote, setIsAddingQuickNote] = useState(false);
   const [newComm, setNewComm] = useState<CreatePECommunicationRequest>({
     communicationType: 'note',
     subject: '',
@@ -57,7 +59,6 @@ export function CommunicationsTab({ companyId }: CommunicationsTabProps) {
 
   const handleAddCommunication = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newComm.communicationDate) return;
 
     setIsSaving(true);
     try {
@@ -66,7 +67,9 @@ export function CommunicationsTab({ companyId }: CommunicationsTabProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...newComm,
-          communicationDate: new Date(newComm.communicationDate).toISOString(),
+          communicationDate: newComm.communicationDate
+            ? new Date(newComm.communicationDate).toISOString()
+            : new Date().toISOString(),
         }),
       });
 
@@ -91,6 +94,35 @@ export function CommunicationsTab({ companyId }: CommunicationsTabProps) {
       alert('Failed to add communication');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleQuickNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickNote.trim()) return;
+
+    setIsAddingQuickNote(true);
+    try {
+      const response = await fetch(`/api/pe/${companyId}/communications`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          communicationType: 'note',
+          summary: quickNote.trim(),
+          communicationDate: new Date().toISOString(),
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to add note');
+
+      const data = await response.json();
+      setCommunications(prev => [data.communication, ...prev]);
+      setQuickNote('');
+    } catch (err) {
+      console.error('Error adding quick note:', err);
+      alert('Failed to add note');
+    } finally {
+      setIsAddingQuickNote(false);
     }
   };
 
@@ -138,9 +170,28 @@ export function CommunicationsTab({ companyId }: CommunicationsTabProps) {
           onClick={() => setShowAddForm(true)}
           type="button"
         >
-          + Add Entry
+          + Detailed Entry
         </button>
       </div>
+
+      {/* Quick Note Input */}
+      <form onSubmit={handleQuickNote} className="pe-quick-note-form">
+        <input
+          type="text"
+          value={quickNote}
+          onChange={e => setQuickNote(e.target.value)}
+          placeholder="Add a quick note..."
+          className="pe-quick-note-input"
+          disabled={isAddingQuickNote}
+        />
+        <button
+          type="submit"
+          className="pe-quick-note-btn"
+          disabled={isAddingQuickNote || !quickNote.trim()}
+        >
+          {isAddingQuickNote ? '...' : 'Add'}
+        </button>
+      </form>
 
       {/* Add Communication Form */}
       {showAddForm && (
@@ -161,12 +212,11 @@ export function CommunicationsTab({ companyId }: CommunicationsTabProps) {
                 </select>
               </div>
               <div className="pe-form-group">
-                <label>Date *</label>
+                <label>Date</label>
                 <input
                   type="date"
                   value={newComm.communicationDate}
                   onChange={e => setNewComm(prev => ({ ...prev, communicationDate: e.target.value }))}
-                  required
                 />
               </div>
             </div>

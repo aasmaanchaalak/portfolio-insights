@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { hashPassword, isEmailAllowed } from '../../../lib/auth';
-import { getUserByEmail, createUser } from '../../../lib/queries';
+import { hashPassword } from '../../../lib/auth';
+import { getUserByEmail, createUser, isEmailAllowed } from '../../../lib/queries';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -17,7 +17,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    if (!isEmailAllowed(normalizedEmail)) {
+    const allowed = await isEmailAllowed(normalizedEmail);
+    if (!allowed) {
       return res.status(403).json({ error: 'This email is not authorized to register' });
     }
 

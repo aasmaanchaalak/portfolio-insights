@@ -1243,7 +1243,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         <>
             <header className="main-header">
                 <h1>Portfolio Insights</h1>
-                {totalCurrentAmount > 0 && (
+                {totalCurrentAmount > 0 && !isAnalyst && (
                     <div className="portfolio-summary">
                         <span className="portfolio-label">Total Holdings Value:</span>
                         <span className="portfolio-value">₹{totalCurrentAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>

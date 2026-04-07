@@ -104,6 +104,65 @@ export async function deleteUser(email: string): Promise<void> {
   await query(`DELETE FROM users WHERE email = $1`, [email]);
 }
 
+// ============ Allowed Emails ============
+
+export interface AllowedEmail {
+  id: string;
+  email: string;
+  addedBy: string | null;
+  createdAt: string;
+}
+
+export async function isEmailAllowed(email: string): Promise<boolean> {
+  const row = await queryOne<any>(`
+    SELECT id FROM allowed_emails WHERE email = $1
+  `, [email.toLowerCase().trim()]);
+  return !!row;
+}
+
+export async function getAllowedEmails(): Promise<AllowedEmail[]> {
+  const rows = await query<any>(`
+    SELECT id, email, added_by, created_at
+    FROM allowed_emails
+    ORDER BY created_at DESC
+  `);
+
+  return rows.map(row => ({
+    id: row.id,
+    email: row.email,
+    addedBy: row.added_by,
+    createdAt: row.created_at,
+  }));
+}
+
+export async function addAllowedEmail(email: string, addedBy: string): Promise<AllowedEmail> {
+  const rows = await query<any>(`
+    INSERT INTO allowed_emails (email, added_by)
+    VALUES ($1, $2)
+    ON CONFLICT (email) DO NOTHING
+    RETURNING id, email, added_by, created_at
+  `, [email.toLowerCase().trim(), addedBy]);
+
+  if (rows.length === 0) {
+    throw new Error('Email already in allowlist');
+  }
+
+  const row = rows[0];
+  return {
+    id: row.id,
+    email: row.email,
+    addedBy: row.added_by,
+    createdAt: row.created_at,
+  };
+}
+
+export async function removeAllowedEmail(email: string): Promise<boolean> {
+  const result = await query(`
+    DELETE FROM allowed_emails WHERE email = $1
+  `, [email.toLowerCase().trim()]);
+  return (result as any).rowCount > 0;
+}
+
 // ============ Sessions ============
 
 export interface Session {

@@ -35,7 +35,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
       case 'POST': {
         const {
-          communicationType,
+          communicationType = 'note',
           subject,
           summary,
           detailedNotes,
@@ -46,11 +46,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           followUpNotes,
         } = req.body;
 
-        if (!communicationType || !communicationDate) {
-          return res.status(400).json({
-            error: 'Communication type and date are required',
-          });
-        }
+        // Use current date if not provided
+        const effectiveDate = communicationDate || new Date().toISOString();
 
         const communication = await createCommunication(
           companyId,
@@ -59,7 +56,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             subject,
             summary,
             detailedNotes,
-            communicationDate,
+            communicationDate: effectiveDate,
             participants,
             followUpRequired,
             followUpDate,
