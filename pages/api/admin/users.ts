@@ -7,7 +7,7 @@ const ADMIN_EMAIL = 'aditya@saguncapital.com';
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     // Get the current user from the auth middleware
-    const userEmail = (req as any).user?.userId;
+    const userEmail = (req as any).user?.email;
 
     if (!userEmail) {
       return res.status(401).json({ error: 'Not authenticated' });
