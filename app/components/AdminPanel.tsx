@@ -7,7 +7,7 @@ interface UserSummary {
   id: string;
   email: string;
   name: string | null;
-  role: 'portfolio' | 'analyst';
+  role: 'portfolio' | 'analyst' | 'manager';
   createdAt: string;
   lastLoginAt: string | null;
 }
@@ -113,7 +113,7 @@ export default function AdminPanel() {
     }
   };
 
-  const updateRole = async (email: string, newRole: 'portfolio' | 'analyst') => {
+  const updateRole = async (email: string, newRole: 'portfolio' | 'analyst' | 'manager') => {
     try {
       setUpdating(email);
       const res = await fetch('/api/admin/users', {
@@ -172,8 +172,12 @@ export default function AdminPanel() {
 
       <div className="role-legend">
         <div className="legend-item">
+          <span className="role-badge manager">Manager</span>
+          <span>Full access + can upload Screener/GridKey data and manage entry prices</span>
+        </div>
+        <div className="legend-item">
           <span className="role-badge portfolio">Portfolio</span>
-          <span>Full access to all data including financial amounts</span>
+          <span>Full access to all data; cannot access upload or data management pages</span>
         </div>
         <div className="legend-item">
           <span className="role-badge analyst">Analyst</span>
@@ -219,12 +223,13 @@ export default function AdminPanel() {
                     ) : (
                       <select
                         value={user.role}
-                        onChange={(e) => updateRole(user.email, e.target.value as 'portfolio' | 'analyst')}
+                        onChange={(e) => updateRole(user.email, e.target.value as 'portfolio' | 'analyst' | 'manager')}
                         disabled={updating === user.email}
                         className="role-select"
                       >
                         <option value="analyst">Analyst</option>
                         <option value="portfolio">Portfolio</option>
+                        <option value="manager">Manager</option>
                       </select>
                     )}
                   </td>
@@ -409,6 +414,10 @@ export default function AdminPanel() {
           text-transform: capitalize;
         }
 
+        .role-badge.manager {
+          background-color: rgba(124, 58, 237, 0.15);
+          color: #7c3aed;
+        }
         .role-badge.portfolio {
           background: rgba(34, 197, 94, 0.15);
           color: var(--profit-green);

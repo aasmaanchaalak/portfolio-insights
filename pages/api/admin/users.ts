@@ -35,8 +35,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         }
 
         // Validate role
-        if (role !== 'portfolio' && role !== 'analyst') {
-          return res.status(400).json({ error: 'Invalid role. Must be "portfolio" or "analyst"' });
+        if (role !== 'portfolio' && role !== 'analyst' && role !== 'manager') {
+          return res.status(400).json({ error: 'Invalid role. Must be "portfolio", "analyst", or "manager"' });
         }
 
         // Check if user exists

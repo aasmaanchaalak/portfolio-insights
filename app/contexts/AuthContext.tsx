@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 
-type UserRole = 'portfolio' | 'analyst';
+type UserRole = 'portfolio' | 'analyst' | 'manager';
 
 interface User {
   email: string;
@@ -15,6 +15,7 @@ interface AuthContextType {
   loading: boolean;
   isAdmin: boolean;
   isAnalyst: boolean;
+  isManager: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
@@ -30,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAdmin = user?.email === ADMIN_EMAIL;
   const isAnalyst = user?.role === 'analyst';
+  const isManager = user?.role === 'manager' || isAdmin;
 
   const checkAuth = useCallback(async () => {
     try {
@@ -114,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, isAdmin, isAnalyst, login, logout, register }}>
+    <AuthContext.Provider value={{ user, loading, isAdmin, isAnalyst, isManager, login, logout, register }}>
       {children}
     </AuthContext.Provider>
   );

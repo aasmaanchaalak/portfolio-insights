@@ -3169,8 +3169,8 @@ interface PrivateInvestments {
 }
 
 const App: React.FC = () => {
-    const { user, loading: authLoading, logout, isAdmin, isAnalyst } = useAuth();
-    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'momentum' | 'entrydata' | 'pe' | 'pipeline' | 'admin'>('dashboard');
+    const { user, loading: authLoading, logout, isAdmin, isAnalyst, isManager } = useAuth();
+    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'entrydata' | 'pe' | 'pipeline' | 'admin'>('dashboard');
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [privateInvestments, setPrivateInvestments] = useState<PrivateInvestments>({ totalInvested: 0, count: 0 });
@@ -3335,10 +3335,9 @@ const App: React.FC = () => {
                 <button className={page === 'dashboard' ? 'active' : ''} onClick={() => setPage('dashboard')}>Dashboard</button>
                 <button className={page === 'insights' ? 'active' : ''} onClick={() => setPage('insights')}>Portfolio Insights</button>
                 <button className={page === 'analysis' ? 'active' : ''} onClick={() => setPage('analysis')}>Analysis</button>
-                <button className={page === 'momentum' ? 'active' : ''} onClick={() => setPage('momentum')}>Trend & Momentum</button>
-                <button className={page === 'upload' ? 'active' : ''} onClick={() => setPage('upload')}>Screener Data</button>
-                <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>
-                <button className={page === 'entrydata' ? 'active' : ''} onClick={() => setPage('entrydata')}>Entry Data</button>
+                {isManager && <button className={page === 'upload' ? 'active' : ''} onClick={() => setPage('upload')}>Screener Data</button>}
+                {isManager && <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>}
+                {isManager && <button className={page === 'entrydata' ? 'active' : ''} onClick={() => setPage('entrydata')}>Entry Data</button>}
                 <button className={page === 'pe' ? 'active' : ''} onClick={() => setPage('pe')}>PE Tracker</button>
                 <button className={page === 'pipeline' ? 'active' : ''} onClick={() => setPage('pipeline')}>Pipeline</button>
                 {isAdmin && (
@@ -3352,7 +3351,6 @@ const App: React.FC = () => {
                 {page === 'dashboard' && <Dashboard gridKeyData={gridKeyData} stocks={stocks} privateInvestments={privateInvestments} isAnalyst={isAnalyst} />}
                 {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={stocks} onStocksUpdate={setStocks} isAnalyst={isAnalyst} />}
                 {page === 'analysis' && <AnalysisPage gridKeyData={gridKeyData} stocks={stocks} isAnalyst={isAnalyst} />}
-                {page === 'momentum' && <TrendMomentumPage gridKeyData={gridKeyData} stocks={stocks} />}
                 {page === 'upload' && <UploadPage onDataUploaded={handleDataUploaded} />}
                 {page === 'gridkey' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}
                 {page === 'entrydata' && <EntryDataPage gridKeyData={gridKeyData} stocks={stocks} />}
