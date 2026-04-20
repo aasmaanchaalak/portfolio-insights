@@ -17,6 +17,7 @@ import { PositioningChips } from './components/positioning/PositioningChip';
 import { PositioningFilters, PositioningFilterState, INITIAL_POSITIONING_FILTERS } from './components/positioning/PositioningFilters';
 import { StockPositioning, Conviction, StrategyType, ActionIntent } from '../types/positioning';
 import { PETracker } from './components/pe/PETracker';
+import { PipelinePage } from './components/pipeline/PipelinePage';
 
 type SortKey = keyof Stock;
 type SortDirection = 'ascending' | 'descending';
@@ -3169,7 +3170,7 @@ interface PrivateInvestments {
 
 const App: React.FC = () => {
     const { user, loading: authLoading, logout, isAdmin, isAnalyst } = useAuth();
-    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'momentum' | 'entrydata' | 'pe' | 'admin'>('dashboard');
+    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'momentum' | 'entrydata' | 'pe' | 'pipeline' | 'admin'>('dashboard');
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [privateInvestments, setPrivateInvestments] = useState<PrivateInvestments>({ totalInvested: 0, count: 0 });
@@ -3339,6 +3340,7 @@ const App: React.FC = () => {
                 <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>
                 <button className={page === 'entrydata' ? 'active' : ''} onClick={() => setPage('entrydata')}>Entry Data</button>
                 <button className={page === 'pe' ? 'active' : ''} onClick={() => setPage('pe')}>PE Tracker</button>
+                <button className={page === 'pipeline' ? 'active' : ''} onClick={() => setPage('pipeline')}>Pipeline</button>
                 {isAdmin && (
                     <button className={page === 'admin' ? 'active' : ''} onClick={() => setPage('admin')} style={{ background: page === 'admin' ? 'var(--accent-color)' : 'rgba(234, 179, 8, 0.15)', color: page === 'admin' ? 'white' : '#eab308' }}>Admin</button>
                 )}
@@ -3355,6 +3357,7 @@ const App: React.FC = () => {
                 {page === 'gridkey' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}
                 {page === 'entrydata' && <EntryDataPage gridKeyData={gridKeyData} stocks={stocks} />}
                 {page === 'pe' && <PETracker />}
+                {page === 'pipeline' && <PipelinePage />}
                 {page === 'admin' && <AdminPanel />}
             </main>
         </>
