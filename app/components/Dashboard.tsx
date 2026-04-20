@@ -90,6 +90,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
     const [alertsLoaded, setAlertsLoaded] = useState(false);
     const [niftySmallcap, setNiftySmallcap] = useState<NiftySmallcapData | null>(null);
     const [positioningData, setPositioningData] = useState<Record<string, { conviction: string; strategyType: string; actionIntent: string }>>({});
+    const [ytdReturn, setYtdReturn] = useState<{ pct: number; startValue: number; latestValue: number; startDate: string } | null>(null);
     const hasProcessedStates = useRef(false);
     const scrollPositionRef = useRef(0);
 
@@ -257,6 +258,34 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             }
         };
         loadPositioning();
+    }, []);
+
+    // YTD return from portfolio_history
+    useEffect(() => {
+        const loadYtd = async () => {
+            try {
+                const res = await fetch('/api/portfolio-history');
+                if (!res.ok) return;
+                const history: { date: string; value: number }[] = await res.json();
+                if (history.length < 2) return;
+
+                // Find FY start: April 1st (India FY)
+                const now = new Date();
+                const fyStartYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+                const fyStartStr = `${fyStartYear}-04-01`;
+
+                // Find closest entry on or after April 1st
+                const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
+                const startEntry = sorted.find(h => h.date >= fyStartStr) || sorted[0];
+                const latestEntry = sorted[sorted.length - 1];
+
+                if (!startEntry || !latestEntry || startEntry.date === latestEntry.date) return;
+
+                const pct = ((latestEntry.value - startEntry.value) / startEntry.value) * 100;
+                setYtdReturn({ pct, startValue: startEntry.value, latestValue: latestEntry.value, startDate: startEntry.date });
+            } catch {}
+        };
+        loadYtd();
     }, []);
 
     // Generate transition alerts and save current states (runs only once)
@@ -1165,6 +1194,17 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                             </div>
                         )}
                     </div>
+                    {!isAnalyst && ytdReturn && (
+                        <div className="overview-card">
+                            <div className="card-label">YTD (FY)</div>
+                            <div className={`card-value ${ytdReturn.pct >= 0 ? 'positive' : 'negative'}`}>
+                                {ytdReturn.pct >= 0 ? '+' : ''}{ytdReturn.pct.toFixed(1)}%
+                            </div>
+                            <div className="card-subtext">
+                                since {ytdReturn.startDate}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </section>
 

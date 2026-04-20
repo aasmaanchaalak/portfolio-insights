@@ -81,7 +81,7 @@ const allToggleableColumns = [
     { key: 'bucket', label: 'Bucket' },
 ];
 
-const TEAM_MEMBERS = ['Deepak', 'Aditya', 'Tushar', 'Aayush', 'Daksh', 'Siddhartha'];
+// TEAM_MEMBERS is now fetched dynamically from /api/team-members
 const BUCKETS = ['Long Term', 'Short Term', 'Special Situation'];
 
 const HeatmapCell: React.FC<{ value: number | null }> = ({ value }) => (
@@ -563,7 +563,7 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateIn
 // Columns that should be hidden from analysts (financial amounts)
 const ANALYST_RESTRICTED_COLUMNS = ['quantity', 'investedAmount', 'calculatedAmount', 'absoluteGain'];
 
-const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void; isAnalyst?: boolean }> = ({ gridKeyData, stocks, onStocksUpdate, isAnalyst = false }) => {
+const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void; isAnalyst?: boolean; teamMembers?: string[] }> = ({ gridKeyData, stocks, onStocksUpdate, isAnalyst = false, teamMembers = [] }) => {
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' }>({
         key: 'scripName',
         direction: 'ascending',
@@ -1314,7 +1314,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         <select id="assignedTo" name="assignedTo" value={filters.assignedTo} onChange={handleFilterChange}>
                                             <option value="All">All</option>
                                             <option value="Unassigned">Unassigned</option>
-                                            {TEAM_MEMBERS.map(member => <option key={member} value={member}>{member}</option>)}
+                                            {teamMembers.map(member => <option key={member} value={member}>{member}</option>)}
                                         </select>
                                     </div>
                                     <div className="filter-group">
@@ -1663,7 +1663,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                             className="assignment-select"
                                         >
                                             <option value="">Unassigned</option>
-                                            {TEAM_MEMBERS.map(member => (
+                                            {teamMembers.map(member => (
                                                 <option key={member} value={member}>{member}</option>
                                             ))}
                                         </select>
@@ -3175,6 +3175,16 @@ const App: React.FC = () => {
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [privateInvestments, setPrivateInvestments] = useState<PrivateInvestments>({ totalInvested: 0, count: 0 });
     const [loading, setLoading] = useState(true);
+    const [teamMembers, setTeamMembers] = useState<string[]>([]);
+
+    useEffect(() => {
+        if (user) {
+            fetch('/api/team-members')
+                .then(r => r.ok ? r.json() : [])
+                .then((data: { id: string; name: string }[]) => setTeamMembers(data.map(m => m.name)))
+                .catch(() => {});
+        }
+    }, [user]);
 
     useEffect(() => {
         const loadData = async () => {
@@ -3349,7 +3359,7 @@ const App: React.FC = () => {
             </nav>
             <main>
                 {page === 'dashboard' && <Dashboard gridKeyData={gridKeyData} stocks={stocks} privateInvestments={privateInvestments} isAnalyst={isAnalyst} />}
-                {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={stocks} onStocksUpdate={setStocks} isAnalyst={isAnalyst} />}
+                {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={stocks} onStocksUpdate={setStocks} isAnalyst={isAnalyst} teamMembers={teamMembers} />}
                 {page === 'analysis' && <AnalysisPage gridKeyData={gridKeyData} stocks={stocks} isAnalyst={isAnalyst} />}
                 {page === 'upload' && <UploadPage onDataUploaded={handleDataUploaded} />}
                 {page === 'gridkey' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}

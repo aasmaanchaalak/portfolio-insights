@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PipelineIdea, PipelineNote, PipelineStatus, PipelinePriority, GuidanceEntry } from '../../../types/pipeline';
 import './pipeline.css';
 
-const TEAM_MEMBERS = ['Aditya', 'Rahul', 'Priya', 'Vivek'];
+// Team members are fetched from /api/team-members at runtime
 
 const STATUSES: { value: PipelineStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -64,24 +64,33 @@ function todayStr(): string {
 interface IdeaFormModalProps {
   open: boolean;
   idea?: PipelineIdea | null;
+  teamMembers: string[];
   onClose: () => void;
   onSaved: (idea: PipelineIdea) => void;
 }
 
-function IdeaFormModal({ open, idea, onClose, onSaved }: IdeaFormModalProps) {
+function IdeaFormModal({ open, idea, teamMembers, onClose, onSaved }: IdeaFormModalProps) {
   const editing = !!idea;
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    ticker: '', companyName: '', addedBy: TEAM_MEMBERS[0], assignedTo: '',
+    ticker: '', exchange: 'NSE', companyName: '', addedBy: teamMembers[0] || '', assignedTo: '',
     source: '', whyInteresting: '', priceAtAdd: '', status: 'captured' as PipelineStatus,
     priority: 'medium' as PipelinePriority, decision: '', decisionReason: '',
     triggerCondition: '', dateAdded: todayStr(),
   });
+  const [tickerError, setTickerError] = useState('');
+
+  useEffect(() => {
+    if (form.addedBy === '' && teamMembers.length > 0) {
+      setForm(f => ({ ...f, addedBy: teamMembers[0] }));
+    }
+  }, [teamMembers]);
 
   useEffect(() => {
     if (idea) {
       setForm({
         ticker: idea.ticker,
+        exchange: 'NSE',
         companyName: idea.companyName,
         addedBy: idea.addedBy,
         assignedTo: idea.assignedTo || '',
@@ -97,21 +106,24 @@ function IdeaFormModal({ open, idea, onClose, onSaved }: IdeaFormModalProps) {
       });
     } else {
       setForm({
-        ticker: '', companyName: '', addedBy: TEAM_MEMBERS[0], assignedTo: '',
+        ticker: '', exchange: 'NSE', companyName: '', addedBy: teamMembers[0] || '', assignedTo: '',
         source: '', whyInteresting: '', priceAtAdd: '', status: 'captured',
         priority: 'medium', decision: '', decisionReason: '', triggerCondition: '',
         dateAdded: todayStr(),
       });
+      setTickerError('');
     }
   }, [idea, open]);
 
   const handleTickerBlur = async () => {
     if (!form.ticker || form.priceAtAdd) return;
+    const suffix = form.exchange === 'BSE' ? '.BO' : '.NS';
     try {
-      const res = await fetch(`/api/pipeline/price?ticker=${encodeURIComponent(form.ticker)}`);
+      const res = await fetch(`/api/pipeline/price?ticker=${encodeURIComponent(form.ticker + suffix)}`);
       const data = await res.json();
       if (data.price?.closePrice) {
         setForm(f => ({ ...f, priceAtAdd: String(data.price.closePrice) }));
+        setTickerError('');
       }
     } catch {}
   };
@@ -123,16 +135,43 @@ function IdeaFormModal({ open, idea, onClose, onSaved }: IdeaFormModalProps) {
     e.preventDefault();
     if (!form.ticker || !form.companyName || !form.addedBy) return;
     setSaving(true);
+    setTickerError('');
+
+    // Validate ticker + fetch current price on submit
+    let currentPrice: number | null = null;
+    try {
+      const suffix = form.exchange === 'BSE' ? '.BO' : '.NS';
+      const priceRes = await fetch(`/api/pipeline/price?ticker=${encodeURIComponent(form.ticker + suffix)}`);
+      const priceData = await priceRes.json();
+      if (priceData.price?.closePrice) {
+        currentPrice = priceData.price.closePrice;
+      } else {
+        // No cached price — not a fatal error, just warn
+        setTickerError(`No price data found for ${form.ticker}.${form.exchange === 'BSE' ? 'BO' : 'NS'}. Check the ticker/exchange or run the price update script.`);
+        setSaving(false);
+        return;
+      }
+    } catch {
+      setTickerError('Could not verify ticker. Check your connection and try again.');
+      setSaving(false);
+      return;
+    }
+
     try {
       const payload = {
-        ...form,
+        ticker: form.ticker,
+        companyName: form.companyName,
+        addedBy: form.addedBy,
         assignedTo: form.assignedTo || null,
         source: form.source || null,
         whyInteresting: form.whyInteresting || null,
-        priceAtAdd: form.priceAtAdd ? parseFloat(form.priceAtAdd) : null,
+        priceAtAdd: form.priceAtAdd ? parseFloat(form.priceAtAdd) : currentPrice,
+        status: form.status,
+        priority: form.priority,
         decision: form.decision || null,
         decisionReason: form.decisionReason || null,
         triggerCondition: form.triggerCondition || null,
+        dateAdded: form.dateAdded,
       };
       const url = editing ? `/api/pipeline/ideas/${idea!.id}` : '/api/pipeline/ideas';
       const method = editing ? 'PUT' : 'POST';
@@ -141,7 +180,7 @@ function IdeaFormModal({ open, idea, onClose, onSaved }: IdeaFormModalProps) {
       const data = await res.json();
       onSaved(data.idea);
       onClose();
-    } catch (err) {
+    } catch {
       alert('Failed to save. Please try again.');
     } finally {
       setSaving(false);
@@ -163,8 +202,15 @@ function IdeaFormModal({ open, idea, onClose, onSaved }: IdeaFormModalProps) {
             <div className="pipeline-form-grid">
               <div className="pipeline-form-group">
                 <label>Ticker *</label>
-                <input value={form.ticker} onChange={set('ticker')} onBlur={handleTickerBlur}
-                  placeholder="e.g. HDFCBANK" style={{ textTransform: 'uppercase' }} required />
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input value={form.ticker} onChange={set('ticker')} onBlur={handleTickerBlur}
+                    placeholder="e.g. HDFCBANK" style={{ textTransform: 'uppercase', flex: 1 }} required />
+                  <select value={form.exchange} onChange={set('exchange')} style={{ width: 70 }}>
+                    <option value="NSE">NSE</option>
+                    <option value="BSE">BSE</option>
+                  </select>
+                </div>
+                {tickerError && <span style={{ fontSize: '0.775rem', color: 'var(--error-color)', marginTop: '0.2rem' }}>{tickerError}</span>}
               </div>
               <div className="pipeline-form-group">
                 <label>Company Name *</label>
@@ -173,14 +219,14 @@ function IdeaFormModal({ open, idea, onClose, onSaved }: IdeaFormModalProps) {
               <div className="pipeline-form-group">
                 <label>Added By *</label>
                 <select value={form.addedBy} onChange={set('addedBy')}>
-                  {TEAM_MEMBERS.map(m => <option key={m}>{m}</option>)}
+                  {teamMembers.map(m => <option key={m}>{m}</option>)}
                 </select>
               </div>
               <div className="pipeline-form-group">
                 <label>Assigned To</label>
                 <select value={form.assignedTo} onChange={set('assignedTo')}>
                   <option value="">— Unassigned —</option>
-                  {TEAM_MEMBERS.map(m => <option key={m}>{m}</option>)}
+                  {teamMembers.map(m => <option key={m}>{m}</option>)}
                 </select>
               </div>
               <div className="pipeline-form-group">
@@ -249,17 +295,22 @@ function IdeaFormModal({ open, idea, onClose, onSaved }: IdeaFormModalProps) {
 interface IdeaDetailModalProps {
   open: boolean;
   idea: PipelineIdea | null;
+  teamMembers: string[];
   onClose: () => void;
   onEdit: (idea: PipelineIdea) => void;
   onDeleted: (id: string) => void;
 }
 
-function IdeaDetailModal({ open, idea, onClose, onEdit, onDeleted }: IdeaDetailModalProps) {
+function IdeaDetailModal({ open, idea, teamMembers, onClose, onEdit, onDeleted }: IdeaDetailModalProps) {
   const [notes, setNotes] = useState<PipelineNote[]>([]);
   const [noteInput, setNoteInput] = useState('');
-  const [noteAuthor, setNoteAuthor] = useState(TEAM_MEMBERS[0]);
+  const [noteAuthor, setNoteAuthor] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (noteAuthor === '' && teamMembers.length > 0) setNoteAuthor(teamMembers[0]);
+  }, [teamMembers]);
 
   useEffect(() => {
     if (!idea || !open) return;
@@ -394,7 +445,7 @@ function IdeaDetailModal({ open, idea, onClose, onEdit, onDeleted }: IdeaDetailM
                 placeholder="Add a note… (Enter to submit)"
               />
               <select value={noteAuthor} onChange={e => setNoteAuthor(e.target.value)} className="pipeline-filter-select" style={{ minWidth: 90 }}>
-                {TEAM_MEMBERS.map(m => <option key={m}>{m}</option>)}
+                {teamMembers.map(m => <option key={m}>{m}</option>)}
               </select>
               <button className="pipeline-btn-primary" onClick={addNote} disabled={savingNote || !noteInput.trim()} type="button">
                 Add
@@ -641,6 +692,14 @@ export function PipelinePage() {
   const [activeTab, setActiveTab] = useState<'pipeline' | 'guidance'>('pipeline');
   const [ideas, setIdeas] = useState<PipelineIdea[]>([]);
   const [loading, setLoading] = useState(true);
+  const [teamMembers, setTeamMembers] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch('/api/team-members')
+      .then(r => r.ok ? r.json() : [])
+      .then((data: { id: string; name: string }[]) => setTeamMembers(data.map(m => m.name)))
+      .catch(() => {});
+  }, []);
   const [statusFilter, setStatusFilter] = useState<PipelineStatus | 'all'>('all');
   const [search, setSearch] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<PipelinePriority | 'all'>('all');
@@ -861,12 +920,14 @@ export function PipelinePage() {
       <IdeaFormModal
         open={showAddModal}
         idea={editingIdea}
+        teamMembers={teamMembers}
         onClose={() => { setShowAddModal(false); setEditingIdea(null); }}
         onSaved={handleSaved}
       />
       <IdeaDetailModal
         open={!!detailIdea}
         idea={detailIdea}
+        teamMembers={teamMembers}
         onClose={() => setDetailIdea(null)}
         onEdit={idea => { setDetailIdea(null); handleEdit(idea); }}
         onDeleted={handleDeleted}

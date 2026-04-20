@@ -29,12 +29,93 @@ export default function AdminPanel() {
   const [newEmail, setNewEmail] = useState('');
   const [addingEmail, setAddingEmail] = useState(false);
 
+  // Portfolio value entry
+  const [portfolioValue, setPortfolioValue] = useState('');
+  const [portfolioSaving, setPortfolioSaving] = useState(false);
+  const [portfolioSaveMsg, setPortfolioSaveMsg] = useState('');
+  const [recentHistory, setRecentHistory] = useState<{ date: string; value: number }[]>([]);
+
+  // Team members
+  const [teamMembers, setTeamMembers] = useState<{ id: string; name: string }[]>([]);
+  const [newMemberName, setNewMemberName] = useState('');
+  const [addingMember, setAddingMember] = useState(false);
+
   useEffect(() => {
     if (isAdmin) {
       fetchUsers();
       fetchAllowedEmails();
+      fetchRecentHistory();
+      fetchTeamMembers();
     }
   }, [isAdmin]);
+
+  const fetchRecentHistory = async () => {
+    try {
+      const res = await fetch('/api/portfolio-history');
+      if (!res.ok) return;
+      const data: { date: string; value: number }[] = await res.json();
+      setRecentHistory(data.slice(-7).reverse());
+    } catch {}
+  };
+
+  const fetchTeamMembers = async () => {
+    try {
+      const res = await fetch('/api/admin/team-members');
+      if (!res.ok) return;
+      setTeamMembers(await res.json());
+    } catch {}
+  };
+
+  const addTeamMember = async () => {
+    if (!newMemberName.trim()) return;
+    setAddingMember(true);
+    try {
+      const res = await fetch('/api/admin/team-members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newMemberName.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      const member = await res.json();
+      setTeamMembers(prev => [...prev, member].sort((a, b) => a.name.localeCompare(b.name)));
+      setNewMemberName('');
+    } catch {
+      setError('Failed to add team member');
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
+  const removeTeamMember = async (id: string) => {
+    try {
+      await fetch('/api/admin/team-members', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+      setTeamMembers(prev => prev.filter(m => m.id !== id));
+    } catch {
+      setError('Failed to remove team member');
+    }
+  };
+
+  const savePortfolioValue = async () => {
+    const val = parseFloat(portfolioValue.replace(/,/g, ''));
+    if (!val || isNaN(val)) return;
+    setPortfolioSaving(true);
+    setPortfolioSaveMsg('');
+    try {
+      const res = await fetch('/api/portfolio-history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: val }),
+      });
+      if (!res.ok) throw new Error();
+      setPortfolioSaveMsg('Saved ✓');
+      setPortfolioValue('');
+      fetchRecentHistory();
+    } catch {
+      setPortfolioSaveMsg('Failed to save');
+    } finally {
+      setPortfolioSaving(false);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -169,6 +250,89 @@ export default function AdminPanel() {
           <button onClick={() => setError('')} style={{ marginLeft: '1rem' }}>Dismiss</button>
         </div>
       )}
+
+      {/* Portfolio Value Entry */}
+      <div className="admin-section" style={{ marginBottom: '2rem', padding: '1.25rem', background: 'var(--surface-color)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+        <h3 style={{ margin: '0 0 0.75rem', fontSize: '1rem', fontWeight: 600 }}>Portfolio Value</h3>
+        <p style={{ margin: '0 0 1rem', fontSize: '0.875rem', color: 'var(--secondary-text-color)' }}>
+          Enter today's total portfolio value to track YTD return on the dashboard.
+        </p>
+        <div style={{ display: 'flex', gap: '0.625rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            type="text"
+            value={portfolioValue}
+            onChange={e => setPortfolioValue(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && savePortfolioValue()}
+            placeholder="e.g. 42500000"
+            style={{ padding: '0.4375rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: '6px', background: 'var(--background-color)', color: 'var(--primary-text-color)', fontSize: '0.875rem', width: 180 }}
+          />
+          <button
+            onClick={savePortfolioValue}
+            disabled={portfolioSaving || !portfolioValue}
+            style={{ padding: '0.4375rem 1rem', background: 'var(--accent-color)', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', opacity: portfolioSaving ? 0.6 : 1 }}
+          >
+            {portfolioSaving ? 'Saving…' : 'Save for Today'}
+          </button>
+          {portfolioSaveMsg && (
+            <span style={{ fontSize: '0.875rem', color: portfolioSaveMsg.includes('✓') ? 'var(--success-color)' : 'var(--error-color)' }}>
+              {portfolioSaveMsg}
+            </span>
+          )}
+        </div>
+        {recentHistory.length > 0 && (
+          <div style={{ marginTop: '1rem' }}>
+            <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--secondary-text-color)', marginBottom: '0.375rem' }}>Recent entries</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              {recentHistory.map(h => (
+                <div key={h.date} style={{ display: 'flex', gap: '1.5rem', fontSize: '0.8125rem' }}>
+                  <span style={{ color: 'var(--secondary-text-color)', width: 90 }}>{h.date}</span>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                    ₹{h.value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Team Members */}
+      <div className="admin-section" style={{ marginBottom: '2rem', padding: '1.25rem', background: 'var(--surface-color)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+        <h3 style={{ margin: '0 0 0.25rem', fontSize: '1rem', fontWeight: 600 }}>Team Members</h3>
+        <p style={{ margin: '0 0 1rem', fontSize: '0.875rem', color: 'var(--secondary-text-color)' }}>
+          Names used for "Assigned To" in the portfolio table and ideas pipeline.
+        </p>
+        <div style={{ display: 'flex', gap: '0.625rem', marginBottom: '0.875rem' }}>
+          <input
+            type="text"
+            value={newMemberName}
+            onChange={e => setNewMemberName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addTeamMember()}
+            placeholder="Name"
+            style={{ padding: '0.4375rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: '6px', background: 'var(--background-color)', color: 'var(--primary-text-color)', fontSize: '0.875rem', width: 180 }}
+          />
+          <button
+            onClick={addTeamMember}
+            disabled={addingMember || !newMemberName.trim()}
+            style={{ padding: '0.4375rem 1rem', background: 'var(--accent-color)', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', opacity: addingMember ? 0.6 : 1 }}
+          >
+            Add
+          </button>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+          {teamMembers.map(m => (
+            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', background: 'var(--pill-bg-color)', borderRadius: '999px', padding: '0.25rem 0.625rem 0.25rem 0.875rem', fontSize: '0.875rem' }}>
+              {m.name}
+              <button
+                onClick={() => removeTeamMember(m.id)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--secondary-text-color)', fontSize: '1rem', lineHeight: 1, padding: 0 }}
+                title="Remove"
+              >×</button>
+            </div>
+          ))}
+          {teamMembers.length === 0 && <span style={{ fontSize: '0.875rem', color: 'var(--secondary-text-color)' }}>No team members yet.</span>}
+        </div>
+      </div>
 
       <div className="role-legend">
         <div className="legend-item">

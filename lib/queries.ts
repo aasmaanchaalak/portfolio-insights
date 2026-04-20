@@ -620,3 +620,23 @@ export async function setCache(key: string, value: any, ttlSeconds?: number): Pr
 export async function deleteCache(key: string): Promise<void> {
   await query(`DELETE FROM cache WHERE key = $1`, [key]);
 }
+
+// ============ Team Members ============
+
+export async function getTeamMembers(): Promise<{ id: string; name: string }[]> {
+  const rows = await query<any>(`SELECT id, name FROM team_members ORDER BY name ASC`);
+  return rows.map(r => ({ id: r.id, name: r.name }));
+}
+
+export async function addTeamMember(name: string): Promise<{ id: string; name: string }> {
+  const rows = await query<any>(
+    `INSERT INTO team_members (name) VALUES ($1) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id, name`,
+    [name.trim()]
+  );
+  return { id: rows[0].id, name: rows[0].name };
+}
+
+export async function deleteTeamMember(id: string): Promise<boolean> {
+  const rows = await query<any>(`DELETE FROM team_members WHERE id = $1 RETURNING id`, [id]);
+  return rows.length > 0;
+}
