@@ -623,12 +623,24 @@ export async function deleteCache(key: string): Promise<void> {
 
 // ============ Team Members ============
 
+async function ensureTeamMembersTable(): Promise<void> {
+  await query(`
+    CREATE TABLE IF NOT EXISTS team_members (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      name VARCHAR(100) NOT NULL UNIQUE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `);
+}
+
 export async function getTeamMembers(): Promise<{ id: string; name: string }[]> {
+  await ensureTeamMembersTable();
   const rows = await query<any>(`SELECT id, name FROM team_members ORDER BY name ASC`);
   return rows.map(r => ({ id: r.id, name: r.name }));
 }
 
 export async function addTeamMember(name: string): Promise<{ id: string; name: string }> {
+  await ensureTeamMembersTable();
   const rows = await query<any>(
     `INSERT INTO team_members (name) VALUES ($1) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id, name`,
     [name.trim()]

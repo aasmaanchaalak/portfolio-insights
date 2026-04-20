@@ -31,6 +31,7 @@ export default function AdminPanel() {
 
   // Portfolio value entry
   const [portfolioValue, setPortfolioValue] = useState('');
+  const [portfolioDate, setPortfolioDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [portfolioSaving, setPortfolioSaving] = useState(false);
   const [portfolioSaveMsg, setPortfolioSaveMsg] = useState('');
   const [recentHistory, setRecentHistory] = useState<{ date: string; value: number }[]>([]);
@@ -104,7 +105,7 @@ export default function AdminPanel() {
       const res = await fetch('/api/portfolio-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: val }),
+        body: JSON.stringify({ value: val, date: portfolioDate }),
       });
       if (!res.ok) throw new Error();
       setPortfolioSaveMsg('Saved ✓');
@@ -259,12 +260,18 @@ export default function AdminPanel() {
         </p>
         <div style={{ display: 'flex', gap: '0.625rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <input
+            type="date"
+            value={portfolioDate}
+            onChange={e => setPortfolioDate(e.target.value)}
+            style={{ padding: '0.4375rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: '6px', background: 'var(--background-color)', color: 'var(--primary-text-color)', fontSize: '0.875rem' }}
+          />
+          <input
             type="text"
             value={portfolioValue}
             onChange={e => setPortfolioValue(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && savePortfolioValue()}
             placeholder="e.g. 42500000"
-            style={{ padding: '0.4375rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: '6px', background: 'var(--background-color)', color: 'var(--primary-text-color)', fontSize: '0.875rem', width: 180 }}
+            style={{ padding: '0.4375rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: '6px', background: 'var(--background-color)', color: 'var(--primary-text-color)', fontSize: '0.875rem', width: 160 }}
           />
           <button
             onClick={savePortfolioValue}

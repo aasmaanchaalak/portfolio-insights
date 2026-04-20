@@ -14,17 +14,22 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       }
     } else if (req.method === 'POST') {
       try {
-        const { value } = req.body;
+        const { value, date } = req.body;
 
         if (typeof value !== 'number') {
           return res.status(400).json({ error: 'Value must be a number' });
         }
 
-        // Get current date in YYYY-MM-DD format (IST timezone)
-        const now = new Date();
-        const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
-        const istDate = new Date(now.getTime() + istOffset);
-        const dateStr = istDate.toISOString().split('T')[0];
+        let dateStr: string;
+        if (date && typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          dateStr = date;
+        } else {
+          // Default to today in IST
+          const now = new Date();
+          const istOffset = 5.5 * 60 * 60 * 1000;
+          const istDate = new Date(now.getTime() + istOffset);
+          dateStr = istDate.toISOString().split('T')[0];
+        }
 
         await savePortfolioHistoryEntry(dateStr, value);
         res.status(200).json({ success: true, message: 'Portfolio history updated successfully' });
