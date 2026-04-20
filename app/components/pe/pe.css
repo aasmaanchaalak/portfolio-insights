@@ -1314,3 +1314,150 @@
   font-size: 0.7rem;
   cursor: pointer;
 }
+
+/* ============ Valuation Tab ============ */
+.pe-valuation-container {
+  position: relative;
+  padding: 1rem;
+}
+
+.pe-valuation-status {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  font-size: 0.75rem;
+  color: var(--secondary-text-color);
+  min-width: 70px;
+  text-align: right;
+}
+
+.pe-valuation-scroll {
+  overflow-x: auto;
+  margin-top: 0.5rem;
+}
+
+.pe-valuation-table {
+  border-collapse: collapse;
+  width: auto;
+  min-width: 100%;
+}
+
+.pe-valuation-table th,
+.pe-valuation-table td {
+  border: 1px solid var(--border-color);
+  padding: 0;
+}
+
+.pe-valuation-table th {
+  background: var(--pill-bg-color, #f3f4f6);
+}
+
+.pe-valuation-corner {
+  min-width: 140px;
+}
+
+.pe-valuation-add-col-th {
+  border: none !important;
+  background: transparent !important;
+  vertical-align: middle;
+}
+
+.pe-valuation-header-cell {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  min-width: 100px;
+}
+
+.pe-valuation-row-label-cell {
+  background: var(--pill-bg-color, #f3f4f6);
+  min-width: 140px;
+}
+
+.pe-valuation-row-label {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+}
+
+.pe-valuation-year-input {
+  text-align: center;
+  font-weight: 600;
+}
+
+.pe-valuation-cell-input {
+  width: 100%;
+  min-width: 90px;
+  border: none;
+  background: transparent;
+  padding: 7px 8px;
+  text-align: right;
+  font-size: 0.875rem;
+  color: var(--primary-text-color);
+  -moz-appearance: textfield;
+}
+
+.pe-valuation-cell-input::-webkit-outer-spin-button,
+.pe-valuation-cell-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.pe-valuation-label-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 7px 4px;
+  font-size: 0.875rem;
+  color: var(--primary-text-color);
+  font-weight: 500;
+  min-width: 0;
+  flex: 1;
+}
+
+.pe-valuation-cell-input:focus,
+.pe-valuation-label-input:focus {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
+}
+
+.pe-valuation-delete-btn {
+  background: none;
+  border: none;
+  color: var(--secondary-text-color);
+  cursor: pointer;
+  padding: 1px 3px;
+  opacity: 0;
+  font-size: 0.9rem;
+  line-height: 1;
+  border-radius: 3px;
+  flex-shrink: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.pe-valuation-header-cell:hover .pe-valuation-delete-btn,
+.pe-valuation-row-label:hover .pe-valuation-delete-btn {
+  opacity: 1;
+}
+
+.pe-valuation-delete-btn:hover {
+  background: var(--negative-color);
+  color: #fff;
+}
+
+.pe-valuation-add-btn {
+  background: none;
+  border: none;
+  color: var(--accent-color);
+  cursor: pointer;
+  padding: 7px 10px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.pe-valuation-add-btn:hover {
+  opacity: 0.75;
+}
+

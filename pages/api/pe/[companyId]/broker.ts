@@ -13,54 +13,31 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    // Verify company exists
     const company = await getCompanyById(companyId);
-    if (!company) {
-      return res.status(404).json({ error: 'Company not found' });
-    }
+    if (!company) return res.status(404).json({ error: 'Company not found' });
 
     switch (method) {
       case 'GET': {
         const broker = await getBroker(companyId);
-        const sanitizedBroker = sanitizeBroker(broker, userEmail);
-        return res.status(200).json({ broker: sanitizedBroker });
+        return res.status(200).json({ broker: sanitizeBroker(broker, userEmail) });
       }
 
       case 'PUT': {
-        // Only admin can update broker info
         if (!canModifySensitiveData(userEmail)) {
           return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
         }
-
         const { brokerName, brokerFirm, brokerEmail, brokerPhone, notes } = req.body;
-
-        if (!brokerName) {
-          return res.status(400).json({ error: 'Broker name is required' });
-        }
-
-        const broker = await upsertBroker(companyId, {
-          brokerName,
-          brokerFirm,
-          brokerEmail,
-          brokerPhone,
-          notes,
-        });
-
+        if (!brokerName) return res.status(400).json({ error: 'Broker name is required' });
+        const broker = await upsertBroker(companyId, { brokerName, brokerFirm, brokerEmail, brokerPhone, notes });
         return res.status(200).json({ broker });
       }
 
       case 'DELETE': {
-        // Only admin can delete broker info
         if (!canModifySensitiveData(userEmail)) {
           return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
         }
-
         const deleted = await deleteBroker(companyId);
-
-        if (!deleted) {
-          return res.status(404).json({ error: 'Broker not found' });
-        }
-
+        if (!deleted) return res.status(404).json({ error: 'Broker not found' });
         return res.status(200).json({ success: true });
       }
 

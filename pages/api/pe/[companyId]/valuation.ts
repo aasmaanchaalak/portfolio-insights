@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { withAuth } from '../../../../lib/authMiddleware';
-import { getCompanyById, updateMonitoring } from '../../../../lib/pe/queries';
+import { getCompanyById, getValuation, upsertValuation } from '../../../../lib/pe/queries';
+import { ValuationTableData } from '../../../../types/pe';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { method } = req;
@@ -16,22 +17,17 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     switch (method) {
       case 'GET': {
-        return res.status(200).json({ company });
+        const tableData = await getValuation(companyId);
+        return res.status(200).json({ tableData });
       }
 
       case 'PUT': {
-        const {
-          latestEarningsUpdate, latestEarningsDate, managementGuidance,
-          guidanceVsActual, guidanceVsActualNotes, fy26AnnualReportReceived,
-          fy26AnnualReportDate, lastAuditedFinancialsReceived, latestDeckReceived, latestDeckName,
-        } = req.body;
-
-        const updated = await updateMonitoring(companyId, {
-          latestEarningsUpdate, latestEarningsDate, managementGuidance,
-          guidanceVsActual, guidanceVsActualNotes, fy26AnnualReportReceived,
-          fy26AnnualReportDate, lastAuditedFinancialsReceived, latestDeckReceived, latestDeckName,
-        });
-        return res.status(200).json({ company: updated });
+        const { tableData } = req.body as { tableData: ValuationTableData };
+        if (!tableData || typeof tableData !== 'object') {
+          return res.status(400).json({ error: 'tableData is required' });
+        }
+        const saved = await upsertValuation(companyId, tableData);
+        return res.status(200).json({ tableData: saved });
       }
 
       default:
@@ -39,7 +35,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         return res.status(405).json({ error: `Method ${method} Not Allowed` });
     }
   } catch (error) {
-    console.error('PE Monitoring API error:', error);
+    console.error('PE Valuation API error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 }

@@ -1,62 +1,28 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuth, AuthenticatedRequest } from '../../../../lib/authMiddleware';
-import {
-  getCompanyById,
-  getThesis,
-  getThesisBreakConditions,
-  updateThesis,
-} from '../../../../lib/pe/queries';
+import { withAuth } from '../../../../lib/authMiddleware';
+import { getCompanyById, updateThesis } from '../../../../lib/pe/queries';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { method } = req;
   const { companyId } = req.query;
-  const userEmail = (req as AuthenticatedRequest).user.email;
 
   if (!companyId || typeof companyId !== 'string') {
     return res.status(400).json({ error: 'Company ID is required' });
   }
 
   try {
-    // Verify company exists
     const company = await getCompanyById(companyId);
-    if (!company) {
-      return res.status(404).json({ error: 'Company not found' });
-    }
+    if (!company) return res.status(404).json({ error: 'Company not found' });
 
     switch (method) {
       case 'GET': {
-        const thesis = await getThesis(companyId);
-
-        if (!thesis) {
-          return res.status(200).json({
-            thesis: null,
-            breakConditions: [],
-          });
-        }
-
-        const breakConditions = await getThesisBreakConditions(thesis.id);
-
-        return res.status(200).json({
-          thesis,
-          breakConditions,
-        });
+        return res.status(200).json({ company });
       }
 
       case 'PUT': {
         const { status, originalThesis, keyDrivers, latestNote, breakConditions } = req.body;
-
-        const thesis = await updateThesis(
-          companyId,
-          { status, originalThesis, keyDrivers, latestNote, breakConditions },
-          userEmail
-        );
-
-        const updatedBreakConditions = await getThesisBreakConditions(thesis.id);
-
-        return res.status(200).json({
-          thesis,
-          breakConditions: updatedBreakConditions,
-        });
+        const updated = await updateThesis(companyId, { status, originalThesis, keyDrivers, latestNote, breakConditions });
+        return res.status(200).json({ company: updated });
       }
 
       default:

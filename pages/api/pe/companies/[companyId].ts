@@ -1,13 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuth, AuthenticatedRequest } from '../../../../lib/authMiddleware';
-import {
-  getCompanyById,
-  updateCompany,
-  deleteCompany,
-  getInvestment,
-  getThesis,
-  getMonitoring,
-} from '../../../../lib/pe/queries';
+import { withAuth } from '../../../../lib/authMiddleware';
+import { getCompanyById, updateCompany, deleteCompany } from '../../../../lib/pe/queries';
 import { calculateMetrics } from '../../../../lib/pe/calculations';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -22,55 +15,21 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     switch (method) {
       case 'GET': {
         const company = await getCompanyById(companyId);
-
-        if (!company) {
-          return res.status(404).json({ error: 'Company not found' });
-        }
-
-        // Fetch related data
-        const [investment, thesis, monitoring] = await Promise.all([
-          getInvestment(companyId),
-          getThesis(companyId),
-          getMonitoring(companyId),
-        ]);
-
-        const metrics = calculateMetrics(investment);
-
-        return res.status(200).json({
-          company,
-          investment,
-          thesis,
-          monitoring,
-          metrics,
-        });
+        if (!company) return res.status(404).json({ error: 'Company not found' });
+        const metrics = calculateMetrics(company);
+        return res.status(200).json({ company, metrics });
       }
 
       case 'PUT': {
         const { companyName, companyCode, sector, subSector, website, description } = req.body;
-
-        const company = await updateCompany(companyId, {
-          companyName,
-          companyCode,
-          sector,
-          subSector,
-          website,
-          description,
-        });
-
-        if (!company) {
-          return res.status(404).json({ error: 'Company not found' });
-        }
-
+        const company = await updateCompany(companyId, { companyName, companyCode, sector, subSector, website, description });
+        if (!company) return res.status(404).json({ error: 'Company not found' });
         return res.status(200).json(company);
       }
 
       case 'DELETE': {
         const deleted = await deleteCompany(companyId);
-
-        if (!deleted) {
-          return res.status(404).json({ error: 'Company not found' });
-        }
-
+        if (!deleted) return res.status(404).json({ error: 'Company not found' });
         return res.status(200).json({ success: true });
       }
 

@@ -1,6 +1,41 @@
 // Private Equity Tracker Types
 
-// ============ Core Entities ============
+export type ThesisStatus = 'intact' | 'monitor' | 'broken';
+export type GuidanceVsActual = 'ahead' | 'on_track' | 'behind' | 'missed';
+export type ContactType = 'company_poc' | 'broker' | 'board_member' | 'advisor' | 'other';
+export type CommunicationType = 'email' | 'call' | 'meeting' | 'site_visit' | 'board_meeting' | 'document_received' | 'note' | 'other';
+
+// ============ Break Condition (stored as JSONB on PECompany) ============
+
+export interface PEThesisBreakCondition {
+  id: string;
+  condition: string;
+  isTriggered: boolean;
+  triggeredAt: string | null;
+  sortOrder: number;
+}
+
+// ============ Valuation Table (stored as JSONB on PECompany) ============
+
+export interface ValuationRow {
+  id: string;
+  label: string;
+  order: number;
+}
+
+export interface ValuationColumn {
+  id: string;
+  year: string;
+  order: number;
+}
+
+export interface ValuationTableData {
+  rows: ValuationRow[];
+  columns: ValuationColumn[];
+  cells: Record<string, number | null>;
+}
+
+// ============ Core Entity: Single source of truth ============
 
 export interface PECompany {
   id: string;
@@ -13,12 +48,9 @@ export interface PECompany {
   createdAt: string;
   updatedAt: string;
   createdBy: string | null;
-}
 
-export interface PEInvestment {
-  id: string;
-  companyId: string;
-  investedValue: number;
+  // Investment
+  investedValue: number | null;
   currentValue: number | null;
   pricePerShare: number | null;
   quantityHeld: number | null;
@@ -27,52 +59,16 @@ export interface PEInvestment {
   lastValuationDate: string | null;
   valuationSource: string | null;
   currency: string;
-  createdAt: string;
-  updatedAt: string;
-}
 
-export type ThesisStatus = 'intact' | 'monitor' | 'broken';
-
-export interface PEThesis {
-  id: string;
-  companyId: string;
-  status: ThesisStatus;
+  // Thesis
+  thesisStatus: ThesisStatus | null;
   originalThesis: string | null;
   keyDrivers: string | null;
   latestNote: string | null;
   lastReviewDate: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
+  breakConditions: PEThesisBreakCondition[];
 
-export interface PEThesisBreakCondition {
-  id: string;
-  thesisId: string;
-  condition: string;
-  isTriggered: boolean;
-  triggeredAt: string | null;
-  sortOrder: number;
-  createdAt: string;
-}
-
-export interface PEThesisHistory {
-  id: string;
-  thesisId: string;
-  actionType: string;
-  fieldChanged: string | null;
-  oldValue: string | null;
-  newValue: string | null;
-  note: string | null;
-  userEmail: string | null;
-  changeGroupId: string | null;
-  createdAt: string;
-}
-
-export type GuidanceVsActual = 'ahead' | 'on_track' | 'behind' | 'missed';
-
-export interface PEMonitoring {
-  id: string;
-  companyId: string;
+  // Monitoring
   latestEarningsUpdate: string | null;
   latestEarningsDate: string | null;
   managementGuidance: string | null;
@@ -83,11 +79,30 @@ export interface PEMonitoring {
   lastAuditedFinancialsReceived: string | null;
   latestDeckReceived: string | null;
   latestDeckName: string | null;
-  createdAt: string;
-  updatedAt: string;
+
+  // Broker
+  brokerName: string | null;
+  brokerFirm: string | null;
+  brokerEmail: string | null;
+  brokerPhone: string | null;
+  brokerNotes: string | null;
+
+  // Valuation table
+  valuationTable: ValuationTableData | null;
 }
 
-export type ContactType = 'company_poc' | 'broker' | 'board_member' | 'advisor' | 'other';
+// ============ Broker (returned by broker API, extracted from PECompany) ============
+
+export interface PEBroker {
+  companyId: string;
+  brokerName: string;
+  brokerFirm: string | null;
+  brokerEmail: string | null;
+  brokerPhone: string | null;
+  notes: string | null;
+}
+
+// ============ Contacts ============
 
 export interface PEContact {
   id: string;
@@ -105,27 +120,7 @@ export interface PEContact {
   updatedAt: string;
 }
 
-export interface PEBroker {
-  id: string;
-  companyId: string;
-  brokerName: string;
-  brokerFirm: string | null;
-  brokerEmail: string | null;
-  brokerPhone: string | null;
-  notes: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export type CommunicationType =
-  | 'email'
-  | 'call'
-  | 'meeting'
-  | 'site_visit'
-  | 'board_meeting'
-  | 'document_received'
-  | 'note'
-  | 'other';
+// ============ Communications ============
 
 export interface PECommunication {
   id: string;
@@ -144,26 +139,7 @@ export interface PECommunication {
   updatedAt: string;
 }
 
-// ============ Composite Types ============
-
-export interface PECompanyWithInvestment extends PECompany {
-  investment: PEInvestment | null;
-  thesis: Pick<PEThesis, 'status'> | null;
-}
-
-export interface PECompanyDetail {
-  company: PECompany;
-  investment: PEInvestment | null;
-  thesis: PEThesis | null;
-  thesisBreakConditions: PEThesisBreakCondition[];
-  monitoring: PEMonitoring | null;
-}
-
-export interface PEThesisWithConditions extends PEThesis {
-  breakConditions: PEThesisBreakCondition[];
-}
-
-// ============ Calculated Metrics ============
+// ============ Computed Metrics ============
 
 export interface PEMetrics {
   moic: number | null;
@@ -172,15 +148,29 @@ export interface PEMetrics {
   totalGainLossPercentage: number | null;
 }
 
-// ============ API Request/Response Types ============
+// ============ List View ============
+
+export interface PECompanyListItem {
+  id: string;
+  companyName: string;
+  companyCode: string;
+  sector: string | null;
+  investedValue: number | null;
+  currentValue: number | null;
+  moic: number | null;
+  thesisStatus: ThesisStatus | null;
+  lastCommunicationDate: string | null;
+}
+
+// ============ Request Types ============
 
 export interface CreatePECompanyRequest {
   companyName: string;
   companyCode: string;
-  sector?: string;
-  subSector?: string;
-  website?: string;
-  description?: string;
+  sector?: string | null;
+  subSector?: string | null;
+  website?: string | null;
+  description?: string | null;
 }
 
 export interface UpdatePECompanyRequest {
@@ -230,6 +220,14 @@ export interface UpdatePEMonitoringRequest {
   latestDeckName?: string | null;
 }
 
+export interface UpdatePEBrokerRequest {
+  brokerName: string;
+  brokerFirm?: string | null;
+  brokerEmail?: string | null;
+  brokerPhone?: string | null;
+  notes?: string | null;
+}
+
 export interface CreatePEContactRequest {
   contactType: ContactType;
   name: string;
@@ -253,14 +251,6 @@ export interface UpdatePEContactRequest {
   lastCommunicationDate?: string | null;
 }
 
-export interface UpdatePEBrokerRequest {
-  brokerName: string;
-  brokerFirm?: string | null;
-  brokerEmail?: string | null;
-  brokerPhone?: string | null;
-  notes?: string | null;
-}
-
 export interface CreatePECommunicationRequest {
   communicationType: CommunicationType;
   subject?: string;
@@ -271,29 +261,4 @@ export interface CreatePECommunicationRequest {
   followUpRequired?: boolean;
   followUpDate?: string;
   followUpNotes?: string;
-}
-
-// ============ List Response Types ============
-
-export interface PECompanyListItem {
-  id: string;
-  companyName: string;
-  companyCode: string;
-  sector: string | null;
-  investedValue: number | null;
-  currentValue: number | null;
-  moic: number | null;
-  thesisStatus: ThesisStatus | null;
-  lastCommunicationDate: string | null;
-}
-
-export interface PEThesisHistoryItem {
-  id: string;
-  actionType: string;
-  fieldChanged: string | null;
-  oldValue: string | null;
-  newValue: string | null;
-  note: string | null;
-  userEmail: string | null;
-  createdAt: string;
 }
