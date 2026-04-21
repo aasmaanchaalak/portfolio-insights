@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { DndContext, useDraggable, useDroppable, useSensors, useSensor, PointerSensor, type DragEndEvent } from '@dnd-kit/core';
 import { PipelineIdea, PipelineNote, PipelineStatus, PipelinePriority, GuidanceEntry } from '../../../types/pipeline';
 import { useAuth } from '../../contexts/AuthContext';
 import './pipeline.css';
@@ -44,7 +45,7 @@ const STATUS_LABEL: Record<PipelineStatus, string> = {
 
 function fmt(n: number | null): string {
   if (n === null) return '—';
-  return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 function fmtPct(a: number | null, b: number | null): string {
@@ -104,8 +105,12 @@ function IdeaFormModal({ open, idea, teamMembers, defaultAuthor, onClose, onSave
   const [tickerError, setTickerError] = useState('');
 
   useEffect(() => {
-    if (form.addedBy === '' && defaultAuthor) {
-      setForm(f => ({ ...f, addedBy: defaultAuthor }));
+    if (defaultAuthor) {
+      setForm(f => ({
+        ...f,
+        addedBy: f.addedBy || defaultAuthor,
+        assignedTo: f.assignedTo || defaultAuthor,
+      }));
     }
   }, [defaultAuthor]);
 
@@ -129,7 +134,7 @@ function IdeaFormModal({ open, idea, teamMembers, defaultAuthor, onClose, onSave
       });
     } else {
       setForm({
-        ticker: '', exchange: 'NSE', companyName: '', addedBy: defaultAuthor, assignedTo: '',
+        ticker: '', exchange: 'NSE', companyName: '', addedBy: defaultAuthor, assignedTo: defaultAuthor,
         source: '', whyInteresting: '', priceAtAdd: '', status: 'captured',
         priority: 'medium', decision: '', decisionReason: '', triggerCondition: '',
         dateAdded: todayStr(),
@@ -160,23 +165,24 @@ function IdeaFormModal({ open, idea, teamMembers, defaultAuthor, onClose, onSave
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.ticker || !form.companyName || !form.addedBy) return;
+    if (!form.ticker || !form.addedBy) return;
     setSaving(true);
     setTickerError('');
 
     // Validate ticker + fetch current price on submit
     let currentPrice: number | null = null;
+    let resolvedName = form.companyName;
     try {
       const suffix = exchangeSuffix(form.exchange);
       const priceRes = await fetch(`/api/pipeline/price?ticker=${encodeURIComponent(form.ticker + suffix)}`);
       const priceData = await priceRes.json();
       if (priceData.price?.closePrice) {
         currentPrice = priceData.price.closePrice;
-        if (!form.companyName && priceData.price.companyName) {
+        if (!resolvedName && priceData.price.companyName) {
+          resolvedName = priceData.price.companyName;
           setForm(f => ({ ...f, companyName: priceData.price.companyName }));
         }
       } else {
-        // No cached price — not a fatal error, just warn
         setTickerError(`No price data found for ${form.ticker}${exchangeSuffix(form.exchange)}. Check the ticker/exchange or run the price update script.`);
         setSaving(false);
         return;
@@ -190,7 +196,7 @@ function IdeaFormModal({ open, idea, teamMembers, defaultAuthor, onClose, onSave
     try {
       const payload = {
         ticker: form.ticker,
-        companyName: form.companyName,
+        companyName: resolvedName || form.ticker,
         addedBy: form.addedBy,
         assignedTo: form.assignedTo || null,
         source: form.source || null,
@@ -244,10 +250,12 @@ function IdeaFormModal({ open, idea, teamMembers, defaultAuthor, onClose, onSave
                 </div>
                 {tickerError && <span style={{ fontSize: '0.775rem', color: 'var(--error-color)', marginTop: '0.2rem' }}>{tickerError}</span>}
               </div>
-              <div className="pipeline-form-group">
-                <label>Company Name *</label>
-                <input value={form.companyName} onChange={set('companyName')} placeholder="e.g. HDFC Bank Ltd" required />
-              </div>
+              {editing && (
+                <div className="pipeline-form-group">
+                  <label>Company Name</label>
+                  <input value={form.companyName} onChange={set('companyName')} placeholder="e.g. HDFC Bank Ltd" />
+                </div>
+              )}
               <div className="pipeline-form-group">
                 <label>Added By *</label>
                 <select value={form.addedBy} onChange={set('addedBy')}>
@@ -333,12 +341,13 @@ interface IdeaDetailModalProps {
   idea: PipelineIdea | null;
   teamMembers: string[];
   defaultAuthor: string;
+  isAdmin: boolean;
   onClose: () => void;
   onEdit: (idea: PipelineIdea) => void;
   onDeleted: (id: string) => void;
 }
 
-function IdeaDetailModal({ open, idea, teamMembers, defaultAuthor, onClose, onEdit, onDeleted }: IdeaDetailModalProps) {
+function IdeaDetailModal({ open, idea, teamMembers, defaultAuthor, onClose, onEdit, onDeleted, isAdmin }: IdeaDetailModalProps & { isAdmin: boolean }) {
   const [notes, setNotes] = useState<PipelineNote[]>([]);
   const [noteInput, setNoteInput] = useState('');
   const [noteAuthor, setNoteAuthor] = useState(defaultAuthor);
@@ -503,9 +512,11 @@ function IdeaDetailModal({ open, idea, teamMembers, defaultAuthor, onClose, onEd
 
           {/* Footer */}
           <div className="pipeline-detail-footer">
-            <button className="pipeline-btn-danger" onClick={handleDelete} disabled={deleting} type="button">
-              {deleting ? 'Deleting…' : 'Delete'}
-            </button>
+            {isAdmin && (
+              <button className="pipeline-btn-danger" onClick={handleDelete} disabled={deleting} type="button">
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            )}
             <button className="pipeline-btn-primary" onClick={() => { onClose(); onEdit(idea); }} type="button">
               Edit
             </button>
@@ -720,14 +731,195 @@ function GuidanceTracker() {
   );
 }
 
+// ───────────────────────── GROUPED VIEW ─────────────────────────
+
+interface GroupedViewProps {
+  ideas: PipelineIdea[];
+  expandedStatuses: Set<PipelineStatus>;
+  onToggle: (s: PipelineStatus) => void;
+  onRowClick: (idea: PipelineIdea) => void;
+}
+
+function GroupedView({ ideas, expandedStatuses, onToggle, onRowClick }: GroupedViewProps) {
+  const activeStatuses = STATUSES.filter(s => s.value !== 'all') as { value: PipelineStatus; label: string }[];
+  return (
+    <div>
+      {activeStatuses.map(({ value, label }) => {
+        const group = ideas.filter(i => i.status === value);
+        const open = expandedStatuses.has(value);
+        return (
+          <div key={value} className="grouped-section">
+            <div className="grouped-section-header" onClick={() => onToggle(value)}>
+              <span className={`grouped-section-chevron ${open ? 'open' : ''}`}>▶</span>
+              <span className={`pipeline-status-badge ${value}`}>{label}</span>
+              <span className="grouped-section-count">{group.length} idea{group.length !== 1 ? 's' : ''}</span>
+            </div>
+            {open && group.length > 0 && (
+              <div className="grouped-section-body">
+                <div className="pipeline-table-wrap" style={{ border: 'none', borderRadius: 0 }}>
+                  <table className="pipeline-table">
+                    <thead>
+                      <tr>
+                        <th>Ticker / Company</th>
+                        <th>Priority</th>
+                        <th>Assigned To</th>
+                        <th>Source</th>
+                        <th>Price at Add</th>
+                        <th>Current</th>
+                        <th>% Change</th>
+                        <th>Days in Status</th>
+                        <th>Added</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.map(idea => {
+                        const pct = idea.priceAtAdd && idea.currentPrice
+                          ? (((idea.currentPrice - idea.priceAtAdd) / idea.priceAtAdd) * 100) : null;
+                        const days = daysSince(idea.statusChangedDate);
+                        return (
+                          <tr key={idea.id} onClick={() => onRowClick(idea)}>
+                            <td>
+                              <div className="pipeline-ticker">{idea.ticker}</div>
+                              <div className="pipeline-company-name">{idea.companyName}</div>
+                            </td>
+                            <td>
+                              <span className="pipeline-priority">
+                                <span className={`pipeline-priority-dot ${idea.priority}`} />
+                                {idea.priority.charAt(0).toUpperCase()}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: '0.8125rem' }}>{idea.assignedTo || '—'}</td>
+                            <td style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.8125rem', color: 'var(--secondary-text-color)' }}>
+                              {idea.source || '—'}
+                            </td>
+                            <td className="pipeline-price">{fmt(idea.priceAtAdd)}</td>
+                            <td className="pipeline-price" style={{ fontWeight: 700 }}>{fmt(idea.currentPrice)}</td>
+                            <td>{pct !== null
+                              ? <span className={pct >= 0 ? 'pipeline-change-pos' : 'pipeline-change-neg'}>{pct >= 0 ? '+' : ''}{pct.toFixed(1)}%</span>
+                              : '—'}</td>
+                            <td className={days > 30 ? 'pipeline-days-warn' : ''}>{days}d</td>
+                            <td style={{ fontSize: '0.8125rem', color: 'var(--secondary-text-color)', whiteSpace: 'nowrap' }}>
+                              {idea.dateAdded?.split('T')[0] || '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {open && group.length === 0 && (
+              <div className="grouped-section-body">
+                <p className="pipeline-muted" style={{ padding: '0.75rem 1rem', margin: 0 }}>No ideas in this stage.</p>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ───────────────────────── KANBAN VIEW ─────────────────────────
+
+function KanbanCard({ idea, showAssigned, onCardClick }: { idea: PipelineIdea; showAssigned: boolean; onCardClick: (idea: PipelineIdea) => void }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: idea.id,
+    data: { idea },
+  });
+  const style = transform ? { transform: `translate3d(${transform.x}px,${transform.y}px,0)` } : undefined;
+  const pct = idea.priceAtAdd && idea.currentPrice
+    ? (((idea.currentPrice - idea.priceAtAdd) / idea.priceAtAdd) * 100) : null;
+  const days = daysSince(idea.statusChangedDate);
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`kanban-card${isDragging ? ' is-dragging' : ''}`}
+      {...listeners}
+      {...attributes}
+      onClick={e => { e.stopPropagation(); if (!isDragging) onCardClick(idea); }}
+    >
+      <div className="kanban-card-header">
+        <span className="kanban-card-name">{idea.companyName || idea.ticker}</span>
+        {pct !== null && (
+          <span className={pct >= 0 ? 'pipeline-change-pos' : 'pipeline-change-neg'} style={{ fontSize: '0.72rem', fontWeight: 700, flexShrink: 0 }}>
+            {pct >= 0 ? '+' : ''}{pct.toFixed(1)}%
+          </span>
+        )}
+      </div>
+      <div className="kanban-card-footer">
+        {showAssigned && idea.assignedTo
+          ? <span style={{ fontSize: '0.72rem', color: 'var(--secondary-text-color)' }}>{idea.assignedTo}</span>
+          : <span />}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: 'auto' }}>
+          <span className={`kanban-card-days${days > 30 ? ' pipeline-days-warn' : ''}`}>{days}d</span>
+          <span className={`pipeline-priority-dot ${idea.priority}`} title={idea.priority} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function KanbanColumn({ status, label, ideas, showAssigned, onCardClick }: { status: PipelineStatus; label: string; ideas: PipelineIdea[]; showAssigned: boolean; onCardClick: (idea: PipelineIdea) => void }) {
+  const { isOver, setNodeRef } = useDroppable({ id: status });
+  return (
+    <div ref={setNodeRef} className={`kanban-column${isOver ? ' drag-over' : ''}`}>
+      <div className="kanban-col-header">
+        <span className={`pipeline-status-badge ${status}`}>{label}</span>
+        <span className="kanban-col-count">{ideas.length}</span>
+      </div>
+      <div className="kanban-col-body">
+        {ideas.length === 0
+          ? <div className="kanban-col-empty">Drop here</div>
+          : ideas.map(idea => <KanbanCard key={idea.id} idea={idea} showAssigned={showAssigned} onCardClick={onCardClick} />)}
+      </div>
+    </div>
+  );
+}
+
+interface KanbanViewProps {
+  ideas: PipelineIdea[];
+  showAssigned: boolean;
+  onDragEnd: (event: DragEndEvent) => void;
+  onCardClick: (idea: PipelineIdea) => void;
+}
+
+function KanbanView({ ideas, showAssigned, onDragEnd, onCardClick }: KanbanViewProps) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const activeStatuses = STATUSES.filter(s => s.value !== 'all') as { value: PipelineStatus; label: string }[];
+  return (
+    <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+      <div className="kanban-board">
+        {activeStatuses.map(({ value, label }) => (
+          <KanbanColumn
+            key={value}
+            status={value}
+            label={label}
+            ideas={ideas.filter(i => i.status === value)}
+            showAssigned={showAssigned}
+            onCardClick={onCardClick}
+          />
+        ))}
+      </div>
+    </DndContext>
+  );
+}
+
 // ───────────────────────── MAIN PAGE ─────────────────────────
 
 type SortKey = 'ticker' | 'priority' | 'pctChange' | 'daysInStatus' | 'dateAdded';
 type SortDir = 'asc' | 'desc';
 
 export function PipelinePage() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<'pipeline' | 'guidance'>('pipeline');
+  const [viewMode, setViewMode] = useState<'list' | 'grouped' | 'kanban'>(() =>
+    typeof window !== 'undefined' ? (localStorage.getItem('pipelineView') as 'list' | 'grouped' | 'kanban') || 'list' : 'list'
+  );
+  const [expandedStatuses, setExpandedStatuses] = useState<Set<PipelineStatus>>(new Set(['conviction']));
   const [ideas, setIdeas] = useState<PipelineIdea[]>([]);
   const [loading, setLoading] = useState(true);
   const [teamMembers, setTeamMembers] = useState<string[]>([]);
@@ -744,6 +936,13 @@ export function PipelinePage() {
   const [search, setSearch] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<PipelinePriority | 'all'>('all');
   const [personFilter, setPersonFilter] = useState<string>('all');
+  const personFilterSet = useRef(false);
+  useEffect(() => {
+    if (defaultAuthor && !personFilterSet.current) {
+      setPersonFilter(defaultAuthor);
+      personFilterSet.current = true;
+    }
+  }, [defaultAuthor]);
   const [sortKey, setSortKey] = useState<SortKey>('dateAdded');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -774,6 +973,35 @@ export function PipelinePage() {
   };
 
   const handleDeleted = (id: string) => setIdeas(prev => prev.filter(i => i.id !== id));
+
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+    const idea = active.data.current?.idea as PipelineIdea;
+    const newStatus = over.id as PipelineStatus;
+    if (!idea || idea.status === newStatus) return;
+    setIdeas(prev => prev.map(i => i.id === idea.id ? { ...i, status: newStatus, statusChangedDate: new Date().toISOString() } : i));
+    try {
+      await fetch(`/api/pipeline/ideas/${idea.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...idea, status: newStatus }),
+      });
+    } catch {
+      setIdeas(prev => prev.map(i => i.id === idea.id ? { ...i, status: idea.status, statusChangedDate: idea.statusChangedDate } : i));
+    }
+  }, []);
+
+  const handleToggleGroup = useCallback((status: PipelineStatus) => {
+    setExpandedStatuses(prev => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => { localStorage.setItem('pipelineView', viewMode); }, [viewMode]);
 
   const handleEdit = (idea: PipelineIdea) => {
     setEditingIdea(idea);
@@ -828,7 +1056,7 @@ export function PipelinePage() {
       {/* Header */}
       <div className="pipeline-header">
         <div className="pipeline-header-left">
-          <h1>Investment Pipeline</h1>
+          <h1>Investment Pipeline and Watchlist</h1>
           <p className="pipeline-subtitle">{ideas.length} ideas tracked · {conviction} in conviction list</p>
         </div>
         {activeTab === 'pipeline' && (
@@ -852,19 +1080,21 @@ export function PipelinePage() {
         <GuidanceTracker />
       ) : (
         <>
-          {/* Status Pills */}
-          <div className="pipeline-status-pills">
-            {STATUSES.map(s => (
-              <button
-                key={s.value}
-                className={`pipeline-pill ${statusFilter === s.value ? 'active' : ''}`}
-                data-status={s.value}
-                onClick={() => setStatusFilter(s.value as PipelineStatus | 'all')}
-              >
-                {s.label} ({counts[s.value] ?? 0})
-              </button>
-            ))}
-          </div>
+          {/* Status Pills — hidden in Kanban (columns are the grouping) */}
+          {viewMode !== 'kanban' && (
+            <div className="pipeline-status-pills">
+              {STATUSES.map(s => (
+                <button
+                  key={s.value}
+                  className={`pipeline-pill ${statusFilter === s.value ? 'active' : ''}`}
+                  data-status={s.value}
+                  onClick={() => setStatusFilter(s.value as PipelineStatus | 'all')}
+                >
+                  {s.label} ({counts[s.value] ?? 0})
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Filter Bar */}
           <div className="pipeline-filter-bar">
@@ -884,11 +1114,32 @@ export function PipelinePage() {
               <option value="all">All People</option>
               {allPersons.map(p => <option key={p}>{p}</option>)}
             </select>
+            <div className="pipeline-view-toggle">
+              {(['list', 'grouped', 'kanban'] as const).map(v => (
+                <button
+                  key={v}
+                  className={`pipeline-view-btn${viewMode === v ? ' active' : ''}`}
+                  onClick={() => setViewMode(v)}
+                  type="button"
+                >
+                  {v.charAt(0).toUpperCase() + v.slice(1)}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Table */}
+          {/* Content — switches between List, Grouped, Kanban */}
           {loading ? (
             <div className="pipeline-empty">Loading…</div>
+          ) : viewMode === 'kanban' ? (
+            <KanbanView ideas={filtered} showAssigned={personFilter === 'all'} onDragEnd={handleDragEnd} onCardClick={setDetailIdea} />
+          ) : viewMode === 'grouped' ? (
+            <GroupedView
+              ideas={filtered}
+              expandedStatuses={expandedStatuses}
+              onToggle={handleToggleGroup}
+              onRowClick={setDetailIdea}
+            />
           ) : filtered.length === 0 ? (
             <div className="pipeline-empty">
               {ideas.length === 0 ? 'No ideas yet. Click "+ New Idea" to add one.' : 'No ideas match the current filters.'}
@@ -901,7 +1152,6 @@ export function PipelinePage() {
                     <th onClick={() => toggleSort('ticker')}>Ticker / Company{sortIndicator('ticker')}</th>
                     <th>Status</th>
                     <th onClick={() => toggleSort('priority')}>Priority{sortIndicator('priority')}</th>
-                    <th>Added By</th>
                     <th>Assigned To</th>
                     <th>Source</th>
                     <th>Price at Add</th>
@@ -930,7 +1180,6 @@ export function PipelinePage() {
                             {idea.priority.charAt(0).toUpperCase()}
                           </span>
                         </td>
-                        <td style={{ fontSize: '0.8125rem' }}>{idea.addedBy}</td>
                         <td style={{ fontSize: '0.8125rem' }}>{idea.assignedTo || '—'}</td>
                         <td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.8125rem', color: 'var(--secondary-text-color)' }}>
                           {idea.source || '—'}
@@ -970,6 +1219,7 @@ export function PipelinePage() {
         idea={detailIdea}
         teamMembers={teamMembers}
         defaultAuthor={defaultAuthor}
+        isAdmin={isAdmin}
         onClose={() => setDetailIdea(null)}
         onEdit={idea => { setDetailIdea(null); handleEdit(idea); }}
         onDeleted={handleDeleted}
