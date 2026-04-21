@@ -2653,6 +2653,14 @@ a:hover {
   color: var(--secondary-text-color);
 }
 
+.alerts-refresh-timer {
+  margin-left: auto;
+  font-size: 0.775rem;
+  font-weight: 400;
+  color: var(--secondary-text-color);
+  font-family: monospace;
+}
+
 /* Portfolio Overview Cards */
 .overview-cards {
   display: grid;

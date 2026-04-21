@@ -3174,6 +3174,7 @@ const App: React.FC = () => {
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [privateInvestments, setPrivateInvestments] = useState<PrivateInvestments>({ totalInvested: 0, count: 0 });
+    const [portfolioHistory, setPortfolioHistory] = useState<{ date: string; value: number }[]>([]);
     const [loading, setLoading] = useState(true);
     const [teamMembers, setTeamMembers] = useState<string[]>([]);
 
@@ -3209,6 +3210,12 @@ const App: React.FC = () => {
                     const { gridKeyData, privateInvestments: privInv } = await gridKeyResponse.json();
                     setGridKeyData(gridKeyData || []);
                     setPrivateInvestments(privInv || { totalInvested: 0, count: 0 });
+                }
+
+                // Load portfolio history alongside other data
+                const historyResponse = await fetch('/api/portfolio-history');
+                if (historyResponse.ok) {
+                    setPortfolioHistory(await historyResponse.json());
                 }
             } catch (error) {
                 console.error('Error loading data:', error);
@@ -3358,7 +3365,7 @@ const App: React.FC = () => {
                 </button>
             </nav>
             <main>
-                {page === 'dashboard' && <Dashboard gridKeyData={gridKeyData} stocks={stocks} privateInvestments={privateInvestments} isAnalyst={isAnalyst} />}
+                {page === 'dashboard' && <Dashboard gridKeyData={gridKeyData} stocks={stocks} privateInvestments={privateInvestments} isAnalyst={isAnalyst} portfolioHistory={portfolioHistory} />}
                 {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={stocks} onStocksUpdate={setStocks} isAnalyst={isAnalyst} teamMembers={teamMembers} />}
                 {page === 'analysis' && <AnalysisPage gridKeyData={gridKeyData} stocks={stocks} isAnalyst={isAnalyst} />}
                 {page === 'upload' && <UploadPage onDataUploaded={handleDataUploaded} />}

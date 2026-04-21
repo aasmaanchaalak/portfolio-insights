@@ -22,6 +22,7 @@ interface DashboardProps {
     stocks: Stock[];
     privateInvestments: PrivateInvestments;
     isAnalyst?: boolean;
+    portfolioHistory: { date: string; value: number }[];
 }
 
 interface TechnicalState {
@@ -81,7 +82,7 @@ interface NiftySmallcapData {
     lastUpdated: string;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInvestments, isAnalyst = false }) => {
+const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInvestments, isAnalyst = false, portfolioHistory }) => {
     const [previousStates, setPreviousStates] = useState<TechnicalState[]>([]);
     const [transitionAlerts, setTransitionAlerts] = useState<Alert[]>([]);
     const [storedAlerts, setStoredAlerts] = useState<Alert[]>([]);
@@ -91,6 +92,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
     const [niftySmallcap, setNiftySmallcap] = useState<NiftySmallcapData | null>(null);
     const [positioningData, setPositioningData] = useState<Record<string, { conviction: string; strategyType: string; actionIntent: string }>>({});
     const [ytdReturn, setYtdReturn] = useState<{ pct: number; startValue: number; latestValue: number; startDate: string } | null>(null);
+    const [alertsRefreshIn, setAlertsRefreshIn] = useState<string>('');
     const hasProcessedStates = useRef(false);
     const scrollPositionRef = useRef(0);
 
@@ -260,33 +262,19 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         loadPositioning();
     }, []);
 
-    // YTD return from portfolio_history
+    // YTD return computed directly from portfolioHistory prop (no extra fetch)
     useEffect(() => {
-        const loadYtd = async () => {
-            try {
-                const res = await fetch('/api/portfolio-history');
-                if (!res.ok) return;
-                const history: { date: string; value: number }[] = await res.json();
-                if (history.length < 2) return;
-
-                // Find FY start: April 1st (India FY)
-                const now = new Date();
-                const fyStartYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-                const fyStartStr = `${fyStartYear}-04-01`;
-
-                // Find closest entry on or after April 1st
-                const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
-                const startEntry = sorted.find(h => h.date >= fyStartStr) || sorted[0];
-                const latestEntry = sorted[sorted.length - 1];
-
-                if (!startEntry || !latestEntry || startEntry.date === latestEntry.date) return;
-
-                const pct = ((latestEntry.value - startEntry.value) / startEntry.value) * 100;
-                setYtdReturn({ pct, startValue: startEntry.value, latestValue: latestEntry.value, startDate: startEntry.date });
-            } catch {}
-        };
-        loadYtd();
-    }, []);
+        if (portfolioHistory.length < 2) return;
+        const now = new Date();
+        const fyStartYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+        const fyStartStr = `${fyStartYear}-04-01`;
+        const sorted = [...portfolioHistory].sort((a, b) => a.date.localeCompare(b.date));
+        const startEntry = sorted.find(h => h.date >= fyStartStr) || sorted[0];
+        const latestEntry = sorted[sorted.length - 1];
+        if (!startEntry || !latestEntry || startEntry.date === latestEntry.date) return;
+        const pct = ((latestEntry.value - startEntry.value) / startEntry.value) * 100;
+        setYtdReturn({ pct, startValue: startEntry.value, latestValue: latestEntry.value, startDate: startEntry.date });
+    }, [portfolioHistory]);
 
     // Generate transition alerts and save current states (runs only once)
     useEffect(() => {
@@ -546,6 +534,23 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             saveAlerts();
         }
     }, [statesLoaded, alertsLoaded, currentStates, previousStates, enrichedData, storedAlerts]);
+
+    // Countdown to next alerts refresh — based on newest alert's createdAt + 24h
+    useEffect(() => {
+        const compute = () => {
+            if (storedAlerts.length === 0) { setAlertsRefreshIn(''); return; }
+            const newestCreatedAt = (storedAlerts[0] as any).createdAt as string;
+            if (!newestCreatedAt) { setAlertsRefreshIn(''); return; }
+            const remaining = new Date(newestCreatedAt).getTime() + 86400000 - Date.now();
+            if (remaining <= 0) { setAlertsRefreshIn('expired'); return; }
+            const h = Math.floor(remaining / 3600000);
+            const m = Math.floor((remaining % 3600000) / 60000);
+            setAlertsRefreshIn(h > 0 ? `${h}h ${m}m` : `${m}m`);
+        };
+        compute();
+        const id = setInterval(compute, 60000);
+        return () => clearInterval(id);
+    }, [storedAlerts]);
 
     // Calculate totals
     const totalCurrentAmount = useMemo(() => {
@@ -1337,6 +1342,9 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 <h2 className="section-title">
                     Technical Alerts
                     <span className="alert-count">({transitionAlerts.length})</span>
+                    {alertsRefreshIn && (
+                        <span className="alerts-refresh-timer">refreshes in {alertsRefreshIn}</span>
+                    )}
                 </h2>
 
                 {transitionAlerts.length === 0 ? (

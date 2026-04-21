@@ -948,6 +948,24 @@ export function PipelinePage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingIdea, setEditingIdea] = useState<PipelineIdea | null>(null);
   const [detailIdea, setDetailIdea] = useState<PipelineIdea | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshResult, setRefreshResult] = useState<string>('');
+
+  const handleRefreshPrices = async () => {
+    setRefreshing(true);
+    setRefreshResult('');
+    try {
+      const res = await fetch('/api/pipeline/refresh-prices', { method: 'POST' });
+      const data = await res.json();
+      setRefreshResult(`Updated ${data.updated}${data.failed?.length ? `, ${data.failed.length} failed` : ''}`);
+      await fetchIdeas();
+    } catch {
+      setRefreshResult('Failed');
+    } finally {
+      setRefreshing(false);
+      setTimeout(() => setRefreshResult(''), 4000);
+    }
+  };
 
   const fetchIdeas = useCallback(async () => {
     try {
@@ -1060,9 +1078,21 @@ export function PipelinePage() {
           <p className="pipeline-subtitle">{ideas.length} ideas tracked · {conviction} in conviction list</p>
         </div>
         {activeTab === 'pipeline' && (
-          <button className="pipeline-add-btn" onClick={() => { setEditingIdea(null); setShowAddModal(true); }}>
-            + New Idea
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {refreshResult && <span style={{ fontSize: '0.8125rem', color: 'var(--secondary-text-color)' }}>{refreshResult}</span>}
+            <button
+              className="pipeline-btn-secondary"
+              onClick={handleRefreshPrices}
+              disabled={refreshing}
+              type="button"
+              style={{ padding: '0.4rem 0.875rem', fontSize: '0.8125rem' }}
+            >
+              {refreshing ? 'Refreshing…' : '↻ Refresh Prices'}
+            </button>
+            <button className="pipeline-add-btn" onClick={() => { setEditingIdea(null); setShowAddModal(true); }}>
+              + New Idea
+            </button>
+          </div>
         )}
       </div>
 
