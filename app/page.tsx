@@ -3170,7 +3170,7 @@ interface PrivateInvestments {
 
 const App: React.FC = () => {
     const { user, loading: authLoading, logout, isAdmin, isAnalyst, isManager } = useAuth();
-    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'entrydata' | 'pe' | 'pipeline' | 'admin'>('dashboard');
+    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'entrydata' | 'pe' | 'pipeline' | 'admin'>('pipeline');
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [privateInvestments, setPrivateInvestments] = useState<PrivateInvestments>({ totalInvested: 0, count: 0 });

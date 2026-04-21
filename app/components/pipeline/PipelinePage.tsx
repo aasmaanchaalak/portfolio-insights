@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PipelineIdea, PipelineNote, PipelineStatus, PipelinePriority, GuidanceEntry } from '../../../types/pipeline';
+import { useAuth } from '../../contexts/AuthContext';
 import './pipeline.css';
 
 // Team members are fetched from /api/team-members at runtime
@@ -61,19 +62,41 @@ function todayStr(): string {
 
 // ───────────────────────── IDEA FORM MODAL ─────────────────────────
 
+function exchangeSuffix(exchange: string): string {
+  switch (exchange) {
+    case 'BSE':     return '.BO';
+    case 'NSE_SME': return '-SM.NS';
+    case 'BSE_SME': return '-SM.BO';
+    default:        return '.NS';
+  }
+}
+
+function resolveAuthor(userName: string | undefined, teamMembers: string[]): string {
+  if (!userName || teamMembers.length === 0) return teamMembers[0] || '';
+  const lower = userName.toLowerCase();
+  // Exact match first
+  const exact = teamMembers.find(m => m.toLowerCase() === lower);
+  if (exact) return exact;
+  // First-word match (e.g. "Aditya Agarwal" → "Aditya")
+  const firstName = lower.split(' ')[0];
+  const partial = teamMembers.find(m => m.toLowerCase() === firstName || lower.startsWith(m.toLowerCase()));
+  return partial || teamMembers[0];
+}
+
 interface IdeaFormModalProps {
   open: boolean;
   idea?: PipelineIdea | null;
   teamMembers: string[];
+  defaultAuthor: string;
   onClose: () => void;
   onSaved: (idea: PipelineIdea) => void;
 }
 
-function IdeaFormModal({ open, idea, teamMembers, onClose, onSaved }: IdeaFormModalProps) {
+function IdeaFormModal({ open, idea, teamMembers, defaultAuthor, onClose, onSaved }: IdeaFormModalProps) {
   const editing = !!idea;
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    ticker: '', exchange: 'NSE', companyName: '', addedBy: teamMembers[0] || '', assignedTo: '',
+    ticker: '', exchange: 'NSE', companyName: '', addedBy: defaultAuthor, assignedTo: '',
     source: '', whyInteresting: '', priceAtAdd: '', status: 'captured' as PipelineStatus,
     priority: 'medium' as PipelinePriority, decision: '', decisionReason: '',
     triggerCondition: '', dateAdded: todayStr(),
@@ -81,10 +104,10 @@ function IdeaFormModal({ open, idea, teamMembers, onClose, onSaved }: IdeaFormMo
   const [tickerError, setTickerError] = useState('');
 
   useEffect(() => {
-    if (form.addedBy === '' && teamMembers.length > 0) {
-      setForm(f => ({ ...f, addedBy: teamMembers[0] }));
+    if (form.addedBy === '' && defaultAuthor) {
+      setForm(f => ({ ...f, addedBy: defaultAuthor }));
     }
-  }, [teamMembers]);
+  }, [defaultAuthor]);
 
   useEffect(() => {
     if (idea) {
@@ -106,7 +129,7 @@ function IdeaFormModal({ open, idea, teamMembers, onClose, onSaved }: IdeaFormMo
       });
     } else {
       setForm({
-        ticker: '', exchange: 'NSE', companyName: '', addedBy: teamMembers[0] || '', assignedTo: '',
+        ticker: '', exchange: 'NSE', companyName: '', addedBy: defaultAuthor, assignedTo: '',
         source: '', whyInteresting: '', priceAtAdd: '', status: 'captured',
         priority: 'medium', decision: '', decisionReason: '', triggerCondition: '',
         dateAdded: todayStr(),
@@ -116,13 +139,17 @@ function IdeaFormModal({ open, idea, teamMembers, onClose, onSaved }: IdeaFormMo
   }, [idea, open]);
 
   const handleTickerBlur = async () => {
-    if (!form.ticker || form.priceAtAdd) return;
-    const suffix = form.exchange === 'BSE' ? '.BO' : '.NS';
+    if (!form.ticker) return;
+    const suffix = exchangeSuffix(form.exchange);
     try {
       const res = await fetch(`/api/pipeline/price?ticker=${encodeURIComponent(form.ticker + suffix)}`);
       const data = await res.json();
       if (data.price?.closePrice) {
-        setForm(f => ({ ...f, priceAtAdd: String(data.price.closePrice) }));
+        setForm(f => ({
+          ...f,
+          priceAtAdd: f.priceAtAdd || String(data.price.closePrice),
+          companyName: f.companyName || data.price.companyName || f.companyName,
+        }));
         setTickerError('');
       }
     } catch {}
@@ -140,14 +167,17 @@ function IdeaFormModal({ open, idea, teamMembers, onClose, onSaved }: IdeaFormMo
     // Validate ticker + fetch current price on submit
     let currentPrice: number | null = null;
     try {
-      const suffix = form.exchange === 'BSE' ? '.BO' : '.NS';
+      const suffix = exchangeSuffix(form.exchange);
       const priceRes = await fetch(`/api/pipeline/price?ticker=${encodeURIComponent(form.ticker + suffix)}`);
       const priceData = await priceRes.json();
       if (priceData.price?.closePrice) {
         currentPrice = priceData.price.closePrice;
+        if (!form.companyName && priceData.price.companyName) {
+          setForm(f => ({ ...f, companyName: priceData.price.companyName }));
+        }
       } else {
         // No cached price — not a fatal error, just warn
-        setTickerError(`No price data found for ${form.ticker}.${form.exchange === 'BSE' ? 'BO' : 'NS'}. Check the ticker/exchange or run the price update script.`);
+        setTickerError(`No price data found for ${form.ticker}${exchangeSuffix(form.exchange)}. Check the ticker/exchange or run the price update script.`);
         setSaving(false);
         return;
       }
@@ -205,9 +235,11 @@ function IdeaFormModal({ open, idea, teamMembers, onClose, onSaved }: IdeaFormMo
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <input value={form.ticker} onChange={set('ticker')} onBlur={handleTickerBlur}
                     placeholder="e.g. HDFCBANK" style={{ textTransform: 'uppercase', flex: 1 }} required />
-                  <select value={form.exchange} onChange={set('exchange')} style={{ width: 70 }}>
+                  <select value={form.exchange} onChange={set('exchange')} style={{ width: 95 }}>
                     <option value="NSE">NSE</option>
                     <option value="BSE">BSE</option>
+                    <option value="NSE_SME">NSE SME</option>
+                    <option value="BSE_SME">BSE SME</option>
                   </select>
                 </div>
                 {tickerError && <span style={{ fontSize: '0.775rem', color: 'var(--error-color)', marginTop: '0.2rem' }}>{tickerError}</span>}
@@ -258,24 +290,28 @@ function IdeaFormModal({ open, idea, teamMembers, onClose, onSaved }: IdeaFormMo
                 <input value={form.source} onChange={set('source')} placeholder="e.g. Network — Rahul mentioned, Screener scan, Saw Dolly Khanna buying…" />
               </div>
               <div className="pipeline-form-group pipeline-form-full">
-                <label>Trigger Condition</label>
-                <input value={form.triggerCondition} onChange={set('triggerCondition')} placeholder="e.g. Buy below ₹450, Q2 results out, capex commissioning confirmed…" />
-              </div>
-              <div className="pipeline-form-group">
-                <label>Decision</label>
-                <select value={form.decision} onChange={set('decision')}>
-                  <option value="">— Not decided —</option>
-                  {DECISION_OPTIONS.map(d => <option key={d}>{d}</option>)}
-                </select>
-              </div>
-              <div className="pipeline-form-group pipeline-form-full">
                 <label>Why Interesting</label>
                 <textarea value={form.whyInteresting} onChange={set('whyInteresting')} rows={3} placeholder="Quick thesis — what's the angle?" />
               </div>
-              <div className="pipeline-form-group pipeline-form-full">
-                <label>Decision Rationale</label>
-                <textarea value={form.decisionReason} onChange={set('decisionReason')} rows={2} placeholder="What convinced or deterred you?" />
-              </div>
+              {editing && (
+                <>
+                  <div className="pipeline-form-group pipeline-form-full">
+                    <label>Trigger Condition</label>
+                    <input value={form.triggerCondition} onChange={set('triggerCondition')} placeholder="e.g. Buy below ₹450, Q2 results out, capex commissioning confirmed…" />
+                  </div>
+                  <div className="pipeline-form-group">
+                    <label>Decision</label>
+                    <select value={form.decision} onChange={set('decision')}>
+                      <option value="">— Not decided —</option>
+                      {DECISION_OPTIONS.map(d => <option key={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  <div className="pipeline-form-group pipeline-form-full">
+                    <label>Decision Rationale</label>
+                    <textarea value={form.decisionReason} onChange={set('decisionReason')} rows={2} placeholder="What convinced or deterred you?" />
+                  </div>
+                </>
+              )}
             </div>
             <div className="pipeline-form-actions">
               <button type="button" className="pipeline-btn-secondary" onClick={onClose}>Cancel</button>
@@ -296,21 +332,22 @@ interface IdeaDetailModalProps {
   open: boolean;
   idea: PipelineIdea | null;
   teamMembers: string[];
+  defaultAuthor: string;
   onClose: () => void;
   onEdit: (idea: PipelineIdea) => void;
   onDeleted: (id: string) => void;
 }
 
-function IdeaDetailModal({ open, idea, teamMembers, onClose, onEdit, onDeleted }: IdeaDetailModalProps) {
+function IdeaDetailModal({ open, idea, teamMembers, defaultAuthor, onClose, onEdit, onDeleted }: IdeaDetailModalProps) {
   const [notes, setNotes] = useState<PipelineNote[]>([]);
   const [noteInput, setNoteInput] = useState('');
-  const [noteAuthor, setNoteAuthor] = useState('');
+  const [noteAuthor, setNoteAuthor] = useState(defaultAuthor);
   const [savingNote, setSavingNote] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    if (noteAuthor === '' && teamMembers.length > 0) setNoteAuthor(teamMembers[0]);
-  }, [teamMembers]);
+    if (defaultAuthor) setNoteAuthor(defaultAuthor);
+  }, [defaultAuthor]);
 
   useEffect(() => {
     if (!idea || !open) return;
@@ -689,6 +726,7 @@ type SortKey = 'ticker' | 'priority' | 'pctChange' | 'daysInStatus' | 'dateAdded
 type SortDir = 'asc' | 'desc';
 
 export function PipelinePage() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'pipeline' | 'guidance'>('pipeline');
   const [ideas, setIdeas] = useState<PipelineIdea[]>([]);
   const [loading, setLoading] = useState(true);
@@ -700,6 +738,8 @@ export function PipelinePage() {
       .then((data: { id: string; name: string }[]) => setTeamMembers(data.map(m => m.name)))
       .catch(() => {});
   }, []);
+
+  const defaultAuthor = resolveAuthor(user?.name, teamMembers);
   const [statusFilter, setStatusFilter] = useState<PipelineStatus | 'all'>('all');
   const [search, setSearch] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<PipelinePriority | 'all'>('all');
@@ -921,6 +961,7 @@ export function PipelinePage() {
         open={showAddModal}
         idea={editingIdea}
         teamMembers={teamMembers}
+        defaultAuthor={defaultAuthor}
         onClose={() => { setShowAddModal(false); setEditingIdea(null); }}
         onSaved={handleSaved}
       />
@@ -928,6 +969,7 @@ export function PipelinePage() {
         open={!!detailIdea}
         idea={detailIdea}
         teamMembers={teamMembers}
+        defaultAuthor={defaultAuthor}
         onClose={() => setDetailIdea(null)}
         onEdit={idea => { setDetailIdea(null); handleEdit(idea); }}
         onDeleted={handleDeleted}
