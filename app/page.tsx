@@ -10,6 +10,7 @@ import { Stock, GridKeyData } from '../types';
 import Dashboard from './components/Dashboard';
 import EntryDataPage from './components/EntryDataPage';
 import AdminPanel from './components/AdminPanel';
+import { CorporateEventsChart } from './components/CorporateEventsChart';
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import { StockDetailDrawer } from './components/drawer/StockDetailDrawer';
@@ -1766,7 +1767,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
 
 
 const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAnalyst?: boolean }> = ({ gridKeyData, stocks, isAnalyst = false }) => {
-    const [selectedChart, setSelectedChart] = useState<'allocation' | 'performance' | 'growth' | 'sectors' | 'rotation' | 'value'>('allocation');
+    const [selectedChart, setSelectedChart] = useState<'allocation' | 'performance' | 'growth' | 'sectors' | 'rotation' | 'value' | 'events'>('allocation');
     const [portfolioHistory, setPortfolioHistory] = useState<{date: string; value: number; timestamp: number}[]>([]);
 
     // Load portfolio history
@@ -2851,6 +2852,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
                 <button className={selectedChart === 'sectors' ? 'active' : ''} onClick={() => setSelectedChart('sectors')}>Sectors</button>
                 <button className={selectedChart === 'rotation' ? 'active' : ''} onClick={() => setSelectedChart('rotation')}>Sector Rotation</button>
                 {!isAnalyst && <button className={selectedChart === 'value' ? 'active' : ''} onClick={() => setSelectedChart('value')}>Portfolio Value</button>}
+                <button className={selectedChart === 'events' ? 'active' : ''} onClick={() => setSelectedChart('events')}>Corporate Events</button>
             </div>
 
             <div className="charts-container">
@@ -2860,6 +2862,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
                 {selectedChart === 'sectors' && <SectorChart />}
                 {selectedChart === 'rotation' && <SectorRotationView />}
                 {selectedChart === 'value' && <PortfolioValueChart />}
+                {selectedChart === 'events' && <CorporateEventsChart />}
             </div>
         </div>
     );
