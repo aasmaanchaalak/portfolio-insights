@@ -612,6 +612,9 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         { key: 'industryGroup', label: 'Industry Group' },
         { key: 'industry', label: 'Industry' },
         { key: 'priceToEarning', label: 'P/E' },
+        { key: 'marketCap', label: 'Market Cap' },
+        { key: 'rsi', label: 'RSI' },
+        { key: 'roce', label: 'ROCE %' },
         { key: 'yoyQuarterlyProfitGrowth', label: 'Profit Growth %' },
         { key: 'yoyQuarterlySalesGrowth', label: 'Sales Growth %' },
         { key: 'dma50ChangePercent', label: 'Change% from DMA 50' },
@@ -748,6 +751,9 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                 industryGroup: matchedStock?.industryGroup || null,
                 industry: matchedStock?.industry || null,
                 priceToEarning: matchedStock?.priceToEarning ?? null,
+                marketCap: matchedStock?.marketCap ?? null,
+                rsi: matchedStock?.rsi ?? null,
+                roce: matchedStock?.roce ?? null,
                 yoyQuarterlyProfitGrowth: matchedStock?.yoyQuarterlyProfitGrowth ?? null,
                 yoyQuarterlySalesGrowth: matchedStock?.yoyQuarterlySalesGrowth ?? null,
                 dma50: dma50,
@@ -1475,6 +1481,21 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         </div>
                                     </div>
                                 </th>}
+                                {visibleColumns['marketCap'] && <th className="text-right" onClick={() => requestSort('marketCap')}>
+                                    <div className="th-content">
+                                        <span>Market Cap <SortIndicator columnKey="marketCap" /></span>
+                                    </div>
+                                </th>}
+                                {visibleColumns['rsi'] && <th className="text-right" onClick={() => requestSort('rsi')}>
+                                    <div className="th-content">
+                                        <span>RSI <SortIndicator columnKey="rsi" /></span>
+                                    </div>
+                                </th>}
+                                {visibleColumns['roce'] && <th className="text-right" onClick={() => requestSort('roce')}>
+                                    <div className="th-content">
+                                        <span>ROCE % <SortIndicator columnKey="roce" /></span>
+                                    </div>
+                                </th>}
                                 {visibleColumns['yoyQuarterlyProfitGrowth'] && <th className="text-right filterable-column">
                                     <div className="th-content">
                                         <span onClick={() => requestSort('yoyQuarterlyProfitGrowth')}>Profit Growth % <SortIndicator columnKey="yoyQuarterlyProfitGrowth" /></span>
@@ -1623,6 +1644,9 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                     {visibleColumns['industryGroup'] && <td>{(item as any).industryGroup || 'N/A'}</td>}
                                     {visibleColumns['industry'] && <td>{(item as any).industry || 'N/A'}</td>}
                                     {visibleColumns['priceToEarning'] && <td className="text-right">{(item as any).priceToEarning !== null && (item as any).priceToEarning !== undefined ? (item as any).priceToEarning.toFixed(2) : 'N/A'}</td>}
+                                    {visibleColumns['marketCap'] && <td className="text-right">{(item as any).marketCap !== null && (item as any).marketCap !== undefined ? ((item as any).marketCap >= 1000 ? `₹${((item as any).marketCap / 1000).toFixed(1)}K Cr` : `₹${(item as any).marketCap.toFixed(0)} Cr`) : 'N/A'}</td>}
+                                    {visibleColumns['rsi'] && <td className="text-right" style={{ color: (item as any).rsi !== null ? ((item as any).rsi > 70 ? 'var(--error-color)' : (item as any).rsi < 30 ? 'var(--success-color)' : 'inherit') : 'inherit' }}>{(item as any).rsi !== null && (item as any).rsi !== undefined ? (item as any).rsi.toFixed(1) : 'N/A'}</td>}
+                                    {visibleColumns['roce'] && <td className="text-right" style={{ color: (item as any).roce !== null ? ((item as any).roce >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{(item as any).roce !== null && (item as any).roce !== undefined ? `${(item as any).roce.toFixed(2)}%` : 'N/A'}</td>}
                                     {visibleColumns['yoyQuarterlyProfitGrowth'] && <td className="text-right" style={{ color: (item as any).yoyQuarterlyProfitGrowth !== null ? ((item as any).yoyQuarterlyProfitGrowth >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>
                                         {(item as any).yoyQuarterlyProfitGrowth !== null && (item as any).yoyQuarterlyProfitGrowth !== undefined ? `${(item as any).yoyQuarterlyProfitGrowth.toFixed(2)}%` : 'N/A'}
                                     </td>}

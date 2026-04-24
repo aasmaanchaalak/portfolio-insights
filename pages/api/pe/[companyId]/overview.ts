@@ -24,7 +24,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       case 'PUT': {
         const {
           investedValue, currentValue, pricePerShare, quantityHeld,
-          ownershipPercentage, investmentDate, lastValuationDate, valuationSource, currency,
+          ownershipPercentage, investmentDate, investmentValuation, currency,
         } = req.body;
 
         if (investedValue === undefined || investedValue === null) {
@@ -33,7 +33,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
         const updated = await updateInvestment(companyId, {
           investedValue, currentValue, pricePerShare, quantityHeld,
-          ownershipPercentage, investmentDate, lastValuationDate, valuationSource, currency,
+          ownershipPercentage, investmentDate, investmentValuation, currency,
         });
         const metrics = calculateMetrics(updated);
         return res.status(200).json({ company: updated, metrics });

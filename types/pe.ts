@@ -56,8 +56,7 @@ export interface PECompany {
   quantityHeld: number | null;
   ownershipPercentage: number | null;
   investmentDate: string | null;
-  lastValuationDate: string | null;
-  valuationSource: string | null;
+  investmentValuation: number | null;
   currency: string;
 
   // Thesis
@@ -189,8 +188,7 @@ export interface UpdatePEInvestmentRequest {
   quantityHeld?: number | null;
   ownershipPercentage?: number | null;
   investmentDate?: string | null;
-  lastValuationDate?: string | null;
-  valuationSource?: string | null;
+  investmentValuation?: number | null;
   currency?: string;
 }
 

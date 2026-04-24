@@ -15,6 +15,7 @@ import { SignalsSection } from './SignalsSection';
 import { LatestNote } from './LatestNote';
 import { ThesisHistoryTimeline } from './ThesisHistoryTimeline';
 import './thesis.css';
+import { AttachmentSection } from '../shared/AttachmentSection';
 
 interface ThesisTrackerCardProps {
   thesis: Thesis | null;
@@ -306,6 +307,7 @@ export function ThesisTrackerCard({
             stockCode={stockCode}
           />
         )}
+        <AttachmentSection module="thesis" entityId={stockCode} drawerWidth={480} />
       </div>
     </div>
   );

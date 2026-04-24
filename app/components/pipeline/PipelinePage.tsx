@@ -5,6 +5,7 @@ import { DndContext, useDraggable, useDroppable, useSensors, useSensor, PointerS
 import { PipelineIdea, PipelineNote, PipelineStatus, PipelinePriority, GuidanceEntry } from '../../../types/pipeline';
 import { useAuth } from '../../contexts/AuthContext';
 import './pipeline.css';
+import { AttachmentSection } from '../shared/AttachmentSection';
 
 // Team members are fetched from /api/team-members at runtime
 
@@ -509,6 +510,8 @@ function IdeaDetailModal({ open, idea, teamMembers, defaultAuthor, onClose, onEd
                 </div>
               ))}
           </div>
+
+          <AttachmentSection module="pipeline" entityId={idea.id} />
 
           {/* Footer */}
           <div className="pipeline-detail-footer">

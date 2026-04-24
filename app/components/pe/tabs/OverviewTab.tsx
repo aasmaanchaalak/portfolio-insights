@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { AttachmentSection } from '../../shared/AttachmentSection';
 import {
   PECompany,
   PEMetrics,
@@ -43,8 +44,7 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
     quantityHeld: company?.quantityHeld || null,
     ownershipPercentage: company?.ownershipPercentage || null,
     investmentDate: company?.investmentDate || null,
-    lastValuationDate: company?.lastValuationDate || null,
-    valuationSource: company?.valuationSource || null,
+    investmentValuation: company?.investmentValuation || null,
     currency: company?.currency || 'INR',
   });
 
@@ -69,8 +69,7 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
       quantityHeld: company?.quantityHeld || null,
       ownershipPercentage: company?.ownershipPercentage || null,
       investmentDate: company?.investmentDate?.split('T')[0] || null,
-      lastValuationDate: company?.lastValuationDate?.split('T')[0] || null,
-      valuationSource: company?.valuationSource || null,
+      investmentValuation: company?.investmentValuation || null,
       currency: company?.currency || 'INR',
     });
     setIsEditing(true);
@@ -217,12 +216,8 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
                 <input type="date" value={formData.investmentDate || ''} onChange={e => setFormData(prev => ({ ...prev, investmentDate: e.target.value || null }))} />
               </div>
               <div className="pe-form-group">
-                <label>Last Valuation Date</label>
-                <input type="date" value={formData.lastValuationDate || ''} onChange={e => setFormData(prev => ({ ...prev, lastValuationDate: e.target.value || null }))} />
-              </div>
-              <div className="pe-form-group">
-                <label>Valuation Source</label>
-                <input type="text" value={formData.valuationSource || ''} onChange={e => setFormData(prev => ({ ...prev, valuationSource: e.target.value || null }))} placeholder="e.g., Latest Round" />
+                <label>Investment Valuation</label>
+                <input type="number" value={formData.investmentValuation || ''} onChange={e => setFormData(prev => ({ ...prev, investmentValuation: parseFloat(e.target.value) || null }))} placeholder="e.g., 500000000" />
               </div>
             </div>
             <div className="pe-form-actions">
@@ -249,12 +244,8 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
               <span className="pe-detail-value">{company?.investmentDate ? new Date(company.investmentDate).toLocaleDateString() : '-'}</span>
             </div>
             <div className="pe-detail-item">
-              <span className="pe-detail-label">Last Valuation</span>
-              <span className="pe-detail-value">{company?.lastValuationDate ? new Date(company.lastValuationDate).toLocaleDateString() : '-'}</span>
-            </div>
-            <div className="pe-detail-item">
-              <span className="pe-detail-label">Valuation Source</span>
-              <span className="pe-detail-value">{company?.valuationSource || '-'}</span>
+              <span className="pe-detail-label">Investment Valuation</span>
+              <span className="pe-detail-value">{company?.investmentValuation != null ? formatCurrency(company.investmentValuation) : '-'}</span>
             </div>
           </div>
         )}
@@ -382,6 +373,7 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
             </div>
           </div>
         )}
+        <AttachmentSection module="pe" entityId={companyId} />
       </div>
     </div>
   );

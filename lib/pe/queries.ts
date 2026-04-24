@@ -130,11 +130,10 @@ export async function updateInvestment(companyId: string, data: UpdatePEInvestme
       quantity_held = $4,
       ownership_percentage = $5,
       investment_date = $6,
-      last_valuation_date = $7,
-      valuation_source = $8,
-      currency = $9,
+      investment_valuation = $7,
+      currency = $8,
       updated_at = NOW()
-    WHERE id = $10
+    WHERE id = $9
     RETURNING *
   `, [
     data.investedValue,
@@ -143,8 +142,7 @@ export async function updateInvestment(companyId: string, data: UpdatePEInvestme
     data.quantityHeld ?? null,
     data.ownershipPercentage ?? null,
     data.investmentDate ?? null,
-    data.lastValuationDate ?? null,
-    data.valuationSource ?? null,
+    data.investmentValuation ?? null,
     data.currency ?? 'INR',
     companyId,
   ]);
