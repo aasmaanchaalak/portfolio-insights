@@ -22,14 +22,20 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       case 'PUT': {
         const {
           latestEarningsUpdate, latestEarningsDate, managementGuidance,
-          guidanceVsActual, guidanceVsActualNotes, fy26AnnualReportReceived,
-          fy26AnnualReportDate, lastAuditedFinancialsReceived, latestDeckReceived, latestDeckName,
+          guidanceVsActual, guidanceVsActualNotes,
+          drhpFiled, drhpFiledDate, drhpLink,
+          fy26AnnualReportReceived, fy26AnnualReportDate,
+          fy25AnnualReportReceived, fy25AnnualReportDate,
+          lastAuditedFinancialsReceived, latestDeckReceived, latestDeckName,
         } = req.body;
 
         const updated = await updateMonitoring(companyId, {
           latestEarningsUpdate, latestEarningsDate, managementGuidance,
-          guidanceVsActual, guidanceVsActualNotes, fy26AnnualReportReceived,
-          fy26AnnualReportDate, lastAuditedFinancialsReceived, latestDeckReceived, latestDeckName,
+          guidanceVsActual, guidanceVsActualNotes,
+          drhpFiled, drhpFiledDate, drhpLink,
+          fy26AnnualReportReceived, fy26AnnualReportDate,
+          fy25AnnualReportReceived, fy25AnnualReportDate,
+          lastAuditedFinancialsReceived, latestDeckReceived, latestDeckName,
         });
         return res.status(200).json({ company: updated });
       }

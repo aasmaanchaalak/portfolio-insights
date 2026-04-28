@@ -1237,8 +1237,11 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  cursor: pointer;
   margin-bottom: 0.5rem;
+}
+
+.pe-timeline-clickable {
+  cursor: pointer;
 }
 
 .pe-timeline-main {
@@ -1305,11 +1308,41 @@
 }
 
 .pe-delete-btn-small {
-  margin-top: 0.75rem;
   padding: 0.25rem 0.5rem;
   background: none;
   border: 1px solid var(--negative-color);
   color: var(--negative-color);
+  border-radius: 4px;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.pe-timeline-expand-hint {
+  margin-top: 0.5rem;
+  padding: 0.2rem 0.4rem;
+  background: none;
+  border: none;
+  color: var(--accent-color);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.pe-timeline-expand-hint:hover {
+  text-decoration: underline;
+}
+
+.pe-timeline-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  align-items: center;
+}
+
+.pe-timeline-collapse {
+  padding: 0.25rem 0.5rem;
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--secondary-text-color);
   border-radius: 4px;
   font-size: 0.7rem;
   cursor: pointer;

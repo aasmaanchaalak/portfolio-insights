@@ -88,22 +88,54 @@ export function AttachmentSection({ module, entityId, drawerWidth = 600 }: Props
 
     setUploading(true);
     setError(null);
-    const fd = new FormData();
-    fd.append('module', module);
-    fd.append('entityId', entityId);
-    fd.append('file', file);
 
     try {
-      const res = await fetch('/api/attachments', { method: 'POST', body: fd });
-      if (!res.ok) {
-        const d = await res.json();
-        setError(d.error || 'Upload failed');
-      } else {
-        const newAttachment = await res.json();
-        setAttachments(prev => [newAttachment, ...prev]);
+      const fileType = file.type || 'application/octet-stream';
+
+      const presignRes = await fetch('/api/attachments/presign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          module,
+          entityId,
+          fileName: file.name,
+          fileType,
+          fileSize: file.size,
+        }),
+      });
+      if (!presignRes.ok) {
+        const d = await presignRes.json().catch(() => ({}));
+        throw new Error(d.error || 'Could not get upload URL');
       }
-    } catch {
-      setError('Upload failed');
+      const { uploadUrl, storageKey } = await presignRes.json();
+
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': fileType },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error('Upload to storage failed');
+
+      const registerRes = await fetch('/api/attachments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          module,
+          entityId,
+          storageKey,
+          fileName: file.name,
+          fileType,
+          fileSize: file.size,
+        }),
+      });
+      if (!registerRes.ok) {
+        const d = await registerRes.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to register upload');
+      }
+      const newAttachment = await registerRes.json();
+      setAttachments(prev => [newAttachment, ...prev]);
+    } catch (err: any) {
+      setError(err?.message || 'Upload failed');
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = '';

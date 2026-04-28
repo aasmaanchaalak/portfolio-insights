@@ -52,6 +52,10 @@ export async function listCompanies(): Promise<PECompanyListItem[]> {
       current_value,
       CASE WHEN invested_value > 0 THEN current_value / invested_value ELSE NULL END AS moic,
       thesis_status,
+      broker_name,
+      drhp_filed,
+      fy26_annual_report_received,
+      fy25_annual_report_received,
       (
         SELECT MAX(communication_date)
         FROM pe_communications
@@ -204,13 +208,18 @@ export async function updateMonitoring(companyId: string, data: UpdatePEMonitori
       management_guidance = $3,
       guidance_vs_actual = $4,
       guidance_vs_actual_notes = $5,
-      fy26_annual_report_received = $6,
-      fy26_annual_report_date = $7,
-      last_audited_financials_received = $8,
-      latest_deck_received = $9,
-      latest_deck_name = $10,
+      drhp_filed = $6,
+      drhp_filed_date = $7,
+      drhp_link = $8,
+      fy26_annual_report_received = $9,
+      fy26_annual_report_date = $10,
+      fy25_annual_report_received = $11,
+      fy25_annual_report_date = $12,
+      last_audited_financials_received = $13,
+      latest_deck_received = $14,
+      latest_deck_name = $15,
       updated_at = NOW()
-    WHERE id = $11
+    WHERE id = $16
     RETURNING *
   `, [
     data.latestEarningsUpdate ?? null,
@@ -218,8 +227,13 @@ export async function updateMonitoring(companyId: string, data: UpdatePEMonitori
     data.managementGuidance ?? null,
     data.guidanceVsActual ?? null,
     data.guidanceVsActualNotes ?? null,
+    data.drhpFiled ?? false,
+    data.drhpFiledDate ?? null,
+    data.drhpLink ?? null,
     data.fy26AnnualReportReceived ?? false,
     data.fy26AnnualReportDate ?? null,
+    data.fy25AnnualReportReceived ?? false,
+    data.fy25AnnualReportDate ?? null,
     data.lastAuditedFinancialsReceived ?? null,
     data.latestDeckReceived ?? null,
     data.latestDeckName ?? null,

@@ -25,6 +25,14 @@ export async function getPresignedUrl(key: string): Promise<string> {
   return getSignedUrl(s3, new GetObjectCommand({ Bucket: BUCKET, Key: key }), { expiresIn: 3600 });
 }
 
+export async function getPresignedPutUrl(key: string, mimeType: string): Promise<string> {
+  return getSignedUrl(
+    s3,
+    new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: mimeType }),
+    { expiresIn: 600 }
+  );
+}
+
 export async function deleteFromR2(key: string): Promise<void> {
   await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
 }

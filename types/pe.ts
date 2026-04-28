@@ -74,8 +74,13 @@ export interface PECompany {
   managementGuidance: string | null;
   guidanceVsActual: GuidanceVsActual | null;
   guidanceVsActualNotes: string | null;
+  drhpFiled: boolean;
+  drhpFiledDate: string | null;
+  drhpLink: string | null;
   fy26AnnualReportReceived: boolean;
   fy26AnnualReportDate: string | null;
+  fy25AnnualReportReceived: boolean;
+  fy25AnnualReportDate: string | null;
   lastAuditedFinancialsReceived: string | null;
   latestDeckReceived: string | null;
   latestDeckName: string | null;
@@ -160,6 +165,10 @@ export interface PECompanyListItem {
   moic: number | null;
   thesisStatus: ThesisStatus | null;
   lastCommunicationDate: string | null;
+  brokerName: string | null;
+  drhpFiled: boolean;
+  fy26AnnualReportReceived: boolean;
+  fy25AnnualReportReceived: boolean;
 }
 
 // ============ Request Types ============
@@ -213,8 +222,13 @@ export interface UpdatePEMonitoringRequest {
   managementGuidance?: string | null;
   guidanceVsActual?: GuidanceVsActual | null;
   guidanceVsActualNotes?: string | null;
+  drhpFiled?: boolean;
+  drhpFiledDate?: string | null;
+  drhpLink?: string | null;
   fy26AnnualReportReceived?: boolean;
   fy26AnnualReportDate?: string | null;
+  fy25AnnualReportReceived?: boolean;
+  fy25AnnualReportDate?: string | null;
   lastAuditedFinancialsReceived?: string | null;
   latestDeckReceived?: string | null;
   latestDeckName?: string | null;

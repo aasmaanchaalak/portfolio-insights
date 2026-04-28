@@ -66,6 +66,10 @@ export function PETracker({ onBack }: PETrackerProps) {
         moic: null,
         thesisStatus: null,
         lastCommunicationDate: null,
+        brokerName: null,
+        drhpFiled: false,
+        fy26AnnualReportReceived: false,
+        fy25AnnualReportReceived: false,
       }]);
       setShowAddModal(false);
       setNewCompany({ companyName: '', companyCode: '', sector: '' });
@@ -179,13 +183,17 @@ export function PETracker({ onBack }: PETrackerProps) {
               <th className="pe-col-right">Current Value</th>
               <th className="pe-col-right">MOIC</th>
               <th className="pe-col-center">Thesis</th>
+              <th>Broker</th>
+              <th className="pe-col-center">DRHP</th>
+              <th className="pe-col-center">FY26 AR</th>
+              <th className="pe-col-center">FY25 AR</th>
               <th>Last Contact</th>
             </tr>
           </thead>
           <tbody>
             {companies.length === 0 ? (
               <tr>
-                <td colSpan={7} className="pe-empty">
+                <td colSpan={11} className="pe-empty">
                   No PE companies yet. Click "Add Company" to get started.
                 </td>
               </tr>
@@ -211,6 +219,10 @@ export function PETracker({ onBack }: PETrackerProps) {
                       {company.thesisStatus || 'Not Set'}
                     </span>
                   </td>
+                  <td>{company.brokerName || '-'}</td>
+                  <td className="pe-col-center">{company.drhpFiled ? '✓' : '—'}</td>
+                  <td className="pe-col-center">{company.fy26AnnualReportReceived ? '✓' : '—'}</td>
+                  <td className="pe-col-center">{company.fy25AnnualReportReceived ? '✓' : '—'}</td>
                   <td className="pe-date">
                     {company.lastCommunicationDate
                       ? new Date(company.lastCommunicationDate).toLocaleDateString()

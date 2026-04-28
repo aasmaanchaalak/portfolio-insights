@@ -92,8 +92,13 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
     managementGuidance: company?.managementGuidance || '',
     guidanceVsActual: company?.guidanceVsActual || null,
     guidanceVsActualNotes: company?.guidanceVsActualNotes || '',
+    drhpFiled: company?.drhpFiled || false,
+    drhpFiledDate: company?.drhpFiledDate || null,
+    drhpLink: company?.drhpLink || '',
     fy26AnnualReportReceived: company?.fy26AnnualReportReceived || false,
     fy26AnnualReportDate: company?.fy26AnnualReportDate || null,
+    fy25AnnualReportReceived: company?.fy25AnnualReportReceived || false,
+    fy25AnnualReportDate: company?.fy25AnnualReportDate || null,
     lastAuditedFinancialsReceived: company?.lastAuditedFinancialsReceived || null,
     latestDeckReceived: company?.latestDeckReceived || null,
     latestDeckName: company?.latestDeckName || '',
@@ -140,8 +145,13 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
       managementGuidance: company?.managementGuidance || '',
       guidanceVsActual: company?.guidanceVsActual || null,
       guidanceVsActualNotes: company?.guidanceVsActualNotes || '',
+      drhpFiled: company?.drhpFiled || false,
+      drhpFiledDate: company?.drhpFiledDate?.split('T')[0] || null,
+      drhpLink: company?.drhpLink || '',
       fy26AnnualReportReceived: company?.fy26AnnualReportReceived || false,
       fy26AnnualReportDate: company?.fy26AnnualReportDate?.split('T')[0] || null,
+      fy25AnnualReportReceived: company?.fy25AnnualReportReceived || false,
+      fy25AnnualReportDate: company?.fy25AnnualReportDate?.split('T')[0] || null,
       lastAuditedFinancialsReceived: company?.lastAuditedFinancialsReceived?.split('T')[0] || null,
       latestDeckReceived: company?.latestDeckReceived?.split('T')[0] || null,
       latestDeckName: company?.latestDeckName || '',
@@ -346,11 +356,32 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
             </div>
             <div className="pe-form-group">
               <div className="pe-checkbox-group">
+                <input type="checkbox" id="drhpFiled" checked={monitoringForm.drhpFiled || false} onChange={e => setMonitoringForm(prev => ({ ...prev, drhpFiled: e.target.checked }))} />
+                <label htmlFor="drhpFiled">DRHP Filed</label>
+              </div>
+              {monitoringForm.drhpFiled && (
+                <>
+                  <input type="date" value={monitoringForm.drhpFiledDate || ''} onChange={e => setMonitoringForm(prev => ({ ...prev, drhpFiledDate: e.target.value || null }))} />
+                  <input type="url" placeholder="DRHP link (https://...)" value={monitoringForm.drhpLink || ''} onChange={e => setMonitoringForm(prev => ({ ...prev, drhpLink: e.target.value }))} />
+                </>
+              )}
+            </div>
+            <div className="pe-form-group">
+              <div className="pe-checkbox-group">
                 <input type="checkbox" id="fy26Report" checked={monitoringForm.fy26AnnualReportReceived || false} onChange={e => setMonitoringForm(prev => ({ ...prev, fy26AnnualReportReceived: e.target.checked }))} />
                 <label htmlFor="fy26Report">FY26 Annual Report Received</label>
               </div>
               {monitoringForm.fy26AnnualReportReceived && (
                 <input type="date" value={monitoringForm.fy26AnnualReportDate || ''} onChange={e => setMonitoringForm(prev => ({ ...prev, fy26AnnualReportDate: e.target.value || null }))} />
+              )}
+            </div>
+            <div className="pe-form-group">
+              <div className="pe-checkbox-group">
+                <input type="checkbox" id="fy25Report" checked={monitoringForm.fy25AnnualReportReceived || false} onChange={e => setMonitoringForm(prev => ({ ...prev, fy25AnnualReportReceived: e.target.checked }))} />
+                <label htmlFor="fy25Report">FY25 Annual Report Received</label>
+              </div>
+              {monitoringForm.fy25AnnualReportReceived && (
+                <input type="date" value={monitoringForm.fy25AnnualReportDate || ''} onChange={e => setMonitoringForm(prev => ({ ...prev, fy25AnnualReportDate: e.target.value || null }))} />
               )}
             </div>
             <div className="pe-form-group">
@@ -412,10 +443,25 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
             <div className="pe-monitoring-section">
               <h4>Documents Received</h4>
               <div className="pe-documents-checklist">
+                <div className={`pe-document-item ${company?.drhpFiled ? 'received' : ''}`}>
+                  <span className="pe-document-check">{company?.drhpFiled ? '✓' : '○'}</span>
+                  <span className="pe-document-label">
+                    DRHP Filed
+                    {company?.drhpLink && (
+                      <> — <a href={company.drhpLink} target="_blank" rel="noopener noreferrer">link</a></>
+                    )}
+                  </span>
+                  {company?.drhpFiledDate && <span className="pe-document-date">{new Date(company.drhpFiledDate).toLocaleDateString()}</span>}
+                </div>
                 <div className={`pe-document-item ${company?.fy26AnnualReportReceived ? 'received' : ''}`}>
                   <span className="pe-document-check">{company?.fy26AnnualReportReceived ? '✓' : '○'}</span>
                   <span className="pe-document-label">FY26 Annual Report</span>
                   {company?.fy26AnnualReportDate && <span className="pe-document-date">{new Date(company.fy26AnnualReportDate).toLocaleDateString()}</span>}
+                </div>
+                <div className={`pe-document-item ${company?.fy25AnnualReportReceived ? 'received' : ''}`}>
+                  <span className="pe-document-check">{company?.fy25AnnualReportReceived ? '✓' : '○'}</span>
+                  <span className="pe-document-label">FY25 Annual Report</span>
+                  {company?.fy25AnnualReportDate && <span className="pe-document-date">{new Date(company.fy25AnnualReportDate).toLocaleDateString()}</span>}
                 </div>
                 <div className={`pe-document-item ${company?.lastAuditedFinancialsReceived ? 'received' : ''}`}>
                   <span className="pe-document-check">{company?.lastAuditedFinancialsReceived ? '✓' : '○'}</span>

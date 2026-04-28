@@ -1,12 +1,7 @@
 import { NextApiResponse } from 'next';
-import formidable from 'formidable';
-import fs from 'fs';
-import path from 'path';
 import { withAuth, AuthenticatedRequest } from '../../../lib/authMiddleware';
 import { query } from '../../../lib/db';
-import { uploadToR2, getPresignedUrl } from '../../../lib/storage';
-
-export const config = { api: { bodyParser: false } };
+import { getPresignedUrl } from '../../../lib/storage';
 
 const ALLOWED_TYPES = [
   'application/pdf',
@@ -17,7 +12,7 @@ const ALLOWED_TYPES = [
   'application/vnd.ms-excel',
   'application/msword',
 ];
-const MAX_SIZE = 20 * 1024 * 1024; // 20 MB
+const MAX_SIZE = 20 * 1024 * 1024;
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
@@ -47,49 +42,37 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   if (req.method === 'POST') {
-    const form = formidable({ maxFileSize: MAX_SIZE, keepExtensions: true });
+    const { module, entityId, storageKey, fileName, fileType, fileSize } = req.body || {};
 
-    let fields: formidable.Fields;
-    let files: formidable.Files;
-    try {
-      [fields, files] = await form.parse(req);
-    } catch {
-      return res.status(400).json({ error: 'File too large or invalid (max 20 MB)' });
+    if (!module || !entityId || !storageKey || !fileName || !fileType || typeof fileSize !== 'number') {
+      return res.status(400).json({ error: 'module, entityId, storageKey, fileName, fileType, fileSize required' });
     }
-
-    const module = Array.isArray(fields.module) ? fields.module[0] : fields.module;
-    const entityId = Array.isArray(fields.entityId) ? fields.entityId[0] : fields.entityId;
-    const fileArr = Array.isArray(files.file) ? files.file : [files.file];
-    const file = fileArr[0];
-
-    if (!module || !entityId || !file) return res.status(400).json({ error: 'module, entityId, and file required' });
-    if (!['pe', 'pipeline', 'thesis'].includes(module)) return res.status(400).json({ error: 'Invalid module' });
-
-    const mimeType = file.mimetype || 'application/octet-stream';
-    if (!ALLOWED_TYPES.includes(mimeType)) {
+    if (!['pe', 'pipeline', 'thesis'].includes(module)) {
+      return res.status(400).json({ error: 'Invalid module' });
+    }
+    if (!ALLOWED_TYPES.includes(fileType)) {
       return res.status(400).json({ error: 'File type not allowed' });
     }
-
-    const ext = path.extname(file.originalFilename || file.newFilename || '');
-    const safeName = (file.originalFilename || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
-    const storageKey = `${module}/${entityId}/${Date.now()}-${safeName}`;
-
-    const buffer = fs.readFileSync(file.filepath);
-    await uploadToR2(storageKey, buffer, mimeType);
-    fs.unlinkSync(file.filepath);
+    if (fileSize <= 0 || fileSize > MAX_SIZE) {
+      return res.status(400).json({ error: `File must be between 1 byte and ${MAX_SIZE / (1024 * 1024)} MB` });
+    }
+    const expectedPrefix = `${module}/${entityId}/`;
+    if (!storageKey.startsWith(expectedPrefix)) {
+      return res.status(400).json({ error: 'storageKey does not match module/entityId' });
+    }
 
     const [row] = await query<{ id: string; uploaded_at: string }>(
       `INSERT INTO attachments (module, entity_id, file_name, storage_key, file_type, file_size, uploaded_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, uploaded_at`,
-      [module, entityId, file.originalFilename || safeName, storageKey, mimeType, file.size, req.user.email]
+      [module, entityId, fileName, storageKey, fileType, fileSize, req.user.email]
     );
 
     const url = await getPresignedUrl(storageKey);
     return res.status(201).json({
       id: row.id,
-      fileName: file.originalFilename || safeName,
-      fileType: mimeType,
-      fileSize: file.size,
+      fileName,
+      fileType,
+      fileSize,
       uploadedBy: req.user.email,
       uploadedAt: row.uploaded_at,
       url,

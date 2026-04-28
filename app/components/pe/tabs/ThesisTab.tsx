@@ -9,6 +9,7 @@ import {
   ThesisStatus,
   UpdatePEThesisRequest,
 } from '../../../../types/pe';
+import { useAuth } from '../../../contexts/AuthContext';
 
 interface ThesisTabProps {
   companyId: string;
@@ -34,6 +35,7 @@ const STATUS_OPTIONS: { value: ThesisStatus; label: string; color: string }[] = 
 ];
 
 export function ThesisTab({ companyId, company, onCompanyUpdated }: ThesisTabProps) {
+  const { isAdmin } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState<UpdatePEThesisRequest>({
@@ -433,14 +435,18 @@ export function ThesisTab({ companyId, company, onCompanyUpdated }: ThesisTabPro
             {communications.map(comm => {
               const typeInfo = getTypeInfo(comm.communicationType);
               const isExpanded = expandedId === comm.id;
+              const hasMoreDetails = !!(comm.detailedNotes || comm.participants || comm.followUpNotes || comm.createdBy);
               return (
                 <div key={comm.id} className="pe-timeline-item">
                   <div className="pe-timeline-marker">
                     <span className="pe-timeline-icon">{typeInfo.icon}</span>
                     <div className="pe-timeline-line" />
                   </div>
-                  <div className="pe-timeline-content">
-                    <div className="pe-timeline-header" onClick={() => setExpandedId(isExpanded ? null : comm.id)}>
+                  <div
+                    className={`pe-timeline-content ${hasMoreDetails ? 'pe-timeline-clickable' : ''}`}
+                    onClick={hasMoreDetails ? () => setExpandedId(isExpanded ? null : comm.id) : undefined}
+                  >
+                    <div className="pe-timeline-header">
                       <div className="pe-timeline-main">
                         <span className="pe-timeline-type">{typeInfo.label}</span>
                         {comm.subject && <span className="pe-timeline-subject">{comm.subject}</span>}
@@ -451,13 +457,33 @@ export function ThesisTab({ companyId, company, onCompanyUpdated }: ThesisTabPro
                     {comm.followUpRequired && (
                       <div className="pe-followup-badge">⏰ Follow-up{comm.followUpDate && `: ${formatDate(comm.followUpDate)}`}</div>
                     )}
+                    {hasMoreDetails && !isExpanded && (
+                      <button
+                        type="button"
+                        className="pe-timeline-expand-hint"
+                        onClick={e => { e.stopPropagation(); setExpandedId(comm.id); }}
+                      >
+                        ▾ Show more details
+                      </button>
+                    )}
                     {isExpanded && (
                       <div className="pe-timeline-expanded">
                         {comm.detailedNotes && <div className="pe-timeline-detail"><strong>Details:</strong><p>{comm.detailedNotes}</p></div>}
                         {comm.participants && <div className="pe-timeline-detail"><strong>Participants:</strong> {comm.participants}</div>}
                         {comm.followUpNotes && <div className="pe-timeline-detail"><strong>Follow-up:</strong> {comm.followUpNotes}</div>}
                         {comm.createdBy && <div className="pe-timeline-meta">Added by {comm.createdBy}</div>}
-                        <button className="pe-delete-btn-small" onClick={e => { e.stopPropagation(); handleDeleteComm(comm.id); }} type="button">Delete</button>
+                        <div className="pe-timeline-actions">
+                          <button
+                            type="button"
+                            className="pe-timeline-collapse"
+                            onClick={e => { e.stopPropagation(); setExpandedId(null); }}
+                          >
+                            ▴ Hide
+                          </button>
+                          {isAdmin && (
+                            <button className="pe-delete-btn-small" onClick={e => { e.stopPropagation(); handleDeleteComm(comm.id); }} type="button">Delete</button>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
