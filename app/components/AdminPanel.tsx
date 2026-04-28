@@ -41,14 +41,75 @@ export default function AdminPanel() {
   const [newMemberName, setNewMemberName] = useState('');
   const [addingMember, setAddingMember] = useState(false);
 
+  // Analyst visibility (small companies)
+  type SmallCompany = {
+    code: string;
+    scripName: string;
+    investedAmount: number;
+    visibleToAnalyst: boolean;
+    overridden: boolean;
+  };
+  const [smallCompanies, setSmallCompanies] = useState<SmallCompany[]>([]);
+  const [visibilityThreshold, setVisibilityThreshold] = useState(2_000_000);
+  const [visibilityUpdating, setVisibilityUpdating] = useState<string | null>(null);
+
   useEffect(() => {
     if (isAdmin) {
       fetchUsers();
       fetchAllowedEmails();
       fetchRecentHistory();
       fetchTeamMembers();
+      fetchAnalystVisibility();
     }
   }, [isAdmin]);
+
+  const fetchAnalystVisibility = async () => {
+    try {
+      const res = await fetch('/api/admin/analyst-visibility');
+      if (!res.ok) return;
+      const data = await res.json();
+      setSmallCompanies(data.companies || []);
+      setVisibilityThreshold(data.threshold || 2_000_000);
+    } catch {}
+  };
+
+  const toggleAnalystVisibility = async (code: string, nextVisible: boolean) => {
+    setVisibilityUpdating(code);
+    try {
+      const res = await fetch('/api/admin/analyst-visibility', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, visible: nextVisible }),
+      });
+      if (!res.ok) throw new Error();
+      setSmallCompanies(prev => prev.map(c =>
+        c.code === code ? { ...c, visibleToAnalyst: nextVisible, overridden: true } : c
+      ));
+    } catch {
+      setError('Failed to update analyst visibility');
+    } finally {
+      setVisibilityUpdating(null);
+    }
+  };
+
+  const resetAnalystVisibility = async (code: string) => {
+    setVisibilityUpdating(code);
+    try {
+      const res = await fetch('/api/admin/analyst-visibility', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      if (!res.ok) throw new Error();
+      setSmallCompanies(prev => prev.map(c =>
+        c.code === code ? { ...c, visibleToAnalyst: false, overridden: false } : c
+      ));
+    } catch {
+      setError('Failed to reset analyst visibility');
+    } finally {
+      setVisibilityUpdating(null);
+    }
+  };
 
   const fetchRecentHistory = async () => {
     try {
@@ -339,6 +400,65 @@ export default function AdminPanel() {
           ))}
           {teamMembers.length === 0 && <span style={{ fontSize: '0.875rem', color: 'var(--secondary-text-color)' }}>No team members yet.</span>}
         </div>
+      </div>
+
+      {/* Analyst Visibility */}
+      <div className="admin-section" style={{ marginBottom: '2rem', padding: '1.25rem', background: 'var(--surface-color)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+        <h3 style={{ margin: '0 0 0.25rem', fontSize: '1rem', fontWeight: 600 }}>Analyst Visibility — Small Holdings</h3>
+        <p style={{ margin: '0 0 1rem', fontSize: '0.875rem', color: 'var(--secondary-text-color)' }}>
+          Companies with invested amount under ₹{(visibilityThreshold / 100000).toLocaleString('en-IN')} L are hidden from analysts by default. Toggle to expose specific ones.
+        </p>
+        {smallCompanies.length === 0 ? (
+          <span style={{ fontSize: '0.875rem', color: 'var(--secondary-text-color)' }}>
+            No companies under the threshold.
+          </span>
+        ) : (
+          <div className="admin-table-container">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Company</th>
+                  <th>Code</th>
+                  <th style={{ textAlign: 'right' }}>Invested</th>
+                  <th style={{ textAlign: 'center' }}>Visible to Analysts</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {smallCompanies.map(c => (
+                  <tr key={c.code}>
+                    <td>{c.scripName}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{c.code}</td>
+                    <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>
+                      ₹{c.investedAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={c.visibleToAnalyst}
+                        disabled={visibilityUpdating === c.code}
+                        onChange={e => toggleAnalystVisibility(c.code, e.target.checked)}
+                      />
+                    </td>
+                    <td>
+                      {c.overridden ? (
+                        <button
+                          onClick={() => resetAnalystVisibility(c.code)}
+                          disabled={visibilityUpdating === c.code}
+                          style={{ padding: '0.2rem 0.6rem', background: 'none', border: '1px solid var(--border-color)', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer', color: 'var(--secondary-text-color)' }}
+                        >
+                          Reset to default
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--secondary-text-color)' }}>Default (hidden)</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="role-legend">

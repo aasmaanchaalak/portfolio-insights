@@ -3338,6 +3338,13 @@ const App: React.FC = () => {
                 throw new Error('Failed to save GridKey data');
             }
 
+            const result = await response.json().catch(() => ({}));
+            const newStocks: { code: string; name: string }[] = result.newStocks || [];
+            if (newStocks.length > 0) {
+                const list = newStocks.map(s => `• ${s.name} (${s.code})`).join('\n');
+                alert(`${newStocks.length} new ${newStocks.length === 1 ? 'company' : 'companies'} added since last upload:\n\n${list}`);
+            }
+
             setGridKeyData(data);
             setPrivateInvestments(privateInv);
 

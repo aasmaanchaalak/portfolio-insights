@@ -14,6 +14,10 @@ import {
   setEntryData,
   setPositioning,
   deletePositioning,
+  getGridKeyData,
+  getUserByEmail,
+  getAnalystOverrides,
+  isVisibleToAnalyst,
 } from '../../lib/queries';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -50,7 +54,29 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           };
         });
 
-        res.status(200).json(enrichedData);
+        const userEmail = (req as any).user?.email;
+        const user = userEmail ? await getUserByEmail(userEmail) : null;
+        let visibleData = enrichedData;
+        if (user?.role === 'analyst') {
+          const [gridKey, overrides] = await Promise.all([
+            getGridKeyData(),
+            getAnalystOverrides(),
+          ]);
+          const investedByCode: Record<string, number> = {};
+          for (const item of gridKey || []) {
+            const code = item.nseCode || item.bseCode;
+            if (!code) continue;
+            investedByCode[code] = (Number(item.quantity) || 0) * (Number(item.averageBuyPrice) || 0);
+          }
+          visibleData = enrichedData.filter((stock: any) => {
+            const code = stock.nseCode || stock.bseCode;
+            if (!code) return true;
+            const invested = investedByCode[code] || 0;
+            return isVisibleToAnalyst(invested, code, overrides);
+          });
+        }
+
+        res.status(200).json(visibleData);
       } catch (error) {
         console.error('Error reading portfolio data:', error);
         res.status(500).json({ error: 'Failed to read portfolio data' });

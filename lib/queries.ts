@@ -652,3 +652,43 @@ export async function deleteTeamMember(id: string): Promise<boolean> {
   const rows = await query<any>(`DELETE FROM team_members WHERE id = $1 RETURNING id`, [id]);
   return rows.length > 0;
 }
+
+// ============ Analyst Company Visibility ============
+//
+// Analysts cannot see companies whose invested amount is below the threshold
+// unless an admin has flipped visibility for that specific company. The
+// override table stores the explicit overrides; absence falls back to the
+// default rule.
+
+export const ANALYST_VISIBILITY_THRESHOLD = 2_000_000; // 20 lakhs
+
+export async function getAnalystOverrides(): Promise<Record<string, boolean>> {
+  const rows = await query<{ code: string; visible: boolean }>(
+    `SELECT code, visible FROM analyst_company_overrides`
+  );
+  const map: Record<string, boolean> = {};
+  for (const r of rows) map[r.code] = r.visible;
+  return map;
+}
+
+export async function setAnalystOverride(code: string, visible: boolean): Promise<void> {
+  await query(
+    `INSERT INTO analyst_company_overrides (code, visible)
+     VALUES ($1, $2)
+     ON CONFLICT (code) DO UPDATE SET visible = EXCLUDED.visible, updated_at = NOW()`,
+    [code, visible]
+  );
+}
+
+export async function clearAnalystOverride(code: string): Promise<void> {
+  await query(`DELETE FROM analyst_company_overrides WHERE code = $1`, [code]);
+}
+
+export function isVisibleToAnalyst(
+  investedAmount: number,
+  code: string | null,
+  overrides: Record<string, boolean>
+): boolean {
+  if (code && code in overrides) return overrides[code];
+  return investedAmount >= ANALYST_VISIBILITY_THRESHOLD;
+}

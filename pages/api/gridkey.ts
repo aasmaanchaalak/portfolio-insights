@@ -8,6 +8,9 @@ import {
   getPortfolioData,
   getAllEntryData,
   setEntryData,
+  getUserByEmail,
+  getAnalystOverrides,
+  isVisibleToAnalyst,
 } from '../../lib/queries';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -19,8 +22,20 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           getPrivateInvestments()
         ]);
 
+        const userEmail = (req as any).user?.email;
+        const user = userEmail ? await getUserByEmail(userEmail) : null;
+        let visibleData = gridKeyData || [];
+        if (user?.role === 'analyst') {
+          const overrides = await getAnalystOverrides();
+          visibleData = visibleData.filter((item: any) => {
+            const code = item.nseCode || item.bseCode;
+            const invested = (Number(item.quantity) || 0) * (Number(item.averageBuyPrice) || 0);
+            return isVisibleToAnalyst(invested, code, overrides);
+          });
+        }
+
         res.status(200).json({
-          gridKeyData: gridKeyData || [],
+          gridKeyData: visibleData,
           privateInvestments
         });
       } catch (error) {
@@ -49,10 +64,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
         // Find new stocks (in new data but not in existing data AND don't have entry data yet)
         const newStockCodes: string[] = [];
+        const newStocks: { code: string; name: string }[] = [];
         for (const item of gridKeyData) {
           const code = item.nseCode || item.bseCode;
           if (code && !existingCodes.has(code) && !existingEntryDataCodes.has(code)) {
             newStockCodes.push(code);
+            newStocks.push({ code, name: item.scripName || code });
           }
         }
 
@@ -102,7 +119,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         res.status(200).json({
           success: true,
           message: 'GridKey data saved successfully',
-          newStocksDetected: newStockCodes.length
+          newStocksDetected: newStockCodes.length,
+          newStocks,
         });
       } catch (error) {
         console.error('Error saving GridKey data:', error);
