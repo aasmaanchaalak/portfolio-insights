@@ -23,17 +23,34 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
       case 'PUT': {
         const {
-          investedValue, currentValue, pricePerShare, quantityHeld,
-          ownershipPercentage, investmentDate, investmentValuation, currency,
+          investedValue, pricePerShare, currentPricePerShare, quantityHeld,
+          investmentDate, investmentValuation, currency,
         } = req.body;
 
         if (investedValue === undefined || investedValue === null) {
           return res.status(400).json({ error: 'Invested value is required' });
         }
 
+        const derivedCurrentValue =
+          currentPricePerShare != null && quantityHeld != null
+            ? currentPricePerShare * quantityHeld
+            : null;
+
+        const derivedOwnership =
+          investmentValuation != null && investmentValuation > 0 && investedValue != null
+            ? (investedValue / investmentValuation) * 100
+            : null;
+
         const updated = await updateInvestment(companyId, {
-          investedValue, currentValue, pricePerShare, quantityHeld,
-          ownershipPercentage, investmentDate, investmentValuation, currency,
+          investedValue,
+          currentValue: derivedCurrentValue,
+          pricePerShare,
+          currentPricePerShare,
+          quantityHeld,
+          ownershipPercentage: derivedOwnership,
+          investmentDate,
+          investmentValuation,
+          currency,
         });
         const metrics = calculateMetrics(updated);
         return res.status(200).json({ company: updated, metrics });

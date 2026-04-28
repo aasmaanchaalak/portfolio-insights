@@ -53,6 +53,7 @@ export interface PECompany {
   investedValue: number | null;
   currentValue: number | null;
   pricePerShare: number | null;
+  currentPricePerShare: number | null;
   quantityHeld: number | null;
   ownershipPercentage: number | null;
   investmentDate: string | null;
@@ -185,6 +186,7 @@ export interface UpdatePEInvestmentRequest {
   investedValue: number;
   currentValue?: number | null;
   pricePerShare?: number | null;
+  currentPricePerShare?: number | null;
   quantityHeld?: number | null;
   ownershipPercentage?: number | null;
   investmentDate?: string | null;

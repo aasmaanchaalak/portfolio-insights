@@ -39,14 +39,52 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
 
   const [formData, setFormData] = useState<UpdatePEInvestmentRequest>({
     investedValue: company?.investedValue || 0,
-    currentValue: company?.currentValue || null,
     pricePerShare: company?.pricePerShare || null,
+    currentPricePerShare: company?.currentPricePerShare || null,
     quantityHeld: company?.quantityHeld || null,
-    ownershipPercentage: company?.ownershipPercentage || null,
     investmentDate: company?.investmentDate || null,
     investmentValuation: company?.investmentValuation || null,
     currency: company?.currency || 'INR',
   });
+
+  type LinkedField = 'invested' | 'price' | 'qty';
+  const [recentEdits, setRecentEdits] = useState<LinkedField[]>([]);
+
+  const handleLinkedChange = (field: LinkedField, value: number | null) => {
+    setRecentEdits(prev => {
+      const filtered = prev.filter(f => f !== field);
+      return [...filtered, field].slice(-2);
+    });
+
+    setFormData(prev => {
+      const next = { ...prev };
+      if (field === 'invested') next.investedValue = value ?? 0;
+      else if (field === 'price') next.pricePerShare = value;
+      else next.quantityHeld = value;
+
+      const others = recentEdits.filter(f => f !== field);
+      const otherDriver = others[others.length - 1];
+      if (!otherDriver) return next;
+
+      const target = (['invested', 'price', 'qty'] as const).find(
+        f => f !== field && f !== otherDriver
+      );
+      if (!target) return next;
+
+      const inv = next.investedValue || 0;
+      const price = next.pricePerShare || 0;
+      const qty = next.quantityHeld || 0;
+
+      if (target === 'invested' && price > 0 && qty > 0) {
+        next.investedValue = price * qty;
+      } else if (target === 'price' && inv > 0 && qty > 0) {
+        next.pricePerShare = inv / qty;
+      } else if (target === 'qty' && inv > 0 && price > 0) {
+        next.quantityHeld = inv / price;
+      }
+      return next;
+    });
+  };
 
   const [monitoringForm, setMonitoringForm] = useState<UpdatePEMonitoringRequest>({
     latestEarningsUpdate: company?.latestEarningsUpdate || '',
@@ -64,14 +102,14 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
   const handleEdit = () => {
     setFormData({
       investedValue: company?.investedValue || 0,
-      currentValue: company?.currentValue || null,
       pricePerShare: company?.pricePerShare || null,
+      currentPricePerShare: company?.currentPricePerShare || null,
       quantityHeld: company?.quantityHeld || null,
-      ownershipPercentage: company?.ownershipPercentage || null,
       investmentDate: company?.investmentDate?.split('T')[0] || null,
       investmentValuation: company?.investmentValuation || null,
       currency: company?.currency || 'INR',
     });
+    setRecentEdits([]);
     setIsEditing(true);
   };
 
@@ -193,23 +231,39 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
             <div className="pe-form-grid">
               <div className="pe-form-group">
                 <label>Invested Value *</label>
-                <input type="number" value={formData.investedValue || ''} onChange={e => setFormData(prev => ({ ...prev, investedValue: parseFloat(e.target.value) || 0 }))} required />
+                <input
+                  type="number"
+                  value={formData.investedValue || ''}
+                  onChange={e => handleLinkedChange('invested', parseFloat(e.target.value) || 0)}
+                  required
+                />
               </div>
               <div className="pe-form-group">
-                <label>Current Value</label>
-                <input type="number" value={formData.currentValue || ''} onChange={e => setFormData(prev => ({ ...prev, currentValue: parseFloat(e.target.value) || null }))} />
-              </div>
-              <div className="pe-form-group">
-                <label>Price per Share</label>
-                <input type="number" step="0.0001" value={formData.pricePerShare || ''} onChange={e => setFormData(prev => ({ ...prev, pricePerShare: parseFloat(e.target.value) || null }))} />
+                <label>Investment Price per Share</label>
+                <input
+                  type="number"
+                  step="0.0001"
+                  value={formData.pricePerShare || ''}
+                  onChange={e => handleLinkedChange('price', parseFloat(e.target.value) || null)}
+                />
               </div>
               <div className="pe-form-group">
                 <label>Quantity Held</label>
-                <input type="number" step="0.0001" value={formData.quantityHeld || ''} onChange={e => setFormData(prev => ({ ...prev, quantityHeld: parseFloat(e.target.value) || null }))} />
+                <input
+                  type="number"
+                  step="0.0001"
+                  value={formData.quantityHeld || ''}
+                  onChange={e => handleLinkedChange('qty', parseFloat(e.target.value) || null)}
+                />
               </div>
               <div className="pe-form-group">
-                <label>Ownership %</label>
-                <input type="number" step="0.01" value={formData.ownershipPercentage || ''} onChange={e => setFormData(prev => ({ ...prev, ownershipPercentage: parseFloat(e.target.value) || null }))} />
+                <label>Current Price per Share</label>
+                <input
+                  type="number"
+                  step="0.0001"
+                  value={formData.currentPricePerShare || ''}
+                  onChange={e => setFormData(prev => ({ ...prev, currentPricePerShare: parseFloat(e.target.value) || null }))}
+                />
               </div>
               <div className="pe-form-group">
                 <label>Investment Date</label>
@@ -228,16 +282,16 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
         ) : (
           <div className="pe-details-grid">
             <div className="pe-detail-item">
-              <span className="pe-detail-label">Price per Share</span>
+              <span className="pe-detail-label">Investment Price per Share</span>
               <span className="pe-detail-value">{company?.pricePerShare != null ? `₹${company.pricePerShare.toLocaleString()}` : '-'}</span>
+            </div>
+            <div className="pe-detail-item">
+              <span className="pe-detail-label">Current Price per Share</span>
+              <span className="pe-detail-value">{company?.currentPricePerShare != null ? `₹${company.currentPricePerShare.toLocaleString()}` : '-'}</span>
             </div>
             <div className="pe-detail-item">
               <span className="pe-detail-label">Quantity Held</span>
               <span className="pe-detail-value">{company?.quantityHeld != null ? company.quantityHeld.toLocaleString() : '-'}</span>
-            </div>
-            <div className="pe-detail-item">
-              <span className="pe-detail-label">Ownership</span>
-              <span className="pe-detail-value">{formatOwnership(company?.ownershipPercentage || null)}</span>
             </div>
             <div className="pe-detail-item">
               <span className="pe-detail-label">Investment Date</span>
@@ -246,6 +300,10 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
             <div className="pe-detail-item">
               <span className="pe-detail-label">Investment Valuation</span>
               <span className="pe-detail-value">{company?.investmentValuation != null ? formatCurrency(company.investmentValuation) : '-'}</span>
+            </div>
+            <div className="pe-detail-item">
+              <span className="pe-detail-label">Ownership</span>
+              <span className="pe-detail-value">{formatOwnership(company?.ownershipPercentage ?? null)}</span>
             </div>
           </div>
         )}

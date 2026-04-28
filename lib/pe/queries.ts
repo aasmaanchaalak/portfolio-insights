@@ -127,18 +127,20 @@ export async function updateInvestment(companyId: string, data: UpdatePEInvestme
       invested_value = $1,
       current_value = $2,
       price_per_share = $3,
-      quantity_held = $4,
-      ownership_percentage = $5,
-      investment_date = $6,
-      investment_valuation = $7,
-      currency = $8,
+      current_price_per_share = $4,
+      quantity_held = $5,
+      ownership_percentage = $6,
+      investment_date = $7,
+      investment_valuation = $8,
+      currency = $9,
       updated_at = NOW()
-    WHERE id = $9
+    WHERE id = $10
     RETURNING *
   `, [
     data.investedValue,
     data.currentValue ?? null,
     data.pricePerShare ?? null,
+    data.currentPricePerShare ?? null,
     data.quantityHeld ?? null,
     data.ownershipPercentage ?? null,
     data.investmentDate ?? null,
