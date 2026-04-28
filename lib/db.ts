@@ -1,4 +1,9 @@
-import { Pool, PoolClient } from 'pg';
+import { Pool, PoolClient, types } from 'pg';
+
+// pg returns NUMERIC/DECIMAL as strings by default to preserve precision.
+// Our app treats these as JS numbers (e.g. value.toFixed in formatters), so
+// parse them as floats at the driver boundary.
+types.setTypeParser(1700, val => (val == null ? null : parseFloat(val)));
 
 let pool: Pool | null = null;
 
