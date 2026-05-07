@@ -3,6 +3,7 @@
 /* Card Container */
 .thesis-card {
   background-color: var(--background-color);
+  max-width: 100%;
 }
 
 /* Loading State */
@@ -121,9 +122,9 @@
 /* Header with Status */
 .thesis-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   margin-bottom: 1.25rem;
+  gap: 0.5rem;
 }
 
 .thesis-review-btn {
@@ -251,34 +252,22 @@
 }
 
 /* Meta Info */
-.thesis-meta {
+.thesis-meta-inline {
   display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  padding: 0 0.75rem;
   flex-wrap: wrap;
-  gap: 1.25rem;
-  margin-bottom: 1.5rem;
-  padding: 1rem;
-  background-color: var(--surface-color);
-  border-radius: 8px;
 }
 
-.thesis-meta-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.thesis-meta-label {
-  font-size: 0.7rem;
+.thesis-meta-pill {
+  font-size: 0.75rem;
   color: var(--secondary-text-color);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  font-weight: 500;
-}
-
-.thesis-meta-value {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--primary-text-color);
+  background-color: var(--surface-color);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  white-space: nowrap;
 }
 
 /* Section */
@@ -860,11 +849,30 @@
   gap: 0.5rem;
 }
 
+.note-history-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.note-history-toggle {
+  background: none;
+  border: none;
+  font-size: 0.78rem;
+  color: var(--secondary-text-color);
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.note-history-toggle:hover {
+  color: var(--primary-text-color);
+}
+
 .note-history {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  margin-top: 0.25rem;
 }
 
 .note-history-item {

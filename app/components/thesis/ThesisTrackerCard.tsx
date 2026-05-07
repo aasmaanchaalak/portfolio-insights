@@ -15,7 +15,6 @@ import { SignalsSection } from './SignalsSection';
 import { LatestNote } from './LatestNote';
 import { ThesisHistoryTimeline } from './ThesisHistoryTimeline';
 import './thesis.css';
-import { AttachmentSection } from '../shared/AttachmentSection';
 
 interface ThesisTrackerCardProps {
   thesis: Thesis | null;
@@ -142,13 +141,18 @@ export function ThesisTrackerCard({
 
   return (
     <div className="thesis-card">
-      {/* Header with status */}
+      {/* Header — all in one line */}
       <div className="thesis-header">
         <ThesisStatusBadge
           status={thesis.status}
           onStatusChange={handleStatusChange}
           disabled={isSaving}
         />
+        <div className="thesis-meta-inline">
+          <span className="thesis-meta-pill">Last Review: {formatDate(thesis.lastReviewDate)}</span>
+          <span className="thesis-meta-pill">Created: {formatDate(thesis.createdAt)}</span>
+          <span className="thesis-meta-pill">v{thesis.version}</span>
+        </div>
         <button
           className="thesis-review-btn"
           onClick={handleMarkReviewed}
@@ -160,22 +164,6 @@ export function ThesisTrackerCard({
           </svg>
           Review
         </button>
-      </div>
-
-      {/* Meta info */}
-      <div className="thesis-meta">
-        <div className="thesis-meta-item">
-          <span className="thesis-meta-label">Last Review</span>
-          <span className="thesis-meta-value">{formatDate(thesis.lastReviewDate)}</span>
-        </div>
-        <div className="thesis-meta-item">
-          <span className="thesis-meta-label">Created</span>
-          <span className="thesis-meta-value">{formatDate(thesis.createdAt)}</span>
-        </div>
-        <div className="thesis-meta-item">
-          <span className="thesis-meta-label">Version</span>
-          <span className="thesis-meta-value">v{thesis.version}</span>
-        </div>
       </div>
 
       {/* Original Thesis */}
@@ -308,7 +296,6 @@ export function ThesisTrackerCard({
             stockCode={stockCode}
           />
         )}
-        <AttachmentSection module="thesis" entityId={stockCode} drawerWidth={480} />
       </div>
     </div>
   );

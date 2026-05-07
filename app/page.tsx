@@ -596,7 +596,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
 
     // Stock detail drawer state
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-    const [selectedStock, setSelectedStock] = useState<{ code: string; name: string } | null>(null);
+    const [selectedStock, setSelectedStock] = useState<{ code: string; name: string; positioning?: any } | null>(null);
 
     const allInsightsColumns = [
         { key: 'quantity', label: 'Quantity' },
@@ -1039,7 +1039,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         const stockCode = item.nseCode || item.bseCode;
         const stockName = item.scripName || item.name;
         if (stockCode) {
-            setSelectedStock({ code: stockCode, name: stockName });
+            setSelectedStock({ code: stockCode, name: stockName, positioning: (item as any).positioning || null });
             setIsDrawerOpen(true);
         }
     };
@@ -1784,6 +1784,8 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                 }}
                 stockCode={selectedStock?.code || null}
                 stockName={selectedStock?.name || ''}
+                positioning={selectedStock?.positioning}
+                isAnalyst={isAnalyst}
             />
         </>
     );

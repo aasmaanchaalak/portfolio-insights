@@ -13,6 +13,7 @@ interface LatestNoteProps {
 export function LatestNote({ note, noteHistory, onSave, disabled }: LatestNoteProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [newNote, setNewNote] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
 
   const handleAdd = () => {
     if (!newNote.trim()) return;
@@ -59,13 +60,20 @@ export function LatestNote({ note, noteHistory, onSave, disabled }: LatestNotePr
 
       {/* Note history */}
       {noteHistory.length > 0 && (
-        <div className="note-history">
-          {noteHistory.map(entry => (
-            <div key={entry.id} className="note-history-item">
-              <div className="note-history-text">{entry.newValue}</div>
-              <div className="note-history-meta">{formatDate(entry.createdAt)}</div>
+        <div className="note-history-section">
+          <button className="note-history-toggle" onClick={() => setShowHistory(h => !h)}>
+            {showHistory ? '▴' : '▾'} Previous notes ({noteHistory.length})
+          </button>
+          {showHistory && (
+            <div className="note-history">
+              {noteHistory.map(entry => (
+                <div key={entry.id} className="note-history-item">
+                  <div className="note-history-text">{entry.newValue}</div>
+                  <div className="note-history-meta">{formatDate(entry.createdAt)}</div>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
 

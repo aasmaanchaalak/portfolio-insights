@@ -1128,6 +1128,13 @@ a:hover {
 }
 
 /* Stock Name Clickable Style */
+.stock-name-cell-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
 .stock-name-clickable {
   cursor: pointer;
   color: var(--accent-hover-color);
@@ -3820,6 +3827,7 @@ a:hover {
 .sticky-notes-panel {
   position: fixed;
   top: 80px;
+  left: calc(50% + min(480px, 48vw) + 16px);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -3831,11 +3839,11 @@ a:hover {
   pointer-events: all;
   display: flex;
   flex-direction: column;
-  width: 400px;
+  width: 200px;
   background: #fffde7;
   box-shadow: 2px 3px 10px rgba(0,0,0,0.18);
   border-radius: 2px;
-  padding: 12px 12px 40px;
+  padding: 6px 6px 20px;
   text-decoration: none;
   cursor: pointer;
   transition: box-shadow 0.15s ease;
@@ -3848,7 +3856,7 @@ a:hover {
 
 .sticky-note-img {
   width: 100%;
-  height: 320px;
+  height: 160px;
   object-fit: cover;
   border-radius: 1px;
   display: block;
@@ -3856,23 +3864,23 @@ a:hover {
 
 .sticky-note-doc {
   width: 100%;
-  height: 320px;
+  height: 160px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   background: rgba(0,0,0,0.04);
   border-radius: 1px;
 }
 
 .sticky-note-doc-icon {
-  font-size: 5rem;
+  font-size: 2.5rem;
   line-height: 1;
 }
 
 .sticky-note-doc-type {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   color: #666;
@@ -3880,8 +3888,8 @@ a:hover {
 }
 
 .sticky-note-label {
-  margin-top: 8px;
-  font-size: 0.85rem;
+  margin-top: 5px;
+  font-size: 0.75rem;
   color: #555;
   overflow: hidden;
   text-overflow: ellipsis;

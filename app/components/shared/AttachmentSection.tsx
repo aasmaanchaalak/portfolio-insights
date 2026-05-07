@@ -15,7 +15,6 @@ interface Attachment {
 interface Props {
   module: 'pe' | 'pipeline' | 'thesis';
   entityId: string;
-  drawerWidth?: number;
 }
 
 function fileIcon(mimeType: string): string {
@@ -36,11 +35,11 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
 }
 
-function StickyNotes({ attachments, drawerWidth }: { attachments: Attachment[]; drawerWidth: number }) {
+function StickyNotes({ attachments }: { attachments: Attachment[] }) {
   if (typeof window === 'undefined' || attachments.length === 0) return null;
 
   return createPortal(
-    <div className="sticky-notes-panel" style={{ right: drawerWidth + 40 }}>
+    <div className="sticky-notes-panel">
       {attachments.map((a) => (
         <a
           key={a.id}
@@ -55,7 +54,13 @@ function StickyNotes({ attachments, drawerWidth }: { attachments: Attachment[]; 
           ) : (
             <div className="sticky-note-doc">
               <span className="sticky-note-doc-icon">{fileIcon(a.fileType)}</span>
-              <span className="sticky-note-doc-type">{a.fileType.includes('pdf') ? 'PDF' : a.fileType.includes('presentation') || a.fileType.includes('powerpoint') ? 'PPT' : a.fileType.includes('spreadsheet') || a.fileType.includes('excel') ? 'XLS' : a.fileType.includes('word') ? 'DOC' : 'FILE'}</span>
+              <span className="sticky-note-doc-type">
+                {a.fileType.includes('pdf') ? 'PDF'
+                  : a.fileType.includes('presentation') || a.fileType.includes('powerpoint') ? 'PPT'
+                  : a.fileType.includes('spreadsheet') || a.fileType.includes('excel') ? 'XLS'
+                  : a.fileType.includes('word') ? 'DOC'
+                  : 'FILE'}
+              </span>
             </div>
           )}
           <span className="sticky-note-label">{a.fileName}</span>
@@ -66,7 +71,7 @@ function StickyNotes({ attachments, drawerWidth }: { attachments: Attachment[]; 
   );
 }
 
-export function AttachmentSection({ module, entityId, drawerWidth = 600 }: Props) {
+export function AttachmentSection({ module, entityId }: Props) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -95,13 +100,7 @@ export function AttachmentSection({ module, entityId, drawerWidth = 600 }: Props
       const presignRes = await fetch('/api/attachments/presign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          module,
-          entityId,
-          fileName: file.name,
-          fileType,
-          fileSize: file.size,
-        }),
+        body: JSON.stringify({ module, entityId, fileName: file.name, fileType, fileSize: file.size }),
       });
       if (!presignRes.ok) {
         const d = await presignRes.json().catch(() => ({}));
@@ -109,24 +108,13 @@ export function AttachmentSection({ module, entityId, drawerWidth = 600 }: Props
       }
       const { uploadUrl, storageKey } = await presignRes.json();
 
-      const putRes = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': fileType },
-        body: file,
-      });
+      const putRes = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': fileType }, body: file });
       if (!putRes.ok) throw new Error('Upload to storage failed');
 
       const registerRes = await fetch('/api/attachments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          module,
-          entityId,
-          storageKey,
-          fileName: file.name,
-          fileType,
-          fileSize: file.size,
-        }),
+        body: JSON.stringify({ module, entityId, storageKey, fileName: file.name, fileType, fileSize: file.size }),
       });
       if (!registerRes.ok) {
         const d = await registerRes.json().catch(() => ({}));
@@ -146,7 +134,7 @@ export function AttachmentSection({ module, entityId, drawerWidth = 600 }: Props
 
   return (
     <>
-      <StickyNotes attachments={attachments} drawerWidth={drawerWidth} />
+      <StickyNotes attachments={attachments} />
 
       <div className="attachment-section">
         <div className="attachment-section-header">
