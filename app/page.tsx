@@ -3200,6 +3200,7 @@ interface PrivateInvestments {
 const App: React.FC = () => {
     const { user, loading: authLoading, logout, isAdmin, isAnalyst, isManager } = useAuth();
     const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'entrydata' | 'pe' | 'pipeline' | 'admin'>('pipeline');
+    const [menuOpen, setMenuOpen] = useState(false);
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [privateInvestments, setPrivateInvestments] = useState<PrivateInvestments>({ totalInvested: 0, count: 0 });
@@ -3385,21 +3386,59 @@ const App: React.FC = () => {
     return (
         <>
             <nav className="main-nav">
-                <button className={page === 'dashboard' ? 'active' : ''} onClick={() => setPage('dashboard')}>Dashboard</button>
-                <button className={page === 'insights' ? 'active' : ''} onClick={() => setPage('insights')}>Portfolio Insights</button>
-                <button className={page === 'analysis' ? 'active' : ''} onClick={() => setPage('analysis')}>Analysis</button>
-                {isManager && <button className={page === 'upload' ? 'active' : ''} onClick={() => setPage('upload')}>Screener Data</button>}
-                {isManager && <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>}
-                {isManager && <button className={page === 'entrydata' ? 'active' : ''} onClick={() => setPage('entrydata')}>Entry Data</button>}
-                <button className={page === 'pe' ? 'active' : ''} onClick={() => setPage('pe')}>PE Tracker</button>
-                <button className={page === 'pipeline' ? 'active' : ''} onClick={() => setPage('pipeline')}>Pipeline</button>
-                {isAdmin && (
-                    <button className={page === 'admin' ? 'active' : ''} onClick={() => setPage('admin')} style={{ background: page === 'admin' ? 'var(--accent-color)' : 'rgba(234, 179, 8, 0.15)', color: page === 'admin' ? 'white' : '#eab308' }}>Admin</button>
-                )}
-                <button onClick={logout} style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid var(--border-color)' }}>
-                    Logout ({user.name})
-                </button>
+                {/* Desktop nav links */}
+                <div className="main-nav-links">
+                    <button className={page === 'dashboard' ? 'active' : ''} onClick={() => setPage('dashboard')}>Dashboard</button>
+                    <button className={page === 'insights' ? 'active' : ''} onClick={() => setPage('insights')}>Portfolio Insights</button>
+                    <button className={page === 'analysis' ? 'active' : ''} onClick={() => setPage('analysis')}>Analysis</button>
+                    {isManager && <button className={page === 'upload' ? 'active' : ''} onClick={() => setPage('upload')}>Screener Data</button>}
+                    {isManager && <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>}
+                    {isManager && <button className={page === 'entrydata' ? 'active' : ''} onClick={() => setPage('entrydata')}>Entry Data</button>}
+                    <button className={page === 'pe' ? 'active' : ''} onClick={() => setPage('pe')}>PE Tracker</button>
+                    <button className={page === 'pipeline' ? 'active' : ''} onClick={() => setPage('pipeline')}>Pipeline</button>
+                    {isAdmin && (
+                        <button className={page === 'admin' ? 'active' : ''} onClick={() => setPage('admin')} style={{ background: page === 'admin' ? 'var(--accent-color)' : 'rgba(234, 179, 8, 0.15)', color: page === 'admin' ? 'white' : '#eab308' }}>Admin</button>
+                    )}
+                </div>
+                <div className="main-nav-right">
+                    <button className="main-nav-logout" onClick={logout}>
+                        Logout ({user.name})
+                    </button>
+                    {/* Burger button — mobile only */}
+                    <button className="main-nav-burger" onClick={() => setMenuOpen(o => !o)} aria-label="Menu">
+                        <span /><span /><span />
+                    </button>
+                </div>
             </nav>
+            {/* Mobile dropdown */}
+            {menuOpen && (
+                <div className="main-nav-mobile" onClick={() => setMenuOpen(false)}>
+                    {[
+                        { id: 'dashboard', label: 'Dashboard' },
+                        { id: 'insights', label: 'Portfolio Insights' },
+                        { id: 'analysis', label: 'Analysis' },
+                        ...(isManager ? [
+                            { id: 'upload', label: 'Screener Data' },
+                            { id: 'gridkey', label: 'GridKey Data' },
+                            { id: 'entrydata', label: 'Entry Data' },
+                        ] : []),
+                        { id: 'pe', label: 'PE Tracker' },
+                        { id: 'pipeline', label: 'Pipeline' },
+                        ...(isAdmin ? [{ id: 'admin', label: 'Admin' }] : []),
+                    ].map(item => (
+                        <button
+                            key={item.id}
+                            className={page === item.id ? 'active' : ''}
+                            onClick={() => setPage(item.id as any)}
+                        >
+                            {item.label}
+                        </button>
+                    ))}
+                    <button className="main-nav-mobile-logout" onClick={logout}>
+                        Logout ({user.name})
+                    </button>
+                </div>
+            )}
             <main>
                 {page === 'dashboard' && <Dashboard gridKeyData={gridKeyData} stocks={stocks} privateInvestments={privateInvestments} isAnalyst={isAnalyst} portfolioHistory={portfolioHistory} />}
                 {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={stocks} onStocksUpdate={setStocks} isAnalyst={isAnalyst} teamMembers={teamMembers} />}
