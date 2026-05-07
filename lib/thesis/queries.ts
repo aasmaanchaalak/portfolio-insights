@@ -10,6 +10,7 @@ import {
   CreateThesisRequest,
   UpdateThesisRequest,
 } from '../../types/thesis';
+import { ValuationTableData } from '../../types/pe';
 import crypto from 'crypto';
 
 // Helper to generate UUID
@@ -393,7 +394,7 @@ export async function updateThesis(
     }
 
     // Fetch and return updated thesis
-    const updatedResult = await client.query(
+    const updatedResult = await client.query(  // updateThesis return block
       `SELECT id, stock_code as "stockCode", stock_name as "stockName", status,
               original_thesis as "originalThesis", latest_note as "latestNote",
               last_review_date as "lastReviewDate", created_at as "createdAt",
@@ -429,4 +430,23 @@ export async function updateThesis(
       signals: signalsResult.rows,
     };
   });
+}
+
+// ============ Forward Metrics ============
+
+export async function getForwardMetrics(stockCode: string): Promise<ValuationTableData | null> {
+  const row = await queryOne<{ forward_metrics: ValuationTableData | null }>(
+    'SELECT forward_metrics FROM theses WHERE stock_code = $1',
+    [stockCode]
+  );
+  return row?.forward_metrics ?? null;
+}
+
+export async function upsertForwardMetrics(stockCode: string, data: ValuationTableData): Promise<ValuationTableData> {
+  const row = await queryOne<{ forward_metrics: ValuationTableData }>(
+    `UPDATE theses SET forward_metrics = $1::jsonb, updated_at = NOW()
+     WHERE stock_code = $2 RETURNING forward_metrics`,
+    [JSON.stringify(data), stockCode]
+  );
+  return row!.forward_metrics;
 }

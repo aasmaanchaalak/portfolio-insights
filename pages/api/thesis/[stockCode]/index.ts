@@ -1,11 +1,11 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuth, AuthenticatedRequest } from '../../../lib/authMiddleware';
+import { withAuth, AuthenticatedRequest } from '../../../../lib/authMiddleware';
 import {
   getThesisByStockCode,
   getRecentHistory,
   updateThesis,
-} from '../../../lib/thesis/queries';
-import { UpdateThesisRequest } from '../../../types/thesis';
+} from '../../../../lib/thesis/queries';
+import { UpdateThesisRequest } from '../../../../types/thesis';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { stockCode } = req.query;
@@ -18,7 +18,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     if (req.method === 'GET') {
       const thesis = await getThesisByStockCode(stockCode);
-      const recentHistory = thesis ? await getRecentHistory(thesis.id, 5) : [];
+      const recentHistory = thesis ? await getRecentHistory(thesis.id, 30) : [];
 
       res.status(200).json({
         thesis,
@@ -32,7 +32,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         return res.status(404).json({ error: 'Thesis not found' });
       }
 
-      const recentHistory = await getRecentHistory(thesis.id, 5);
+      const recentHistory = await getRecentHistory(thesis.id, 30);
       res.status(200).json({ success: true, thesis, recentHistory });
     } else {
       res.setHeader('Allow', ['GET', 'PUT']);

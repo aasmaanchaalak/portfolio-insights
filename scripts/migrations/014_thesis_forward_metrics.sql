@@ -1,0 +1,1 @@
+ALTER TABLE theses ADD COLUMN IF NOT EXISTS forward_metrics JSONB;

@@ -273,10 +273,11 @@ export function ThesisTrackerCard({
       {/* Latest Note */}
       <div className="thesis-section">
         <div className="thesis-section-header">
-          <span>Latest Note</span>
+          <span>Notes</span>
         </div>
         <LatestNote
           note={thesis.latestNote}
+          noteHistory={recentHistory.filter(h => h.actionType === 'note_added' && h.newValue)}
           onSave={handleNoteSave}
           disabled={isSaving}
         />
