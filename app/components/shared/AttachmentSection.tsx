@@ -95,32 +95,17 @@ export function AttachmentSection({ module, entityId }: Props) {
     setError(null);
 
     try {
-      const fileType = file.type || 'application/octet-stream';
+      const formData = new FormData();
+      formData.append('module', module);
+      formData.append('entityId', entityId);
+      formData.append('file', file);
 
-      const presignRes = await fetch('/api/attachments/presign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ module, entityId, fileName: file.name, fileType, fileSize: file.size }),
-      });
-      if (!presignRes.ok) {
-        const d = await presignRes.json().catch(() => ({}));
-        throw new Error(d.error || 'Could not get upload URL');
+      const res = await fetch('/api/attachments/upload', { method: 'POST', body: formData });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Upload failed');
       }
-      const { uploadUrl, storageKey } = await presignRes.json();
-
-      const putRes = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': fileType }, body: file });
-      if (!putRes.ok) throw new Error('Upload to storage failed');
-
-      const registerRes = await fetch('/api/attachments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ module, entityId, storageKey, fileName: file.name, fileType, fileSize: file.size }),
-      });
-      if (!registerRes.ok) {
-        const d = await registerRes.json().catch(() => ({}));
-        throw new Error(d.error || 'Failed to register upload');
-      }
-      const newAttachment = await registerRes.json();
+      const newAttachment = await res.json();
       setAttachments(prev => [newAttachment, ...prev]);
     } catch (err: any) {
       setError(err?.message || 'Upload failed');
