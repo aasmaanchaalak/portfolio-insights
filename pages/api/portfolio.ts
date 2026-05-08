@@ -30,21 +30,45 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           return res.status(200).json([]);
         }
 
-        // Fetch all metadata in parallel
-        const [remarksMap, assignmentsMap, bucketsMap, entryDataMap, positioningMap] = await Promise.all([
+        // Fetch all metadata and GridKey in parallel
+        const [remarksMap, assignmentsMap, bucketsMap, entryDataMap, positioningMap, gridKey] = await Promise.all([
           getAllRemarks(),
           getAllAssignments(),
           getAllBuckets(),
           getAllEntryData(),
           getAllPositioning(),
+          getGridKeyData(),
         ]);
 
-        // Merge metadata into portfolio data
+        // Build GridKey lookup by stock code
+        const gridKeyByCode: Record<string, { quantity: number | null; averageBuyPrice: number | null }> = {};
+        for (const item of gridKey || []) {
+          const code = item.nseCode || item.bseCode;
+          if (!code) continue;
+          gridKeyByCode[code] = {
+            quantity: item.quantity != null ? Number(item.quantity) : null,
+            averageBuyPrice: item.averageBuyPrice != null ? Number(item.averageBuyPrice) : null,
+          };
+        }
+
+        // Merge metadata and GridKey into portfolio data
         const enrichedData = portfolioData.map((stock: any) => {
           const code = stock.nseCode || stock.bseCode;
           const entryData = code && entryDataMap[code] ? entryDataMap[code] : null;
+          const gk = code && gridKeyByCode[code] ? gridKeyByCode[code] : { quantity: null, averageBuyPrice: null };
+          const currentPrice = stock.currentPrice ? Number(stock.currentPrice) : null;
+          const calculatedAmount = (gk.quantity != null && currentPrice != null) ? gk.quantity * currentPrice : null;
+          const investedAmount = (gk.quantity != null && gk.averageBuyPrice != null) ? gk.quantity * gk.averageBuyPrice : null;
+          const absoluteGain = (calculatedAmount != null && investedAmount != null) ? calculatedAmount - investedAmount : null;
+          const gainPercentage = (investedAmount != null && investedAmount > 0 && absoluteGain != null) ? (absoluteGain / investedAmount) * 100 : null;
           return {
             ...stock,
+            quantity: gk.quantity,
+            averageBuyPrice: gk.averageBuyPrice,
+            calculatedAmount,
+            investedAmount,
+            absoluteGain,
+            gainPercentage,
             remarks: code && remarksMap[code] ? remarksMap[code] : null,
             assignedTo: code && assignmentsMap[code] ? assignmentsMap[code] : null,
             bucket: code && bucketsMap[code] ? bucketsMap[code] : null,
@@ -58,20 +82,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         const user = userEmail ? await getUserByEmail(userEmail) : null;
         let visibleData = enrichedData;
         if (user?.role === 'analyst') {
-          const [gridKey, overrides] = await Promise.all([
-            getGridKeyData(),
-            getAnalystOverrides(),
-          ]);
-          const investedByCode: Record<string, number> = {};
-          for (const item of gridKey || []) {
-            const code = item.nseCode || item.bseCode;
-            if (!code) continue;
-            investedByCode[code] = (Number(item.quantity) || 0) * (Number(item.averageBuyPrice) || 0);
-          }
+          const overrides = await getAnalystOverrides();
           visibleData = enrichedData.filter((stock: any) => {
             const code = stock.nseCode || stock.bseCode;
             if (!code) return true;
-            const invested = investedByCode[code] || 0;
+            const invested = stock.investedAmount || 0;
             return isVisibleToAnalyst(invested, code, overrides);
           });
         }
