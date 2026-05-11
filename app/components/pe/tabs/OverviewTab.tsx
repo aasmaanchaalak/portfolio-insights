@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { AttachmentSection } from '../../shared/AttachmentSection';
 import {
   PECompany,
   PEMetrics,
@@ -477,7 +476,6 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
             </div>
           </div>
         )}
-        <AttachmentSection module="pe" entityId={companyId} />
       </div>
     </div>
   );

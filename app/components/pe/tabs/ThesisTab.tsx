@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { AttachmentSection } from '../../shared/AttachmentSection';
 import {
   PECompany,
   PECommunication,
@@ -232,6 +233,7 @@ export function ThesisTab({ companyId, company, onCompanyUpdated }: ThesisTabPro
         <h3>No Thesis Recorded</h3>
         <p>Create an investment thesis to track your conviction and key drivers.</p>
         <button className="pe-btn-primary" onClick={handleEdit} type="button">Create Thesis</button>
+        <AttachmentSection module="pe" entityId={companyId} />
       </div>
     );
   }
@@ -356,6 +358,8 @@ export function ThesisTab({ companyId, company, onCompanyUpdated }: ThesisTabPro
       {company.lastReviewDate && (
         <p className="pe-last-review">Last reviewed: {new Date(company.lastReviewDate).toLocaleDateString()}</p>
       )}
+
+      <AttachmentSection module="pe" entityId={companyId} />
 
       {/* Communications Section */}
       <div className="pe-thesis-section pe-communications-section">

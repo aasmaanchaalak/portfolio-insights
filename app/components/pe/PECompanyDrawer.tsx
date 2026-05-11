@@ -82,6 +82,8 @@ export function PECompanyDrawer({
     onCompanyUpdated?.();
   };
 
+  if (!isOpen) return null;
+
   const renderContent = () => {
     if (isLoading) return <div className="pe-drawer-loading">Loading...</div>;
     if (error) return <div className="pe-drawer-error">{error}</div>;
@@ -116,17 +118,8 @@ export function PECompanyDrawer({
 
   return (
     <>
-      <div
-        className={`pe-drawer-backdrop ${isOpen ? 'open' : ''}`}
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <div
-        className={`pe-drawer ${isOpen ? 'open' : ''}`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="pe-drawer-title"
-      >
+      <div className="stock-modal-backdrop" onClick={onClose} aria-hidden="true" />
+      <div className="stock-modal" role="dialog" aria-modal="true" aria-labelledby="pe-drawer-title">
         <div className="pe-drawer-header">
           <div className="pe-drawer-header-content">
             <h2 id="pe-drawer-title" className="pe-drawer-title">
@@ -150,7 +143,7 @@ export function PECompanyDrawer({
 
         <DrawerTabs tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
 
-        <div className="pe-drawer-content">
+        <div className="stock-modal-content">
           {renderContent()}
         </div>
       </div>
