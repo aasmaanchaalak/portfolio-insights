@@ -8,6 +8,7 @@ import {
   getAllBuckets,
   getAllEntryData,
   getAllPositioning,
+  getAllThemes,
   setRemark,
   setAssignment,
   setBucket,
@@ -31,12 +32,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         }
 
         // Fetch all metadata and GridKey in parallel
-        const [remarksMap, assignmentsMap, bucketsMap, entryDataMap, positioningMap, gridKey] = await Promise.all([
+        const [remarksMap, assignmentsMap, bucketsMap, entryDataMap, positioningMap, themesMap, gridKey] = await Promise.all([
           getAllRemarks(),
           getAllAssignments(),
           getAllBuckets(),
           getAllEntryData(),
           getAllPositioning(),
+          getAllThemes(),
           getGridKeyData(),
         ]);
 
@@ -80,7 +82,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             bucket: code && bucketsMap[code] ? bucketsMap[code] : null,
             entryDate: entryData ? entryData.entryDate : null,
             entryPrice: entryData ? entryData.entryPrice : null,
-            positioning: code && positioningMap[code] ? positioningMap[code] : null
+            positioning: code && positioningMap[code] ? positioningMap[code] : null,
+            themes: code && themesMap[code] ? themesMap[code] : [],
           };
         });
 

@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS stock_themes (
+  stock_code VARCHAR PRIMARY KEY,
+  themes     TEXT[] NOT NULL DEFAULT '{}',
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);

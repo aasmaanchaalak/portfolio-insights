@@ -35,6 +35,7 @@ export interface Stock {
   entryDate?: string | null;  // ISO date string (YYYY-MM-DD) when stock was first added
   entryPrice?: number | null; // Price when stock was first added
   positioning?: StockPositioning; // Conviction, strategy, action intent
+  themes?: string[];
 }
 
 export interface GridKeyData {

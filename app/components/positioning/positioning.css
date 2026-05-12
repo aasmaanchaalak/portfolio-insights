@@ -625,6 +625,132 @@
   min-width: 180px;
 }
 
+/* ============================================
+   THEMES SECTION
+   ============================================ */
+
+.themes-section {
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--border-color);
+  margin-top: 0.5rem;
+}
+
+.themes-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.themes-section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--secondary-text-color);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.themes-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.5rem;
+}
+
+.theme-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  background-color: #ede9fe;
+  color: #5b21b6;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.theme-chip-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #7c3aed;
+  padding: 0;
+  line-height: 1;
+  font-size: 0.85rem;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+
+.theme-chip-remove:hover {
+  opacity: 1;
+}
+
+.theme-input-wrapper {
+  position: relative;
+}
+
+.theme-tag-input {
+  width: 100%;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  background-color: var(--background-color);
+  color: var(--primary-text-color);
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+.theme-tag-input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.15);
+}
+
+.theme-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  background-color: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  z-index: 200;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.theme-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+  color: var(--primary-text-color);
+}
+
+.theme-dropdown-item:hover {
+  background-color: var(--pill-bg-color);
+}
+
+.theme-dropdown-item.selected {
+  color: #5b21b6;
+}
+
+.theme-dropdown-item.create-new {
+  color: var(--accent-color);
+  font-style: italic;
+}
+
+.theme-dropdown-empty {
+  padding: 0.5rem 0.6rem;
+  font-size: 0.8rem;
+  color: var(--secondary-text-color);
+}
+
 /* Untagged note */
 .positioning-untagged-note {
   margin-top: 1rem;

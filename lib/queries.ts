@@ -421,6 +421,32 @@ export async function deletePositioning(stockCode: string): Promise<void> {
   await query(`DELETE FROM stock_positioning WHERE stock_code = $1`, [stockCode]);
 }
 
+// ============ Stock Themes ============
+
+export async function getAllThemes(): Promise<Record<string, string[]>> {
+  const rows = await query<any>(`SELECT stock_code, themes FROM stock_themes WHERE array_length(themes, 1) > 0`);
+  const result: Record<string, string[]> = {};
+  rows.forEach(row => { result[row.stock_code] = row.themes; });
+  return result;
+}
+
+export async function setThemes(stockCode: string, themes: string[]): Promise<void> {
+  if (themes.length > 0) {
+    await query(`
+      INSERT INTO stock_themes (stock_code, themes)
+      VALUES ($1, $2)
+      ON CONFLICT (stock_code) DO UPDATE SET themes = $2, updated_at = NOW()
+    `, [stockCode, themes]);
+  } else {
+    await query(`DELETE FROM stock_themes WHERE stock_code = $1`, [stockCode]);
+  }
+}
+
+export async function getAllThemeNames(): Promise<string[]> {
+  const rows = await query<any>(`SELECT DISTINCT UNNEST(themes) AS theme FROM stock_themes ORDER BY 1`);
+  return rows.map((row: any) => row.theme);
+}
+
 // ============ Stock Entry Data ============
 
 export interface StockEntryData {

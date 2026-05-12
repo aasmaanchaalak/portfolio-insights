@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StockPositioning,
   Conviction,
@@ -32,6 +32,14 @@ export function PositioningSection({ stockCode, onPositioningChange }: Positioni
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState<StockPositioning>(DEFAULT_POSITIONING);
 
+  // Themes state
+  const [stockThemes, setStockThemes] = useState<string[]>([]);
+  const [allThemeNames, setAllThemeNames] = useState<string[]>([]);
+  const [themeInput, setThemeInput] = useState('');
+  const [showThemeDropdown, setShowThemeDropdown] = useState(false);
+  const themeInputRef = useRef<HTMLInputElement>(null);
+  const themeDropdownRef = useRef<HTMLDivElement>(null);
+
   // Fetch positioning data
   useEffect(() => {
     if (!stockCode) return;
@@ -58,6 +66,91 @@ export function PositioningSection({ stockCode, onPositioningChange }: Positioni
 
     fetchPositioning();
   }, [stockCode]);
+
+  // Fetch themes data
+  useEffect(() => {
+    if (!stockCode) return;
+
+    const fetchThemes = async () => {
+      try {
+        const response = await fetch('/api/themes');
+        if (response.ok) {
+          const data = await response.json();
+          setStockThemes(data.themes[stockCode] || []);
+          setAllThemeNames(data.allNames || []);
+        }
+      } catch (error) {
+        console.error('Error fetching themes:', error);
+      }
+    };
+
+    fetchThemes();
+  }, [stockCode]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        themeDropdownRef.current && !themeDropdownRef.current.contains(e.target as Node) &&
+        themeInputRef.current && !themeInputRef.current.contains(e.target as Node)
+      ) {
+        setShowThemeDropdown(false);
+        setThemeInput('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const saveThemes = async (themes: string[]) => {
+    if (!stockCode) return;
+    try {
+      await fetch('/api/themes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: stockCode, themes }),
+      });
+      // Update allThemeNames to include any newly created theme
+      setAllThemeNames(prev => {
+        const combined = Array.from(new Set([...prev, ...themes])).sort();
+        return combined;
+      });
+    } catch (error) {
+      console.error('Error saving themes:', error);
+    }
+  };
+
+  const toggleTheme = (theme: string) => {
+    const trimmed = theme.trim();
+    if (!trimmed) return;
+    const updated = stockThemes.includes(trimmed)
+      ? stockThemes.filter(t => t !== trimmed)
+      : [...stockThemes, trimmed];
+    setStockThemes(updated);
+    saveThemes(updated);
+  };
+
+  const handleThemeInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const trimmed = themeInput.trim();
+      if (trimmed) {
+        toggleTheme(trimmed);
+        setThemeInput('');
+        setShowThemeDropdown(false);
+      }
+    } else if (e.key === 'Escape') {
+      setShowThemeDropdown(false);
+      setThemeInput('');
+    }
+  };
+
+  const filteredThemeOptions = allThemeNames.filter(name =>
+    name.toLowerCase().includes(themeInput.toLowerCase())
+  );
+  const inputIsNew = themeInput.trim() !== '' && !allThemeNames.some(
+    n => n.toLowerCase() === themeInput.trim().toLowerCase()
+  );
 
   const handleSave = async () => {
     if (!stockCode) return;
@@ -224,6 +317,70 @@ export function PositioningSection({ stockCode, onPositioningChange }: Positioni
           </button>
         </div>
       )}
+
+      {/* Themes section — always visible */}
+      <div className="themes-section">
+        <div className="themes-section-header">
+          <span className="themes-section-title">Themes</span>
+        </div>
+
+        {stockThemes.length > 0 && (
+          <div className="themes-chips">
+            {stockThemes.map(theme => (
+              <span key={theme} className="theme-chip">
+                {theme}
+                <button
+                  className="theme-chip-remove"
+                  onClick={() => toggleTheme(theme)}
+                  title={`Remove ${theme}`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="theme-input-wrapper">
+          <input
+            ref={themeInputRef}
+            type="text"
+            className="theme-tag-input"
+            placeholder="Add theme..."
+            value={themeInput}
+            onChange={e => { setThemeInput(e.target.value); setShowThemeDropdown(true); }}
+            onFocus={() => setShowThemeDropdown(true)}
+            onKeyDown={handleThemeInputKeyDown}
+          />
+          {showThemeDropdown && (filteredThemeOptions.length > 0 || inputIsNew) && (
+            <div className="theme-dropdown" ref={themeDropdownRef}>
+              {filteredThemeOptions.map(name => (
+                <div
+                  key={name}
+                  className={`theme-dropdown-item ${stockThemes.includes(name) ? 'selected' : ''}`}
+                  onMouseDown={e => { e.preventDefault(); toggleTheme(name); setThemeInput(''); setShowThemeDropdown(false); }}
+                >
+                  <span style={{ fontSize: '0.7rem' }}>{stockThemes.includes(name) ? '☑' : '☐'}</span>
+                  {name}
+                </div>
+              ))}
+              {inputIsNew && (
+                <div
+                  className="theme-dropdown-item create-new"
+                  onMouseDown={e => { e.preventDefault(); toggleTheme(themeInput.trim()); setThemeInput(''); setShowThemeDropdown(false); }}
+                >
+                  + Add "{themeInput.trim()}"
+                </div>
+              )}
+            </div>
+          )}
+          {showThemeDropdown && filteredThemeOptions.length === 0 && !inputIsNew && themeInput.trim() === '' && allThemeNames.length === 0 && (
+            <div className="theme-dropdown" ref={themeDropdownRef}>
+              <div className="theme-dropdown-empty">Type to create a new theme</div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

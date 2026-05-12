@@ -1793,7 +1793,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
 
 
 const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAnalyst?: boolean }> = ({ gridKeyData, stocks, isAnalyst = false }) => {
-    const [selectedChart, setSelectedChart] = useState<'allocation' | 'performance' | 'growth' | 'sectors' | 'rotation' | 'value' | 'events'>('allocation');
+    const [selectedChart, setSelectedChart] = useState<'allocation' | 'performance' | 'growth' | 'sectors' | 'rotation' | 'value' | 'events' | 'themes'>('allocation');
     const [portfolioHistory, setPortfolioHistory] = useState<{date: string; value: number; timestamp: number}[]>([]);
 
     // Load portfolio history
@@ -2256,6 +2256,10 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
 
     // Sector Distribution - state for expanded sector
     const [expandedSector, setExpandedSector] = useState<string | null>(null);
+
+    // Themes chart - state for expanded theme and visible themes
+    const [expandedTheme, setExpandedTheme] = useState<string | null>(null);
+    const [visibleThemes, setVisibleThemes] = useState<Set<string> | null>(null);
 
     const SectorChart = () => {
         const sectorMap: Record<string, { value: number; stocks: { name: string; value: number; portfolioPercent: number; return1Y: number | null }[] }> = {};
@@ -2850,6 +2854,122 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
         );
     };
 
+    const ThemesChart = () => {
+        // Build theme groups from stocks (which include themes from portfolio API)
+        const themeGroups: Record<string, { weightage: number; stocks: { name: string; weightage: number; return1Y: number | null }[] }> = {};
+        stocks.forEach(stock => {
+            const themes = stock.themes;
+            if (!themes || themes.length === 0) return;
+            const stockWeightage = (stock as any).weightage as number | null;
+            if (!stockWeightage) return;
+            themes.forEach(theme => {
+                if (!themeGroups[theme]) themeGroups[theme] = { weightage: 0, stocks: [] };
+                themeGroups[theme].weightage += stockWeightage;
+                themeGroups[theme].stocks.push({ name: stock.name, weightage: stockWeightage, return1Y: stock.return1Y ?? null });
+            });
+        });
+
+        const allThemes = Object.keys(themeGroups).sort((a, b) => themeGroups[b].weightage - themeGroups[a].weightage);
+
+        // Initialise visibleThemes to all themes on first render
+        const currentVisible = visibleThemes ?? new Set(allThemes);
+
+        const handleToggleTheme = (theme: string) => {
+            const next = new Set(currentVisible);
+            if (next.has(theme)) { next.delete(theme); } else { next.add(theme); }
+            setVisibleThemes(next);
+        };
+
+        const handleSelectAll = () => setVisibleThemes(new Set(allThemes));
+        const handleSelectNone = () => setVisibleThemes(new Set());
+
+        const visibleGroups = allThemes.filter(t => currentVisible.has(t));
+        const maxWeightage = visibleGroups.reduce((m, t) => Math.max(m, themeGroups[t].weightage), 0);
+
+        if (allThemes.length === 0) {
+            return (
+                <div className="chart-card">
+                    <h3>Themes Breakdown</h3>
+                    <p className="chart-subtitle">No themes assigned yet. Open a stock, go to Positioning, and add themes.</p>
+                </div>
+            );
+        }
+
+        return (
+            <div className="chart-card">
+                <h3>Themes Breakdown</h3>
+                <p className="chart-subtitle">Portfolio allocation by theme (stocks can belong to multiple themes). Click a bar to see holdings.</p>
+
+                {/* Theme checkbox filter panel */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '1rem', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--secondary-text-color)', textTransform: 'uppercase', letterSpacing: '0.3px', marginRight: '0.25rem' }}>Show:</span>
+                    {allThemes.map((theme, i) => (
+                        <label key={theme} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer', fontSize: '0.8rem', padding: '0.2rem 0.5rem', borderRadius: '12px', background: currentVisible.has(theme) ? `hsl(${(i * 47) % 360}, 65%, 92%)` : 'var(--surface-color)', border: '1px solid', borderColor: currentVisible.has(theme) ? `hsl(${(i * 47) % 360}, 55%, 70%)` : 'var(--border-color)', color: currentVisible.has(theme) ? `hsl(${(i * 47) % 360}, 55%, 30%)` : 'var(--secondary-text-color)', transition: 'all 0.15s ease' }}>
+                            <input
+                                type="checkbox"
+                                checked={currentVisible.has(theme)}
+                                onChange={() => handleToggleTheme(theme)}
+                                style={{ margin: 0, accentColor: `hsl(${(i * 47) % 360}, 65%, 50%)` }}
+                            />
+                            {theme}
+                        </label>
+                    ))}
+                    <button onClick={handleSelectAll} style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--accent-color)', cursor: 'pointer' }}>All</button>
+                    <button onClick={handleSelectNone} style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--secondary-text-color)', cursor: 'pointer' }}>None</button>
+                </div>
+
+                {/* Theme bars */}
+                <div className="bar-chart">
+                    {visibleGroups.map((theme, index) => {
+                        const group = themeGroups[theme];
+                        const hue = (allThemes.indexOf(theme) * 47) % 360;
+                        const sortedStocks = [...group.stocks].sort((a, b) => b.weightage - a.weightage);
+                        return (
+                            <div key={theme} className="bar-item-expandable">
+                                <div
+                                    className={`bar-item clickable ${expandedTheme === theme ? 'expanded' : ''}`}
+                                    onClick={() => setExpandedTheme(expandedTheme === theme ? null : theme)}
+                                >
+                                    <div className="bar-label">{theme}</div>
+                                    <div className="bar-container">
+                                        <div
+                                            className="bar-fill"
+                                            style={{ width: maxWeightage > 0 ? `${(group.weightage / maxWeightage) * 100}%` : '0%', backgroundColor: `hsl(${hue}, 65%, 55%)` }}
+                                        >
+                                            <span className="bar-value">{group.weightage.toFixed(1)}%</span>
+                                        </div>
+                                    </div>
+                                    <span className="bar-expand-icon">{expandedTheme === theme ? '▼' : '▶'}</span>
+                                </div>
+                                {expandedTheme === theme && (
+                                    <div className="sector-breakdown">
+                                        <div className="sector-breakdown-header">
+                                            <span className="breakdown-col">Stock</span>
+                                            <span className="breakdown-col">% of Portfolio</span>
+                                            <span className="breakdown-col">1Y Return</span>
+                                        </div>
+                                        {sortedStocks.map((s, i) => (
+                                            <div key={i} className="sector-breakdown-row">
+                                                <span className="breakdown-stock-name">{s.name}</span>
+                                                <span className="breakdown-stock-value">{s.weightage.toFixed(1)}%</span>
+                                                <span className={`breakdown-stock-percent ${s.return1Y != null ? (s.return1Y >= 0 ? 'positive' : 'negative') : ''}`}>
+                                                    {s.return1Y != null ? `${s.return1Y >= 0 ? '+' : ''}${Number(s.return1Y).toFixed(1)}%` : 'N/A'}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                    {visibleGroups.length === 0 && (
+                        <p style={{ color: 'var(--secondary-text-color)', fontSize: '0.85rem' }}>No themes selected. Use the checkboxes above to show themes.</p>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
     if (gridKeyData.length === 0 || stocks.length === 0) {
         return (
             <div className="analysis-page">
@@ -2879,6 +2999,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
                 <button className={selectedChart === 'rotation' ? 'active' : ''} onClick={() => setSelectedChart('rotation')}>Sector Rotation</button>
                 {!isAnalyst && <button className={selectedChart === 'value' ? 'active' : ''} onClick={() => setSelectedChart('value')}>Portfolio Value</button>}
                 <button className={selectedChart === 'events' ? 'active' : ''} onClick={() => setSelectedChart('events')}>Corporate Events</button>
+                <button className={selectedChart === 'themes' ? 'active' : ''} onClick={() => setSelectedChart('themes')}>Themes</button>
             </div>
 
             <div className="charts-container">
@@ -2889,6 +3010,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
                 {selectedChart === 'rotation' && <SectorRotationView />}
                 {selectedChart === 'value' && <PortfolioValueChart />}
                 {selectedChart === 'events' && <CorporateEventsChart />}
+                {selectedChart === 'themes' && <ThemesChart />}
             </div>
         </div>
     );
