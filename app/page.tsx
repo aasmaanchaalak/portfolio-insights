@@ -7,6 +7,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Stock, GridKeyData } from '../types';
+import { computePortfolioMetricsSnapshot, PORTFOLIO_METRIC_DEFS, formatMetricValue, PortfolioMetricsSnapshot } from '../lib/portfolioMetrics';
 import Dashboard from './components/Dashboard';
 import EntryDataPage from './components/EntryDataPage';
 import AdminPanel from './components/AdminPanel';
@@ -1793,8 +1794,9 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
 
 
 const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAnalyst?: boolean }> = ({ gridKeyData, stocks, isAnalyst = false }) => {
-    const [selectedChart, setSelectedChart] = useState<'allocation' | 'performance' | 'growth' | 'sectors' | 'rotation' | 'value' | 'events' | 'themes'>('allocation');
+    const [selectedChart, setSelectedChart] = useState<'allocation' | 'performance' | 'growth' | 'sectors' | 'rotation' | 'value' | 'quality' | 'events' | 'themes'>('allocation');
     const [portfolioHistory, setPortfolioHistory] = useState<{date: string; value: number; timestamp: number}[]>([]);
+    const [metricsHistory, setMetricsHistory] = useState<({ date: string } & PortfolioMetricsSnapshot)[]>([]);
 
     // Load portfolio history
     useEffect(() => {
@@ -1810,6 +1812,22 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
             }
         };
         loadHistory();
+    }, []);
+
+    // Load portfolio metrics history (quality-trends chart)
+    useEffect(() => {
+        const loadMetricsHistory = async () => {
+            try {
+                const response = await fetch('/api/portfolio-metrics-history');
+                if (response.ok) {
+                    const data = await response.json();
+                    setMetricsHistory(data);
+                }
+            } catch (error) {
+                console.error('Error loading portfolio metrics history:', error);
+            }
+        };
+        loadMetricsHistory();
     }, []);
 
     // Enrich gridKey data with stock information
@@ -2854,6 +2872,220 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
         );
     };
 
+    const QualityTrendsChart = () => {
+        const availableMetrics = PORTFOLIO_METRIC_DEFS.filter(m => !(isAnalyst && m.analystRestricted));
+        const [selectedMetric, setSelectedMetric] = useState(availableMetrics[0].key);
+
+        const metricDef = availableMetrics.find(m => m.key === selectedMetric) || availableMetrics[0];
+
+        // Only points where this metric has a value
+        const points = metricsHistory
+            .map(entry => ({ date: entry.date, value: entry[metricDef.key] as number | null }))
+            .filter((p): p is { date: string; value: number } => p.value !== null && !Number.isNaN(p.value));
+
+        if (metricsHistory.length === 0) {
+            return (
+                <div className="chart-card">
+                    <h3>Portfolio Quality Trends</h3>
+                    <p className="chart-subtitle">Track weighted-average quality metrics over time</p>
+                    <div className="empty-chart-state">
+                        <p>No metric history yet. Each time you upload Screener or GridKey data, a snapshot of these metrics is saved — the trend will build up from there.</p>
+                    </div>
+                </div>
+            );
+        }
+
+        const svgWidth = 900;
+        const svgHeight = 400;
+        const padding = 60;
+        const chartWidth = svgWidth - 2 * padding;
+        const chartHeight = svgHeight - 2 * padding;
+
+        const values = points.map(p => p.value);
+        const rawMin = values.length ? Math.min(...values) : 0;
+        const rawMax = values.length ? Math.max(...values) : 0;
+        // Pad the value range a touch so the line isn't glued to the edges
+        const span = rawMax - rawMin;
+        const minValue = span === 0 ? rawMin - 1 : rawMin - span * 0.1;
+        const maxValue = span === 0 ? rawMax + 1 : rawMax + span * 0.1;
+        const valueRange = maxValue - minValue;
+
+        const scaleX = (index: number) =>
+            points.length <= 1 ? padding + chartWidth / 2 : padding + (index / (points.length - 1)) * chartWidth;
+        const scaleY = (value: number) => {
+            if (valueRange === 0) return svgHeight - padding - chartHeight / 2;
+            return svgHeight - padding - ((value - minValue) / valueRange) * chartHeight;
+        };
+
+        const pathData = points.map((p, index) => {
+            const x = scaleX(index);
+            const y = scaleY(p.value);
+            return index === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
+        }).join(' ');
+
+        const fmt = (v: number | null) => formatMetricValue(v, metricDef.format);
+        const firstValue = points.length ? points[0].value : null;
+        const lastValue = points.length ? points[points.length - 1].value : null;
+        const change = (firstValue !== null && lastValue !== null) ? lastValue - firstValue : null;
+
+        const downloadCSV = () => {
+            const cols = availableMetrics;
+            const csvData = [
+                ['Date', ...cols.map(c => c.label)],
+                ...metricsHistory.map(entry => [
+                    new Date(entry.date).toLocaleDateString('en-IN'),
+                    ...cols.map(c => {
+                        const v = entry[c.key] as number | null;
+                        return v === null || v === undefined ? '' : Number(v).toFixed(2);
+                    }),
+                ]),
+            ];
+            const csvContent = csvData.map(row => row.join(',')).join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'portfolio_quality_metrics_history.csv');
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        };
+
+        return (
+            <div className="chart-card portfolio-value-card">
+                <div className="chart-header">
+                    <div>
+                        <h3>Portfolio Quality Trends</h3>
+                        <p className="chart-subtitle">Weighted-average metrics, snapshotted on each data upload</p>
+                    </div>
+                    <button onClick={downloadCSV} className="download-csv-btn">
+                        Download CSV
+                    </button>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0.5rem 0 1rem' }}>
+                    <label htmlFor="quality-metric-select" style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--secondary-text-color)' }}>Metric:</label>
+                    <select
+                        id="quality-metric-select"
+                        value={selectedMetric}
+                        onChange={(e) => setSelectedMetric(e.target.value as typeof selectedMetric)}
+                        style={{ padding: '0.4rem 0.6rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--surface-color)', color: 'var(--text-color)', fontSize: '0.85rem', cursor: 'pointer' }}
+                    >
+                        {availableMetrics.map(m => (
+                            <option key={m.key} value={m.key}>{m.label}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="value-summary">
+                    <div className="value-stat">
+                        <span className="stat-label">Latest:</span>
+                        <span className="stat-value">{fmt(lastValue)}</span>
+                    </div>
+                    <div className="value-stat">
+                        <span className="stat-label">Change:</span>
+                        <span className="stat-value" style={{ color: change === null ? 'var(--text-color)' : (change >= 0 ? 'var(--success-color)' : 'var(--error-color)') }}>
+                            {change === null ? 'N/A' : `${change >= 0 ? '+' : ''}${change.toFixed(2)}`}
+                        </span>
+                    </div>
+                    <div className="value-stat">
+                        <span className="stat-label">Snapshots:</span>
+                        <span className="stat-value">{points.length}</span>
+                    </div>
+                </div>
+
+                {points.length === 0 ? (
+                    <div className="empty-chart-state">
+                        <p>No data for “{metricDef.label}” yet.</p>
+                    </div>
+                ) : (
+                <div className="portfolio-value-chart-container">
+                    <svg width={svgWidth} height={svgHeight} className="portfolio-value-svg">
+                        {/* Grid lines */}
+                        {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
+                            const y = svgHeight - padding - ratio * chartHeight;
+                            const value = minValue + ratio * valueRange;
+                            return (
+                                <g key={i}>
+                                    <line
+                                        x1={padding}
+                                        y1={y}
+                                        x2={svgWidth - padding}
+                                        y2={y}
+                                        stroke="var(--border-color)"
+                                        strokeWidth="1"
+                                        opacity="0.3"
+                                    />
+                                    <text x={padding - 10} y={y + 4} fontSize="10" fill="var(--secondary-text-color)" textAnchor="end">
+                                        {value.toFixed(metricDef.format === 'crore' ? 0 : 1)}
+                                    </text>
+                                </g>
+                            );
+                        })}
+
+                        {/* Area under line */}
+                        <path
+                            d={`${pathData} L ${scaleX(points.length - 1)} ${svgHeight - padding} L ${scaleX(0)} ${svgHeight - padding} Z`}
+                            fill="var(--accent-color)"
+                            opacity="0.1"
+                        />
+
+                        {/* Line */}
+                        <path d={pathData} stroke="var(--accent-color)" strokeWidth="3" fill="none" />
+
+                        {/* Data points */}
+                        {points.map((p, index) => (
+                            <circle
+                                key={index}
+                                cx={scaleX(index)}
+                                cy={scaleY(p.value)}
+                                r="4"
+                                fill="var(--accent-color)"
+                                stroke="white"
+                                strokeWidth="2"
+                            >
+                                <title>{`${new Date(p.date).toLocaleDateString('en-IN')}: ${fmt(p.value)}`}</title>
+                            </circle>
+                        ))}
+
+                        {/* Axis labels */}
+                        <text x={svgWidth / 2} y={svgHeight - 10} fontSize="12" fill="var(--text-color)" textAnchor="middle" fontWeight="600">
+                            Date
+                        </text>
+                        <text x={20} y={svgHeight / 2} fontSize="12" fill="var(--text-color)" textAnchor="middle" transform={`rotate(-90 20 ${svgHeight / 2})`} fontWeight="600">
+                            {metricDef.label}
+                        </text>
+
+                        {/* Date labels */}
+                        {points.map((p, index) => {
+                            if (points.length <= 10 || index % Math.ceil(points.length / 8) === 0 || index === points.length - 1) {
+                                const x = scaleX(index);
+                                const dateLabel = new Date(p.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+                                return (
+                                    <text
+                                        key={index}
+                                        x={x}
+                                        y={svgHeight - padding + 20}
+                                        fontSize="10"
+                                        fill="var(--secondary-text-color)"
+                                        textAnchor="middle"
+                                    >
+                                        {dateLabel}
+                                    </text>
+                                );
+                            }
+                            return null;
+                        })}
+                    </svg>
+                </div>
+                )}
+            </div>
+        );
+    };
+
     const ThemesChart = () => {
         // Build theme groups from stocks (which include themes from portfolio API)
         const themeGroups: Record<string, { weightage: number; stocks: { name: string; weightage: number; return1Y: number | null }[] }> = {};
@@ -2998,6 +3230,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
                 <button className={selectedChart === 'sectors' ? 'active' : ''} onClick={() => setSelectedChart('sectors')}>Sectors</button>
                 <button className={selectedChart === 'rotation' ? 'active' : ''} onClick={() => setSelectedChart('rotation')}>Sector Rotation</button>
                 {!isAnalyst && <button className={selectedChart === 'value' ? 'active' : ''} onClick={() => setSelectedChart('value')}>Portfolio Value</button>}
+                <button className={selectedChart === 'quality' ? 'active' : ''} onClick={() => setSelectedChart('quality')}>Quality Trends</button>
                 <button className={selectedChart === 'events' ? 'active' : ''} onClick={() => setSelectedChart('events')}>Corporate Events</button>
                 <button className={selectedChart === 'themes' ? 'active' : ''} onClick={() => setSelectedChart('themes')}>Themes</button>
             </div>
@@ -3009,6 +3242,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
                 {selectedChart === 'sectors' && <SectorChart />}
                 {selectedChart === 'rotation' && <SectorRotationView />}
                 {selectedChart === 'value' && <PortfolioValueChart />}
+                {selectedChart === 'quality' && <QualityTrendsChart />}
                 {selectedChart === 'events' && <CorporateEventsChart />}
                 {selectedChart === 'themes' && <ThemesChart />}
             </div>
@@ -3413,6 +3647,29 @@ const App: React.FC = () => {
         }
     };
 
+    // Helper function to snapshot portfolio-level quality metrics to history.
+    // Runs alongside savePortfolioValueToHistory so the Analysis "Quality
+    // Trends" chart can plot how these metrics evolve over time.
+    const savePortfolioMetricsToHistory = async (
+        gridKeyOverride?: GridKeyData[],
+        stocksOverride?: Stock[],
+    ) => {
+        try {
+            const metrics = computePortfolioMetricsSnapshot(
+                gridKeyOverride ?? gridKeyData,
+                stocksOverride ?? stocks,
+            );
+            await fetch('/api/portfolio-metrics-history', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ metrics })
+            });
+        } catch (error) {
+            console.error('Error saving portfolio metrics history:', error);
+            // Don't fail the upload if metrics history save fails
+        }
+    };
+
     const handleDataUploaded = async (newData: Stock[]) => {
         try {
             // Update via API
@@ -3436,6 +3693,8 @@ const App: React.FC = () => {
 
                 // Save portfolio value to history after stocks are updated
                 await savePortfolioValueToHistory();
+                // Snapshot quality metrics using the freshly loaded stock data
+                await savePortfolioMetricsToHistory(gridKeyData, fullData);
             } else {
                 setStocks(newData);
             }
@@ -3475,6 +3734,8 @@ const App: React.FC = () => {
 
             // Save portfolio value to history after gridKey is updated
             await savePortfolioValueToHistory();
+            // Snapshot quality metrics using the freshly uploaded holdings
+            await savePortfolioMetricsToHistory(data, stocks);
 
             setTimeout(() => setPage('insights'), 1000);
         } catch (error) {

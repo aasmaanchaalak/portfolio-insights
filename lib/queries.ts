@@ -314,6 +314,75 @@ export async function savePortfolioHistoryEntry(date: string, value: number): Pr
   `, [date, value]);
 }
 
+// ============ Portfolio Metrics History ============
+
+export interface PortfolioMetricsEntry {
+  avgPE: number | null;
+  avgProfitGrowth: number | null;
+  avgSalesGrowth: number | null;
+  avgMarketCap: number | null;
+  avgRSI: number | null;
+  avgROCE: number | null;
+  avgDMA50: number | null;
+  avgDMA200: number | null;
+  avgDownFrom52WH: number | null;
+  avgUpFrom52WL: number | null;
+  weightedAllTimeGain: number | null;
+  weighted1YReturn: number | null;
+  top5Concentration: number | null;
+}
+
+export async function getPortfolioMetricsHistory(): Promise<({ date: string } & PortfolioMetricsEntry)[]> {
+  const rows = await query<any>(`
+    SELECT date, avg_pe, avg_profit_growth, avg_sales_growth, avg_market_cap,
+           avg_rsi, avg_roce, avg_dma50, avg_dma200, avg_down_from_52w_high,
+           avg_up_from_52w_low, weighted_all_time_gain, weighted_1y_return,
+           top5_concentration
+    FROM portfolio_metrics_history
+    ORDER BY date ASC
+  `);
+
+  const num = (v: any): number | null => (v === null || v === undefined ? null : Number(v));
+
+  return rows.map(row => ({
+    date: row.date.toISOString().split('T')[0],
+    avgPE: num(row.avg_pe),
+    avgProfitGrowth: num(row.avg_profit_growth),
+    avgSalesGrowth: num(row.avg_sales_growth),
+    avgMarketCap: num(row.avg_market_cap),
+    avgRSI: num(row.avg_rsi),
+    avgROCE: num(row.avg_roce),
+    avgDMA50: num(row.avg_dma50),
+    avgDMA200: num(row.avg_dma200),
+    avgDownFrom52WH: num(row.avg_down_from_52w_high),
+    avgUpFrom52WL: num(row.avg_up_from_52w_low),
+    weightedAllTimeGain: num(row.weighted_all_time_gain),
+    weighted1YReturn: num(row.weighted_1y_return),
+    top5Concentration: num(row.top5_concentration),
+  }));
+}
+
+export async function savePortfolioMetricsEntry(date: string, m: PortfolioMetricsEntry): Promise<void> {
+  await query(`
+    INSERT INTO portfolio_metrics_history (
+      date, avg_pe, avg_profit_growth, avg_sales_growth, avg_market_cap,
+      avg_rsi, avg_roce, avg_dma50, avg_dma200, avg_down_from_52w_high,
+      avg_up_from_52w_low, weighted_all_time_gain, weighted_1y_return, top5_concentration
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+    ON CONFLICT (date) DO UPDATE SET
+      avg_pe = $2, avg_profit_growth = $3, avg_sales_growth = $4, avg_market_cap = $5,
+      avg_rsi = $6, avg_roce = $7, avg_dma50 = $8, avg_dma200 = $9,
+      avg_down_from_52w_high = $10, avg_up_from_52w_low = $11,
+      weighted_all_time_gain = $12, weighted_1y_return = $13, top5_concentration = $14,
+      recorded_at = NOW()
+  `, [
+    date, m.avgPE, m.avgProfitGrowth, m.avgSalesGrowth, m.avgMarketCap,
+    m.avgRSI, m.avgROCE, m.avgDMA50, m.avgDMA200, m.avgDownFrom52WH,
+    m.avgUpFrom52WL, m.weightedAllTimeGain, m.weighted1YReturn, m.top5Concentration,
+  ]);
+}
+
 // ============ Stock Remarks ============
 
 export async function getAllRemarks(): Promise<Record<string, string>> {
