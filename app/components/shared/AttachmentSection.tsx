@@ -136,7 +136,7 @@ export function AttachmentSection({ module, entityId }: Props) {
           <input
             ref={inputRef}
             type="file"
-            accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.pptx,.docx,.xlsx,.xls,.doc"
+            accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.pptx,.docx,.xlsx,.xlsm,.xls,.doc"
             style={{ display: 'none' }}
             onChange={handleFileChange}
           />
