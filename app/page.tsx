@@ -1794,7 +1794,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
 
 
 const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAnalyst?: boolean }> = ({ gridKeyData, stocks, isAnalyst = false }) => {
-    const [selectedChart, setSelectedChart] = useState<'allocation' | 'performance' | 'growth' | 'sectors' | 'rotation' | 'value' | 'quality' | 'events' | 'themes'>('allocation');
+    const [selectedChart, setSelectedChart] = useState<'allocation' | 'performance' | 'growth' | 'sectors' | 'rotation' | 'value' | 'quality' | 'events' | 'themes' | 'deals'>('allocation');
     const [portfolioHistory, setPortfolioHistory] = useState<{date: string; value: number; timestamp: number}[]>([]);
     const [metricsHistory, setMetricsHistory] = useState<({ date: string } & PortfolioMetricsSnapshot)[]>([]);
 
@@ -1828,6 +1828,48 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
             }
         };
         loadMetricsHistory();
+    }, []);
+
+    // --- Bulk/Block deals state (lifted here so it survives re-renders) ------
+    type DealRow = {
+        date: string; symbol: string; securityCode?: string; scripName: string;
+        clientName: string; buySell: string; quantity: number; price: number;
+        dealType: 'bulk' | 'block'; exchange: 'NSE' | 'BSE'; source: string;
+    };
+    type ExchangeDeals = {
+        exchange: 'NSE' | 'BSE';
+        source: 'nse' | 'chittorgarh' | 'none';
+        sourceLabel: string;
+        date: string | null;
+        bulk: DealRow[];
+        block: DealRow[];
+    };
+    type DealsResponse = { exchanges: ExchangeDeals[]; attempts: { source: string; ok: boolean; detail: string }[]; error?: string };
+
+    const [dealsData, setDealsData] = useState<DealsResponse | null>(null);
+    const [dealsLoading, setDealsLoading] = useState(false);
+    const [dealsError, setDealsError] = useState<string | null>(null);
+    const [dealsFilterMode, setDealsFilterMode] = useState<'all' | 'filtered'>('all');
+    const [dealsActiveExchange, setDealsActiveExchange] = useState<'NSE' | 'BSE'>('NSE');
+    const [dealsPeople, setDealsPeople] = useState<{ include: string[]; exclude: string[] }>({ include: [], exclude: [] });
+    const [dealsPipeline, setDealsPipeline] = useState<{ ticker: string; companyName: string }[]>([]);
+
+    // Load pipeline tickers + saved people lists once (used by the deals filter)
+    useEffect(() => {
+        (async () => {
+            try {
+                const r = await fetch('/api/pipeline/ideas');
+                if (r.ok) {
+                    const j = await r.json();
+                    const ideas = (j.ideas || []) as { ticker: string; companyName: string }[];
+                    setDealsPipeline(ideas.map(i => ({ ticker: i.ticker, companyName: i.companyName })));
+                }
+            } catch { /* non-fatal */ }
+            try {
+                const r = await fetch('/api/bulk-deal-people');
+                if (r.ok) setDealsPeople(await r.json());
+            } catch { /* non-fatal */ }
+        })();
     }, []);
 
     // Enrich gridKey data with stock information
@@ -3202,6 +3244,277 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
         );
     };
 
+    const BulkDealsChart = () => {
+        const [includeInput, setIncludeInput] = useState('');
+        const [excludeInput, setExcludeInput] = useState('');
+        const [savingPerson, setSavingPerson] = useState(false);
+
+        const load = async (mode: 'all' | 'filtered') => {
+            setDealsFilterMode(mode);
+            setDealsLoading(true);
+            setDealsError(null);
+            try {
+                const response = await fetch('/api/bulk-deals');
+                const json = await response.json();
+                setDealsData(json);
+                if (!response.ok && json?.error) setDealsError(json.error);
+            } catch (e: any) {
+                setDealsError(e?.message || 'Failed to fetch deals');
+            } finally {
+                setDealsLoading(false);
+            }
+        };
+
+        const savePerson = async (method: 'POST' | 'DELETE', listType: 'include' | 'exclude', name: string) => {
+            const trimmed = name.trim();
+            if (!trimmed) return;
+            setSavingPerson(true);
+            try {
+                const r = await fetch('/api/bulk-deal-people', {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ listType, name: trimmed }),
+                });
+                if (r.ok) setDealsPeople(await r.json());
+            } catch { /* ignore */ } finally {
+                setSavingPerson(false);
+            }
+        };
+
+        // --- matching helpers ---
+        const normSym = (s?: string) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const normName = (s?: string) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/(LIMITED|LIMIT|LTD)$/, '');
+        const normPerson = (s?: string) => (s || '').toUpperCase().replace(/\s+/g, ' ').trim();
+
+        // Company set = portfolio (nseCode/bseCode/name) + pipeline (ticker/name, incl. exited)
+        const companySymbols = new Set<string>();
+        const companyNames = new Set<string>();
+        stocks.forEach(s => {
+            if (s.nseCode) companySymbols.add(normSym(s.nseCode));
+            if (s.bseCode) companySymbols.add(normSym(s.bseCode));
+            if (s.name) companyNames.add(normName(s.name));
+        });
+        dealsPipeline.forEach(p => {
+            if (p.ticker) companySymbols.add(normSym(p.ticker));
+            if (p.companyName) companyNames.add(normName(p.companyName));
+        });
+        companySymbols.delete('');
+        companyNames.delete('');
+
+        const includeTerms = dealsPeople.include.map(normPerson).filter(p => p.length >= 3);
+        const excludeTerms = dealsPeople.exclude.map(normPerson).filter(p => p.length >= 3);
+
+        const companyMatch = (d: DealRow) => {
+            if (companySymbols.has(normSym(d.symbol))) return true;
+            if (d.securityCode && companySymbols.has(normSym(d.securityCode))) return true;
+            const nn = normName(d.scripName);
+            return !!nn && companyNames.has(nn);
+        };
+        const passesFilter = (d: DealRow) => {
+            const client = normPerson(d.clientName);
+            if (excludeTerms.some(p => client.includes(p))) return false; // exclude wins
+            // OR: in one of our companies, OR done by someone on the include list
+            return companyMatch(d) || (includeTerms.length > 0 && includeTerms.some(p => client.includes(p)));
+        };
+
+        const data = dealsData;
+        const loading = dealsLoading;
+        const errored = dealsError;
+        const filtered = dealsFilterMode === 'filtered';
+
+        const viewEx = (ex: ExchangeDeals): ExchangeDeals => filtered
+            ? { ...ex, bulk: ex.bulk.filter(passesFilter), block: ex.block.filter(passesFilter) }
+            : ex;
+
+        const isBuy = (s: string) => /buy|^b$/i.test(s.trim());
+
+        const renderTable = (rows: DealRow[], title: string) => (
+            <div style={{ marginTop: '1.5rem' }}>
+                <h4 style={{ margin: '0 0 0.5rem' }}>{title} <span style={{ color: 'var(--secondary-text-color)', fontWeight: 400 }}>({rows.length})</span></h4>
+                {rows.length === 0 ? (
+                    <p className="chart-subtitle" style={{ margin: 0 }}>{filtered ? 'No matching deals for this day.' : 'No deals for this day.'}</p>
+                ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                            <thead>
+                                <tr style={{ textAlign: 'left', borderBottom: '2px solid var(--border-color)' }}>
+                                    <th style={{ padding: '0.4rem 0.6rem' }}>Date</th>
+                                    <th style={{ padding: '0.4rem 0.6rem' }}>Symbol</th>
+                                    <th style={{ padding: '0.4rem 0.6rem' }}>Client</th>
+                                    <th style={{ padding: '0.4rem 0.6rem' }}>B/S</th>
+                                    <th style={{ padding: '0.4rem 0.6rem', textAlign: 'right' }}>Quantity</th>
+                                    <th style={{ padding: '0.4rem 0.6rem', textAlign: 'right' }}>Price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rows.map((r, i) => (
+                                    <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                        <td style={{ padding: '0.4rem 0.6rem', whiteSpace: 'nowrap', color: 'var(--secondary-text-color)' }}>{r.date}</td>
+                                        <td style={{ padding: '0.4rem 0.6rem', fontWeight: 600 }} title={r.scripName}>{r.symbol || r.scripName}</td>
+                                        <td style={{ padding: '0.4rem 0.6rem' }}>{r.clientName}</td>
+                                        <td style={{ padding: '0.4rem 0.6rem' }}>
+                                            <span className={isBuy(r.buySell) ? 'positive' : 'negative'} style={{ fontWeight: 600 }}>
+                                                {isBuy(r.buySell) ? 'BUY' : 'SELL'}
+                                            </span>
+                                        </td>
+                                        <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right' }}>{r.quantity.toLocaleString('en-IN')}</td>
+                                        <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right' }}>₹{r.price.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+        );
+
+        const renderChips = (listType: 'include' | 'exclude') => (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.4rem' }}>
+                {dealsPeople[listType].length === 0 && (
+                    <span style={{ fontSize: '0.78rem', color: 'var(--secondary-text-color)' }}>None yet.</span>
+                )}
+                {dealsPeople[listType].map(name => (
+                    <span key={name} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', padding: '0.2rem 0.5rem', borderRadius: '12px', background: 'var(--pill-bg-color)', color: 'var(--pill-text-color)' }}>
+                        {name}
+                        <button onClick={() => savePerson('DELETE', listType, name)} disabled={savingPerson} title="Remove"
+                            style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--error-color)', fontWeight: 700, padding: 0, lineHeight: 1 }}>×</button>
+                    </span>
+                ))}
+            </div>
+        );
+
+        const peopleAdder = (listType: 'include' | 'exclude') => {
+            const value = listType === 'include' ? includeInput : excludeInput;
+            const setValue = listType === 'include' ? setIncludeInput : setExcludeInput;
+            const submit = () => { savePerson('POST', listType, value); setValue(''); };
+            return (
+                <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.5rem' }}>
+                    <input
+                        type="text"
+                        value={value}
+                        onChange={e => setValue(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+                        placeholder={`Add a name to ${listType} (e.g. GRAVITON)`}
+                        style={{ flex: 1, fontSize: '0.82rem', padding: '0.35rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--background-color)', color: 'var(--primary-text-color)' }}
+                    />
+                    <button onClick={submit} disabled={savingPerson || !value.trim()}
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.7rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--accent-color)', cursor: 'pointer' }}>Add</button>
+                </div>
+            );
+        };
+
+        const active = data?.exchanges.find(e => e.exchange === dealsActiveExchange) || null;
+        const activeView = active ? viewEx(active) : null;
+
+        return (
+            <div className="chart-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div>
+                        <h3 style={{ margin: 0 }}>Bulk / Block Deals</h3>
+                        <p className="chart-subtitle" style={{ margin: '0.25rem 0 0' }}>
+                            Latest trading day (today, else the most recent prior day). <strong>Fetch filtered</strong> = your portfolio + pipeline companies, plus people on your include list, minus excluded people.
+                        </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button onClick={() => load('all')} disabled={loading}
+                            style={{ fontSize: '0.85rem', fontWeight: 600, padding: '0.5rem 1rem', borderRadius: '4px', border: '1px solid var(--accent-color)', background: !filtered && data ? 'var(--accent-color)' : 'transparent', color: !filtered && data ? '#fff' : 'var(--accent-color)', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.7 : 1 }}>
+                            {loading && !filtered ? 'Fetching…' : 'Fetch All'}
+                        </button>
+                        <button onClick={() => load('filtered')} disabled={loading}
+                            style={{ fontSize: '0.85rem', fontWeight: 600, padding: '0.5rem 1rem', borderRadius: '4px', border: '1px solid var(--accent-color)', background: filtered && data ? 'var(--accent-color)' : 'transparent', color: filtered && data ? '#fff' : 'var(--accent-color)', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.7 : 1 }}>
+                            {loading && filtered ? 'Fetching…' : 'Fetch Filtered'}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Filter settings */}
+                <details style={{ marginTop: '1rem', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '0.6rem 0.8rem' }}>
+                    <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.88rem' }}>Filter settings</summary>
+                    <p className="chart-subtitle" style={{ margin: '0.6rem 0 0' }}>
+                        Companies matched automatically: <strong>{stocks.length}</strong> portfolio + <strong>{dealsPipeline.length}</strong> pipeline (incl. exited).
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem', marginTop: '0.8rem' }}>
+                        <div>
+                            <strong style={{ fontSize: '0.85rem' }}>Include people</strong>
+                            <p className="chart-subtitle" style={{ margin: '0.15rem 0 0', fontSize: '0.75rem' }}>Also surface deals by these clients (matched by substring).</p>
+                            {renderChips('include')}
+                            {peopleAdder('include')}
+                        </div>
+                        <div>
+                            <strong style={{ fontSize: '0.85rem' }}>Exclude people</strong>
+                            <p className="chart-subtitle" style={{ margin: '0.15rem 0 0', fontSize: '0.75rem' }}>Always hide deals by these clients.</p>
+                            {renderChips('exclude')}
+                            {peopleAdder('exclude')}
+                        </div>
+                    </div>
+                </details>
+
+                {/* Exchange toggle (counts reflect the current view) */}
+                {data && (
+                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+                        {(['NSE', 'BSE'] as const).map(ex => {
+                            const exData = data.exchanges.find(e => e.exchange === ex);
+                            const v = exData ? viewEx(exData) : null;
+                            const count = v ? v.bulk.length + v.block.length : 0;
+                            return (
+                                <button
+                                    key={ex}
+                                    onClick={() => setDealsActiveExchange(ex)}
+                                    style={{ fontSize: '0.85rem', fontWeight: 600, padding: '0.4rem 1rem', borderRadius: '4px', cursor: 'pointer', border: '1px solid', borderColor: dealsActiveExchange === ex ? 'var(--accent-color)' : 'var(--border-color)', background: dealsActiveExchange === ex ? 'var(--accent-color)' : 'transparent', color: dealsActiveExchange === ex ? '#fff' : 'var(--primary-text-color)' }}
+                                >
+                                    {ex} ({count})
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {/* Source / provenance banner — which source answered for THIS exchange */}
+                {active && (
+                    <div style={{ marginTop: '1rem', padding: '0.6rem 0.8rem', borderRadius: '6px', background: 'var(--surface-color)', border: '1px solid var(--border-color)', fontSize: '0.82rem' }}>
+                        <div>
+                            <strong>{active.exchange} source:</strong>{' '}
+                            <span style={{ color: active.source === 'nse' ? 'var(--success-color)' : active.source === 'chittorgarh' ? 'var(--accent-color)' : 'var(--error-color)' }}>
+                                {active.sourceLabel}
+                            </span>
+                            {filtered && <span style={{ marginLeft: '0.5rem', color: 'var(--accent-color)' }}>• filtered</span>}
+                        </div>
+                        {active.date && <div><strong>Latest day:</strong> {active.date}</div>}
+                        {data?.attempts && data.attempts.length > 0 && (
+                            <details style={{ marginTop: '0.4rem' }}>
+                                <summary style={{ cursor: 'pointer', color: 'var(--secondary-text-color)' }}>Fetch attempts ({data.attempts.length})</summary>
+                                <ul style={{ margin: '0.4rem 0 0', paddingLeft: '1.2rem' }}>
+                                    {data.attempts.map((a, i) => (
+                                        <li key={i} style={{ color: a.ok ? 'var(--success-color)' : 'var(--error-color)' }}>
+                                            {a.source}: {a.ok ? '✓' : '✗'} {a.detail}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </details>
+                        )}
+                    </div>
+                )}
+
+                {!data && !loading && !errored && (
+                    <p className="chart-subtitle" style={{ marginTop: '1rem' }}>Click <strong>Fetch All</strong> or <strong>Fetch Filtered</strong> to load the latest bulk &amp; block deals.</p>
+                )}
+                {loading && <p className="chart-subtitle" style={{ marginTop: '1rem' }}>Fetching deals…</p>}
+                {errored && !loading && (
+                    <p style={{ marginTop: '1rem', color: 'var(--error-color)' }}>{errored}</p>
+                )}
+
+                {activeView && active && !loading && (
+                    <>
+                        {renderTable(activeView.bulk, `${active.exchange} Bulk Deals`)}
+                        {active.exchange === 'NSE' && active.source === 'nse'
+                            ? renderTable(activeView.block, 'NSE Block Deals')
+                            : <p className="chart-subtitle" style={{ marginTop: '1.5rem' }}>Block deals not available for {active.exchange} (source provides bulk deals only).</p>}
+                    </>
+                )}
+            </div>
+        );
+    };
+
     if (gridKeyData.length === 0 || stocks.length === 0) {
         return (
             <div className="analysis-page">
@@ -3233,6 +3546,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
                 <button className={selectedChart === 'quality' ? 'active' : ''} onClick={() => setSelectedChart('quality')}>Quality Trends</button>
                 <button className={selectedChart === 'events' ? 'active' : ''} onClick={() => setSelectedChart('events')}>Corporate Events</button>
                 <button className={selectedChart === 'themes' ? 'active' : ''} onClick={() => setSelectedChart('themes')}>Themes</button>
+                <button className={selectedChart === 'deals' ? 'active' : ''} onClick={() => setSelectedChart('deals')}>Bulk/Block Deals</button>
             </div>
 
             <div className="charts-container">
@@ -3245,6 +3559,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
                 {selectedChart === 'quality' && <QualityTrendsChart />}
                 {selectedChart === 'events' && <CorporateEventsChart />}
                 {selectedChart === 'themes' && <ThemesChart />}
+                {selectedChart === 'deals' && <BulkDealsChart />}
             </div>
         </div>
     );

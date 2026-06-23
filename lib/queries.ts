@@ -404,6 +404,47 @@ export async function setRemark(stockCode: string, remarks: string | null): Prom
   }
 }
 
+// ============ Bulk-deal People Lists (global, shared) ============
+
+let bulkDealPeopleTableReady = false;
+async function ensureBulkDealPeopleTable(): Promise<void> {
+  if (bulkDealPeopleTableReady) return;
+  await query(`
+    CREATE TABLE IF NOT EXISTS bulk_deal_people (
+      id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      list_type   VARCHAR(10) NOT NULL CHECK (list_type IN ('include', 'exclude')),
+      client_name VARCHAR(255) NOT NULL,
+      created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      UNIQUE (list_type, client_name)
+    )
+  `);
+  bulkDealPeopleTableReady = true;
+}
+
+export async function getBulkDealPeople(): Promise<{ include: string[]; exclude: string[] }> {
+  await ensureBulkDealPeopleTable();
+  const rows = await query<any>(`SELECT list_type, client_name FROM bulk_deal_people ORDER BY client_name ASC`);
+  const result = { include: [] as string[], exclude: [] as string[] };
+  rows.forEach(r => {
+    if (r.list_type === 'include' || r.list_type === 'exclude') result[r.list_type as 'include' | 'exclude'].push(r.client_name);
+  });
+  return result;
+}
+
+export async function addBulkDealPerson(listType: 'include' | 'exclude', clientName: string): Promise<void> {
+  await ensureBulkDealPeopleTable();
+  await query(`
+    INSERT INTO bulk_deal_people (list_type, client_name)
+    VALUES ($1, $2)
+    ON CONFLICT (list_type, client_name) DO NOTHING
+  `, [listType, clientName]);
+}
+
+export async function removeBulkDealPerson(listType: 'include' | 'exclude', clientName: string): Promise<void> {
+  await ensureBulkDealPeopleTable();
+  await query(`DELETE FROM bulk_deal_people WHERE list_type = $1 AND client_name = $2`, [listType, clientName]);
+}
+
 // ============ Stock Assignments ============
 
 export async function getAllAssignments(): Promise<Record<string, string>> {
