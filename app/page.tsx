@@ -1850,7 +1850,6 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
     const [dealsLoading, setDealsLoading] = useState(false);
     const [dealsError, setDealsError] = useState<string | null>(null);
     const [dealsFilterMode, setDealsFilterMode] = useState<'all' | 'filtered'>('all');
-    const [dealsActiveExchange, setDealsActiveExchange] = useState<'NSE' | 'BSE'>('NSE');
     const [dealsPeople, setDealsPeople] = useState<{ include: string[]; exclude: string[] }>({ include: [], exclude: [] });
     const [dealsPipeline, setDealsPipeline] = useState<{ ticker: string; companyName: string }[]>([]);
 
@@ -3338,6 +3337,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                             <thead>
                                 <tr style={{ textAlign: 'left', borderBottom: '2px solid var(--border-color)' }}>
+                                    <th style={{ padding: '0.4rem 0.6rem' }}>Exch</th>
                                     <th style={{ padding: '0.4rem 0.6rem' }}>Date</th>
                                     <th style={{ padding: '0.4rem 0.6rem' }}>Symbol</th>
                                     <th style={{ padding: '0.4rem 0.6rem' }}>Client</th>
@@ -3349,6 +3349,9 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
                             <tbody>
                                 {rows.map((r, i) => (
                                     <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                        <td style={{ padding: '0.4rem 0.6rem' }}>
+                                            <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '4px', background: 'var(--pill-bg-color)', color: 'var(--pill-text-color)' }}>{r.exchange}</span>
+                                        </td>
                                         <td style={{ padding: '0.4rem 0.6rem', whiteSpace: 'nowrap', color: 'var(--secondary-text-color)' }}>{r.date}</td>
                                         <td style={{ padding: '0.4rem 0.6rem', fontWeight: 600 }} title={r.scripName}>{r.symbol || r.scripName}</td>
                                         <td style={{ padding: '0.4rem 0.6rem' }}>{r.clientName}</td>
@@ -3403,8 +3406,10 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
             );
         };
 
-        const active = data?.exchanges.find(e => e.exchange === dealsActiveExchange) || null;
-        const activeView = active ? viewEx(active) : null;
+        // merge both exchanges into one view; block deals only exist for NSE-official
+        const viewExchanges = (data?.exchanges || []).map(viewEx);
+        const allBulk = viewExchanges.flatMap(e => e.bulk);
+        const allBlock = viewExchanges.flatMap(e => e.block);
 
         return (
             <div className="chart-card">
@@ -3449,38 +3454,20 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
                     </div>
                 </details>
 
-                {/* Exchange toggle (counts reflect the current view) */}
+                {/* Source / provenance banner — one row per exchange */}
                 {data && (
-                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-                        {(['NSE', 'BSE'] as const).map(ex => {
-                            const exData = data.exchanges.find(e => e.exchange === ex);
-                            const v = exData ? viewEx(exData) : null;
-                            const count = v ? v.bulk.length + v.block.length : 0;
-                            return (
-                                <button
-                                    key={ex}
-                                    onClick={() => setDealsActiveExchange(ex)}
-                                    style={{ fontSize: '0.85rem', fontWeight: 600, padding: '0.4rem 1rem', borderRadius: '4px', cursor: 'pointer', border: '1px solid', borderColor: dealsActiveExchange === ex ? 'var(--accent-color)' : 'var(--border-color)', background: dealsActiveExchange === ex ? 'var(--accent-color)' : 'transparent', color: dealsActiveExchange === ex ? '#fff' : 'var(--primary-text-color)' }}
-                                >
-                                    {ex} ({count})
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {/* Source / provenance banner — which source answered for THIS exchange */}
-                {active && (
                     <div style={{ marginTop: '1rem', padding: '0.6rem 0.8rem', borderRadius: '6px', background: 'var(--surface-color)', border: '1px solid var(--border-color)', fontSize: '0.82rem' }}>
-                        <div>
-                            <strong>{active.exchange} source:</strong>{' '}
-                            <span style={{ color: active.source === 'nse' ? 'var(--success-color)' : active.source === 'chittorgarh' ? 'var(--accent-color)' : 'var(--error-color)' }}>
-                                {active.sourceLabel}
-                            </span>
-                            {filtered && <span style={{ marginLeft: '0.5rem', color: 'var(--accent-color)' }}>• filtered</span>}
-                        </div>
-                        {active.date && <div><strong>Latest day:</strong> {active.date}</div>}
-                        {data?.attempts && data.attempts.length > 0 && (
+                        {data.exchanges.map(ex => (
+                            <div key={ex.exchange} style={{ marginBottom: '0.2rem' }}>
+                                <strong>{ex.exchange} source:</strong>{' '}
+                                <span style={{ color: ex.source === 'nse' ? 'var(--success-color)' : ex.source === 'chittorgarh' ? 'var(--accent-color)' : 'var(--error-color)' }}>
+                                    {ex.sourceLabel}
+                                </span>
+                                {ex.date && <span style={{ color: 'var(--secondary-text-color)' }}> — {ex.date}</span>}
+                            </div>
+                        ))}
+                        {filtered && <div style={{ color: 'var(--accent-color)' }}>• showing filtered results</div>}
+                        {data.attempts && data.attempts.length > 0 && (
                             <details style={{ marginTop: '0.4rem' }}>
                                 <summary style={{ cursor: 'pointer', color: 'var(--secondary-text-color)' }}>Fetch attempts ({data.attempts.length})</summary>
                                 <ul style={{ margin: '0.4rem 0 0', paddingLeft: '1.2rem' }}>
@@ -3503,12 +3490,10 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
                     <p style={{ marginTop: '1rem', color: 'var(--error-color)' }}>{errored}</p>
                 )}
 
-                {activeView && active && !loading && (
+                {data && !loading && (
                     <>
-                        {renderTable(activeView.bulk, `${active.exchange} Bulk Deals`)}
-                        {active.exchange === 'NSE' && active.source === 'nse'
-                            ? renderTable(activeView.block, 'NSE Block Deals')
-                            : <p className="chart-subtitle" style={{ marginTop: '1.5rem' }}>Block deals not available for {active.exchange} (source provides bulk deals only).</p>}
+                        {renderTable(allBulk, 'Bulk Deals (NSE + BSE)')}
+                        {renderTable(allBlock, 'Block Deals (NSE)')}
                     </>
                 )}
             </div>
