@@ -35,6 +35,12 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
   const [isSaving, setIsSaving] = useState(false);
   const [isEditingMonitoring, setIsEditingMonitoring] = useState(false);
   const [isSavingMonitoring, setIsSavingMonitoring] = useState(false);
+  const [isEditingExit, setIsEditingExit] = useState(false);
+  const [isSavingExit, setIsSavingExit] = useState(false);
+  const [exitForm, setExitForm] = useState<{ exitDate: string; exitValue: number | null }>({
+    exitDate: '',
+    exitValue: null,
+  });
 
   const [formData, setFormData] = useState<UpdatePEInvestmentRequest>({
     investedValue: company?.investedValue || 0,
@@ -178,6 +184,39 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
     }
   };
 
+  const saveExit = async (payload: { isExited: boolean; exitDate?: string | null; exitValue?: number | null }) => {
+    setIsSavingExit(true);
+    try {
+      const response = await fetch(`/api/pe/${companyId}/exit`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error('Failed to save');
+      const data = await response.json();
+      onCompanyUpdated(data.company, data.metrics);
+      setIsEditingExit(false);
+    } catch (err) {
+      console.error('Error saving exit:', err);
+      alert('Failed to save exit data');
+    } finally {
+      setIsSavingExit(false);
+    }
+  };
+
+  const handleStartExit = () => {
+    setExitForm({
+      exitDate: company?.exitDate?.split('T')[0] || new Date().toISOString().split('T')[0],
+      exitValue: company?.exitValue ?? company?.currentValue ?? null,
+    });
+    setIsEditingExit(true);
+  };
+
+  const handleUndoExit = () => {
+    if (!confirm('Mark this company as active again? Exit date and value will be cleared.')) return;
+    saveExit({ isExited: false });
+  };
+
   const getGuidanceClass = (value: GuidanceVsActual | null) => {
     switch (value) {
       case 'ahead': return 'pe-guidance-ahead';
@@ -190,6 +229,25 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
 
   return (
     <div className="pe-overview-tab">
+      {/* Exit banner */}
+      {company?.isExited && (
+        <div className="pe-exit-banner">
+          <span className="pe-exited-badge">Sold</span>
+          <span>
+            Exited{company.exitDate ? ` on ${new Date(company.exitDate).toLocaleDateString()}` : ''}
+            {company.exitValue != null ? ` for ${formatCurrency(company.exitValue)}` : ''}
+          </span>
+          <button
+            type="button"
+            className="pe-btn-secondary pe-exit-undo-btn"
+            onClick={handleUndoExit}
+            disabled={isSavingExit}
+          >
+            Mark as Active
+          </button>
+        </div>
+      )}
+
       {/* Metrics Cards */}
       <div className="pe-metrics-grid">
         <div className="pe-metric-card pe-metric-primary">
@@ -197,8 +255,10 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
           <span className="pe-metric-value">{formatCurrency(company?.investedValue || null)}</span>
         </div>
         <div className="pe-metric-card pe-metric-primary">
-          <span className="pe-metric-label">Current Value</span>
-          <span className="pe-metric-value">{formatCurrency(company?.currentValue || null)}</span>
+          <span className="pe-metric-label">{company?.isExited ? 'Exit Value' : 'Current Value'}</span>
+          <span className="pe-metric-value">
+            {formatCurrency(company?.isExited ? company?.exitValue ?? null : company?.currentValue || null)}
+          </span>
         </div>
         <div className="pe-metric-card">
           <span className="pe-metric-label">MOIC</span>
@@ -213,10 +273,57 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
       {/* Gain/Loss */}
       {metrics && metrics.totalGainLoss != null && (
         <div className={`pe-gain-loss ${metrics.totalGainLoss >= 0 ? 'positive' : 'negative'}`}>
-          <span className="pe-gain-loss-label">Total Gain/Loss</span>
+          <span className="pe-gain-loss-label">
+            {company?.isExited ? 'Realized Gain/Loss' : 'Total Gain/Loss'}
+          </span>
           <span className="pe-gain-loss-value">
             {formatCurrency(metrics.totalGainLoss)} ({formatPercentage(metrics.totalGainLossPercentage)})
           </span>
+        </div>
+      )}
+
+      {/* Mark as Sold */}
+      {!company?.isExited && (
+        <div className="pe-section">
+          {isEditingExit ? (
+            <div className="pe-edit-form">
+              <div className="pe-section-header"><h3>Mark as Sold</h3></div>
+              <div className="pe-form-grid">
+                <div className="pe-form-group">
+                  <label>Exit Date</label>
+                  <input
+                    type="date"
+                    value={exitForm.exitDate}
+                    onChange={e => setExitForm(prev => ({ ...prev, exitDate: e.target.value }))}
+                  />
+                </div>
+                <div className="pe-form-group">
+                  <label>Exit Value (total proceeds)</label>
+                  <input
+                    type="number"
+                    value={exitForm.exitValue ?? ''}
+                    onChange={e => setExitForm(prev => ({ ...prev, exitValue: parseFloat(e.target.value) || null }))}
+                    placeholder="e.g., 25000000"
+                  />
+                </div>
+              </div>
+              <div className="pe-form-actions">
+                <button type="button" className="pe-btn-secondary" onClick={() => setIsEditingExit(false)} disabled={isSavingExit}>Cancel</button>
+                <button
+                  type="button"
+                  className="pe-btn-primary"
+                  onClick={() => saveExit({ isExited: true, exitDate: exitForm.exitDate || null, exitValue: exitForm.exitValue })}
+                  disabled={isSavingExit}
+                >
+                  {isSavingExit ? 'Saving...' : 'Confirm Sale'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" className="pe-mark-sold-btn" onClick={handleStartExit}>
+              Mark as Sold / Exited
+            </button>
+          )}
         </div>
       )}
 

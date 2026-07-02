@@ -2,34 +2,47 @@
 
 import { PECompany, PEMetrics } from '../../types/pe';
 
+// For exited companies the realized exit value replaces the current mark
+export function effectiveValue(company: PECompany | null): number | null {
+  if (!company) return null;
+  return company.isExited ? company.exitValue : company.currentValue;
+}
+
 export function calculateMOIC(company: PECompany | null): number | null {
   if (!company?.investedValue || company.investedValue === 0) return null;
-  if (company.currentValue == null) return null;
-  return company.currentValue / company.investedValue;
+  const value = effectiveValue(company);
+  if (value == null) return null;
+  return value / company.investedValue;
 }
 
 export function calculateIRR(company: PECompany | null): number | null {
   if (!company?.investedValue || company.investedValue === 0) return null;
-  if (company.currentValue == null) return null;
+  const value = effectiveValue(company);
+  if (value == null) return null;
   if (!company.investmentDate) return null;
 
+  const endTime = company.isExited && company.exitDate
+    ? new Date(company.exitDate).getTime()
+    : Date.now();
   const msPerYear = 365.25 * 24 * 60 * 60 * 1000;
-  const years = (Date.now() - new Date(company.investmentDate).getTime()) / msPerYear;
+  const years = (endTime - new Date(company.investmentDate).getTime()) / msPerYear;
   if (years <= 0) return null;
 
-  const moic = company.currentValue / company.investedValue;
+  const moic = value / company.investedValue;
   return (Math.pow(moic, 1 / years) - 1) * 100;
 }
 
 export function calculateTotalGainLoss(company: PECompany | null): number | null {
-  if (!company || company.currentValue == null) return null;
-  return company.currentValue - (company.investedValue || 0);
+  const value = effectiveValue(company);
+  if (!company || value == null) return null;
+  return value - (company.investedValue || 0);
 }
 
 export function calculateTotalGainLossPercentage(company: PECompany | null): number | null {
   if (!company?.investedValue || company.investedValue === 0) return null;
-  if (company.currentValue == null) return null;
-  return ((company.currentValue - company.investedValue) / company.investedValue) * 100;
+  const value = effectiveValue(company);
+  if (value == null) return null;
+  return ((value - company.investedValue) / company.investedValue) * 100;
 }
 
 export function calculateMetrics(company: PECompany | null): PEMetrics {

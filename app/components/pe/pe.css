@@ -104,6 +104,64 @@
   color: var(--primary-text-color);
 }
 
+/* Toolbar (search + filters) */
+.pe-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.pe-search-input {
+  flex: 1;
+  min-width: 220px;
+  max-width: 360px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--primary-text-color);
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.pe-search-input:focus {
+  outline: none;
+  border-color: var(--accent-color, #6366f1);
+}
+
+.pe-filter-select {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--primary-text-color);
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.pe-clear-filters-btn {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--secondary-text-color);
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.pe-clear-filters-btn:hover {
+  color: var(--primary-text-color);
+  background-color: var(--pill-bg-color);
+}
+
+.pe-toolbar-count {
+  margin-left: auto;
+  font-size: 0.8125rem;
+  color: var(--secondary-text-color);
+  white-space: nowrap;
+}
+
 /* Table */
 .pe-table-container {
   background-color: var(--surface-color);
@@ -130,6 +188,16 @@
 .pe-table td {
   padding: 0.875rem 1rem;
   border-bottom: 1px solid var(--border-color);
+}
+
+.pe-th-sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.pe-th-sortable:hover {
+  color: var(--primary-text-color);
 }
 
 .pe-table-row {
@@ -208,6 +276,74 @@
 .pe-status-none {
   background-color: var(--pill-bg-color);
   color: var(--secondary-text-color);
+}
+
+/* ============ Exit Tracking ============ */
+.pe-exited-section {
+  margin-top: 2rem;
+}
+
+.pe-exited-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--secondary-text-color);
+  margin-bottom: 0.75rem;
+}
+
+.pe-table-exited .pe-company-name,
+.pe-table-exited .pe-col-right {
+  color: var(--secondary-text-color);
+}
+
+.pe-exited-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background-color: var(--pill-bg-color);
+  color: var(--secondary-text-color);
+  border: 1px solid var(--border-color);
+}
+
+.pe-exit-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--pill-bg-color);
+  color: var(--primary-text-color);
+  font-size: 0.875rem;
+}
+
+.pe-exit-banner .pe-exited-badge {
+  margin-left: 0;
+}
+
+.pe-exit-undo-btn {
+  margin-left: auto;
+}
+
+.pe-mark-sold-btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--negative-color);
+  background: none;
+  border: 1px solid var(--negative-color);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.pe-mark-sold-btn:hover {
+  background-color: rgba(239, 68, 68, 0.1);
 }
 
 /* ============ Modal ============ */

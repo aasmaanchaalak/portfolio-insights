@@ -11,6 +11,7 @@ import {
   CreatePECompanyRequest,
   UpdatePECompanyRequest,
   UpdatePEInvestmentRequest,
+  UpdatePEExitRequest,
   UpdatePEThesisRequest,
   UpdatePEMonitoringRequest,
   UpdatePEBrokerRequest,
@@ -50,7 +51,12 @@ export async function listCompanies(): Promise<PECompanyListItem[]> {
       sector,
       invested_value,
       current_value,
-      CASE WHEN invested_value > 0 THEN current_value / invested_value ELSE NULL END AS moic,
+      is_exited,
+      exit_date,
+      exit_value,
+      CASE WHEN invested_value > 0 THEN
+        (CASE WHEN is_exited THEN exit_value ELSE current_value END) / invested_value
+      ELSE NULL END AS moic,
       thesis_status,
       broker_name,
       drhp_filed,
@@ -150,6 +156,26 @@ export async function updateInvestment(companyId: string, data: UpdatePEInvestme
     data.investmentDate ?? null,
     data.investmentValuation ?? null,
     data.currency ?? 'INR',
+    companyId,
+  ]);
+  return transformRow<PECompany>(rows[0]);
+}
+
+// ============ Exit Update ============
+
+export async function updateExit(companyId: string, data: UpdatePEExitRequest): Promise<PECompany> {
+  const rows = await query(`
+    UPDATE pe_companies SET
+      is_exited = $1,
+      exit_date = $2,
+      exit_value = $3,
+      updated_at = NOW()
+    WHERE id = $4
+    RETURNING *
+  `, [
+    data.isExited,
+    data.isExited ? data.exitDate ?? null : null,
+    data.isExited ? data.exitValue ?? null : null,
     companyId,
   ]);
   return transformRow<PECompany>(rows[0]);
@@ -439,7 +465,7 @@ export async function getPortfolioSummary(): Promise<{
       COUNT(*) AS company_count,
       AVG(CASE WHEN invested_value > 0 THEN current_value / invested_value ELSE NULL END) AS avg_moic
     FROM pe_companies
-    WHERE invested_value IS NOT NULL
+    WHERE invested_value IS NOT NULL AND NOT is_exited
   `);
   return {
     totalInvested: Number(row?.total_invested || 0),

@@ -60,6 +60,11 @@ export interface PECompany {
   investmentValuation: number | null;
   currency: string;
 
+  // Exit
+  isExited: boolean;
+  exitDate: string | null;
+  exitValue: number | null;
+
   // Thesis
   thesisStatus: ThesisStatus | null;
   originalThesis: string | null;
@@ -169,6 +174,9 @@ export interface PECompanyListItem {
   drhpFiled: boolean;
   fy26AnnualReportReceived: boolean;
   fy25AnnualReportReceived: boolean;
+  isExited: boolean;
+  exitDate: string | null;
+  exitValue: number | null;
 }
 
 // ============ Request Types ============
@@ -201,6 +209,12 @@ export interface UpdatePEInvestmentRequest {
   investmentDate?: string | null;
   investmentValuation?: number | null;
   currency?: string;
+}
+
+export interface UpdatePEExitRequest {
+  isExited: boolean;
+  exitDate?: string | null;
+  exitValue?: number | null;
 }
 
 export interface UpdatePEThesisRequest {
