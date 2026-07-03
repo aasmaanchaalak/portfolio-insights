@@ -45,7 +45,7 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
   const [formData, setFormData] = useState<UpdatePEInvestmentRequest>({
     investedValue: company?.investedValue || 0,
     pricePerShare: company?.pricePerShare || null,
-    currentPricePerShare: company?.currentPricePerShare || null,
+    currentPricePerShare: company?.currentPricePerShare ?? null,
     quantityHeld: company?.quantityHeld || null,
     investmentDate: company?.investmentDate || null,
     investmentValuation: company?.investmentValuation || null,
@@ -113,7 +113,7 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
     setFormData({
       investedValue: company?.investedValue || 0,
       pricePerShare: company?.pricePerShare || null,
-      currentPricePerShare: company?.currentPricePerShare || null,
+      currentPricePerShare: company?.currentPricePerShare ?? null,
       quantityHeld: company?.quantityHeld || null,
       investmentDate: company?.investmentDate?.split('T')[0] || null,
       investmentValuation: company?.investmentValuation || null,
@@ -257,7 +257,7 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
         <div className="pe-metric-card pe-metric-primary">
           <span className="pe-metric-label">{company?.isExited ? 'Exit Value' : 'Current Value'}</span>
           <span className="pe-metric-value">
-            {formatCurrency(company?.isExited ? company?.exitValue ?? null : company?.currentValue || null)}
+            {formatCurrency(company?.isExited ? company?.exitValue ?? null : company?.currentValue ?? null)}
           </span>
         </div>
         <div className="pe-metric-card">
@@ -302,7 +302,10 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
                   <input
                     type="number"
                     value={exitForm.exitValue ?? ''}
-                    onChange={e => setExitForm(prev => ({ ...prev, exitValue: parseFloat(e.target.value) || null }))}
+                    onChange={e => {
+                      const parsed = parseFloat(e.target.value);
+                      setExitForm(prev => ({ ...prev, exitValue: Number.isNaN(parsed) ? null : parsed }));
+                    }}
                     placeholder="e.g., 25000000"
                   />
                 </div>
@@ -377,8 +380,11 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
                 <input
                   type="number"
                   step="0.0001"
-                  value={formData.currentPricePerShare || ''}
-                  onChange={e => setFormData(prev => ({ ...prev, currentPricePerShare: parseFloat(e.target.value) || null }))}
+                  value={formData.currentPricePerShare ?? ''}
+                  onChange={e => {
+                    const parsed = parseFloat(e.target.value);
+                    setFormData(prev => ({ ...prev, currentPricePerShare: Number.isNaN(parsed) ? null : parsed }));
+                  }}
                 />
               </div>
               <div className="pe-form-group">
