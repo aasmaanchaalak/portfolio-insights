@@ -143,8 +143,10 @@ export async function updateInvestment(companyId: string, data: UpdatePEInvestme
       investment_date = $7,
       investment_valuation = $8,
       currency = $9,
+      stage = $10,
+      exit_horizon = $11,
       updated_at = NOW()
-    WHERE id = $10
+    WHERE id = $12
     RETURNING *
   `, [
     data.investedValue,
@@ -156,6 +158,8 @@ export async function updateInvestment(companyId: string, data: UpdatePEInvestme
     data.investmentDate ?? null,
     data.investmentValuation ?? null,
     data.currency ?? 'INR',
+    data.stage ?? null,
+    data.exitHorizon ?? null,
     companyId,
   ]);
   return transformRow<PECompany>(rows[0]);
@@ -473,6 +477,12 @@ export async function getPortfolioSummary(): Promise<{
     companyCount: Number(row?.company_count || 0),
     avgMoic: row?.avg_moic ? Number(row.avg_moic) : null,
   };
+}
+
+// Full company rows (all columns) — used by the factsheet aggregator.
+export async function listCompaniesFull(): Promise<PECompany[]> {
+  const rows = await query(`SELECT * FROM pe_companies ORDER BY company_name ASC`);
+  return transformRows<PECompany>(rows);
 }
 
 export async function getPendingFollowUps(): Promise<PECommunication[]> {

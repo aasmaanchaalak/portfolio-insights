@@ -314,6 +314,43 @@ export async function savePortfolioHistoryEntry(date: string, value: number): Pr
   `, [date, value]);
 }
 
+// ============ Factsheet Inputs ============
+
+import type { FactsheetInputs } from '../types/factsheet';
+
+export async function getFactsheetInputs(month: string): Promise<FactsheetInputs | null> {
+  const row = await queryOne<any>(`
+    SELECT month, cash_position, pm_note, fno_positions,
+           EXTRACT(EPOCH FROM updated_at) * 1000 AS updated_ms
+    FROM factsheet_inputs WHERE month = $1
+  `, [month]);
+  if (!row) return null;
+  return {
+    month: row.month,
+    cashPosition: row.cash_position != null ? Number(row.cash_position) : null,
+    pmNote: row.pm_note ?? null,
+    fnoPositions: Array.isArray(row.fno_positions) ? row.fno_positions : [],
+    updatedAt: row.updated_ms ? new Date(Number(row.updated_ms)).toISOString() : undefined,
+  };
+}
+
+export async function upsertFactsheetInputs(data: FactsheetInputs): Promise<void> {
+  await query(`
+    INSERT INTO factsheet_inputs (month, cash_position, pm_note, fno_positions, updated_at)
+    VALUES ($1, $2, $3, $4::jsonb, NOW())
+    ON CONFLICT (month) DO UPDATE SET
+      cash_position = $2,
+      pm_note = $3,
+      fno_positions = $4::jsonb,
+      updated_at = NOW()
+  `, [
+    data.month,
+    data.cashPosition ?? null,
+    data.pmNote ?? null,
+    JSON.stringify(data.fnoPositions ?? []),
+  ]);
+}
+
 // ============ Portfolio Metrics History ============
 
 export interface PortfolioMetricsEntry {

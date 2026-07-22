@@ -19,6 +19,7 @@ import { PositioningChips } from './components/positioning/PositioningChip';
 import { PositioningFilters, PositioningFilterState, INITIAL_POSITIONING_FILTERS } from './components/positioning/PositioningFilters';
 import { StockPositioning, Conviction, StrategyType, ActionIntent } from '../types/positioning';
 import { PETracker } from './components/pe/PETracker';
+import { FactsheetPage } from './components/factsheet/FactsheetPage';
 import { PipelinePage } from './components/pipeline/PipelinePage';
 
 type SortKey = keyof Stock;
@@ -3855,7 +3856,7 @@ interface PrivateInvestments {
 
 const App: React.FC = () => {
     const { user, loading: authLoading, logout, isAdmin, isAnalyst, isManager } = useAuth();
-    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'entrydata' | 'pe' | 'pipeline' | 'admin'>('pipeline');
+    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'entrydata' | 'pe' | 'pipeline' | 'factsheet' | 'admin'>('pipeline');
     const [menuOpen, setMenuOpen] = useState(false);
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
@@ -4079,6 +4080,7 @@ const App: React.FC = () => {
                     {isManager && <button className={page === 'entrydata' ? 'active' : ''} onClick={() => setPage('entrydata')}>Entry Data</button>}
                     <button className={page === 'pe' ? 'active' : ''} onClick={() => setPage('pe')}>PE Tracker</button>
                     <button className={page === 'pipeline' ? 'active' : ''} onClick={() => setPage('pipeline')}>Pipeline</button>
+                    {!isAnalyst && <button className={page === 'factsheet' ? 'active' : ''} onClick={() => setPage('factsheet')}>Factsheet</button>}
                     {isAdmin && (
                         <button className={page === 'admin' ? 'active' : ''} onClick={() => setPage('admin')} style={{ background: page === 'admin' ? 'var(--accent-color)' : 'rgba(234, 179, 8, 0.15)', color: page === 'admin' ? 'white' : '#eab308' }}>Admin</button>
                     )}
@@ -4107,6 +4109,7 @@ const App: React.FC = () => {
                         ] : []),
                         { id: 'pe', label: 'PE Tracker' },
                         { id: 'pipeline', label: 'Pipeline' },
+                        ...(!isAnalyst ? [{ id: 'factsheet', label: 'Factsheet' }] : []),
                         ...(isAdmin ? [{ id: 'admin', label: 'Admin' }] : []),
                     ].map(item => (
                         <button
@@ -4131,6 +4134,7 @@ const App: React.FC = () => {
                 {page === 'entrydata' && <EntryDataPage gridKeyData={gridKeyData} stocks={stocks} />}
                 {page === 'pe' && <PETracker />}
                 {page === 'pipeline' && <PipelinePage />}
+                {page === 'factsheet' && <FactsheetPage stocks={stocks} gridKeyData={gridKeyData} portfolioHistory={portfolioHistory} isAnalyst={isAnalyst} />}
                 {page === 'admin' && <AdminPanel />}
             </main>
         </>

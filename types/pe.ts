@@ -2,6 +2,10 @@
 
 export type ThesisStatus = 'intact' | 'monitor' | 'broken';
 export type GuidanceVsActual = 'ahead' | 'on_track' | 'behind' | 'missed';
+// Funding stage (factsheet: grouped Early = seed/A, Growth = B/C, Late = D+/pre-IPO)
+export type PEStage = 'seed' | 'series_a' | 'series_b' | 'series_c' | 'series_d_plus' | 'pre_ipo' | 'other';
+// Expected exit horizon — drives the factsheet liquidity profile (illiquid < 3yr / > 3yr)
+export type PEExitHorizon = 'lt_3yr' | 'gt_3yr';
 export type ContactType = 'company_poc' | 'broker' | 'board_member' | 'advisor' | 'other';
 export type CommunicationType = 'email' | 'call' | 'meeting' | 'site_visit' | 'board_meeting' | 'document_received' | 'note' | 'other';
 
@@ -59,6 +63,8 @@ export interface PECompany {
   investmentDate: string | null;
   investmentValuation: number | null;
   currency: string;
+  stage: PEStage | null;
+  exitHorizon: PEExitHorizon | null;
 
   // Exit
   isExited: boolean;
@@ -158,6 +164,34 @@ export interface PEMetrics {
   totalGainLossPercentage: number | null;
 }
 
+// ============ Factsheet Aggregation (private sleeve) ============
+
+export interface PEFactsheetHolding {
+  companyName: string;
+  sector: string | null;
+  stage: PEStage | null;
+  currentValue: number;
+  investmentDate: string | null;
+  navPctOfSleeve: number | null;
+}
+
+export interface PEFactsheetSummary {
+  paidIn: number;          // total invested across ALL companies (held + exited)
+  currentNav: number;      // sum of current value of held companies
+  distributed: number;     // sum of exit proceeds from exited companies
+  heldCount: number;
+  exitedCount: number;
+  dpi: number | null;      // distributed / paid-in
+  tvpi: number | null;     // (distributed + current NAV) / paid-in
+  moic: number | null;     // gross portfolio multiple (== tvpi)
+  irr: number | null;      // blended XIRR across companies with an investment date
+  irrCoverage: number;     // # of companies included in the IRR calc
+  topHoldings: PEFactsheetHolding[];
+  byStage: { early: number; growth: number; late: number; other: number }; // % of NAV
+  byVintage: { label: string; pct: number }[];                             // % of NAV per year
+  liquidity: { lt3yr: number; gt3yr: number; unclassified: number };       // NAV (₹) of held by horizon
+}
+
 // ============ List View ============
 
 export interface PECompanyListItem {
@@ -209,6 +243,8 @@ export interface UpdatePEInvestmentRequest {
   investmentDate?: string | null;
   investmentValuation?: number | null;
   currency?: string;
+  stage?: PEStage | null;
+  exitHorizon?: PEExitHorizon | null;
 }
 
 export interface UpdatePEExitRequest {

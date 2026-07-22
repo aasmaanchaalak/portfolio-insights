@@ -5,6 +5,8 @@ import {
   PECompany,
   PEMetrics,
   GuidanceVsActual,
+  PEStage,
+  PEExitHorizon,
   UpdatePEInvestmentRequest,
   UpdatePEMonitoringRequest,
 } from '../../../../types/pe';
@@ -15,6 +17,21 @@ import {
   formatPercentage,
   formatOwnership,
 } from '../../../../lib/pe/calculations';
+
+const STAGE_OPTIONS: { value: PEStage; label: string }[] = [
+  { value: 'seed', label: 'Seed' },
+  { value: 'series_a', label: 'Series A' },
+  { value: 'series_b', label: 'Series B' },
+  { value: 'series_c', label: 'Series C' },
+  { value: 'series_d_plus', label: 'Series D+' },
+  { value: 'pre_ipo', label: 'Pre-IPO' },
+  { value: 'other', label: 'Other' },
+];
+
+const EXIT_HORIZON_OPTIONS: { value: PEExitHorizon; label: string }[] = [
+  { value: 'lt_3yr', label: 'Under 3 years' },
+  { value: 'gt_3yr', label: 'Over 3 years' },
+];
 
 const GUIDANCE_OPTIONS: { value: GuidanceVsActual; label: string; color: string }[] = [
   { value: 'ahead', label: 'Ahead', color: 'var(--positive-color)' },
@@ -50,6 +67,8 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
     investmentDate: company?.investmentDate || null,
     investmentValuation: company?.investmentValuation || null,
     currency: company?.currency || 'INR',
+    stage: company?.stage ?? null,
+    exitHorizon: company?.exitHorizon ?? null,
   });
 
   type LinkedField = 'invested' | 'price' | 'qty';
@@ -118,6 +137,8 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
       investmentDate: company?.investmentDate?.split('T')[0] || null,
       investmentValuation: company?.investmentValuation || null,
       currency: company?.currency || 'INR',
+      stage: company?.stage ?? null,
+      exitHorizon: company?.exitHorizon ?? null,
     });
     setRecentEdits([]);
     setIsEditing(true);
@@ -395,6 +416,30 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
                 <label>Investment Valuation</label>
                 <input type="number" value={formData.investmentValuation || ''} onChange={e => setFormData(prev => ({ ...prev, investmentValuation: parseFloat(e.target.value) || null }))} placeholder="e.g., 500000000" />
               </div>
+              <div className="pe-form-group">
+                <label>Stage</label>
+                <select
+                  value={formData.stage ?? ''}
+                  onChange={e => setFormData(prev => ({ ...prev, stage: (e.target.value || null) as PEStage | null }))}
+                >
+                  <option value="">Not set</option>
+                  {STAGE_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="pe-form-group">
+                <label>Expected Exit Horizon</label>
+                <select
+                  value={formData.exitHorizon ?? ''}
+                  onChange={e => setFormData(prev => ({ ...prev, exitHorizon: (e.target.value || null) as PEExitHorizon | null }))}
+                >
+                  <option value="">Not set</option>
+                  {EXIT_HORIZON_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="pe-form-actions">
               <button type="button" className="pe-btn-secondary" onClick={() => setIsEditing(false)} disabled={isSaving}>Cancel</button>
@@ -426,6 +471,14 @@ export function OverviewTab({ companyId, company, metrics, onCompanyUpdated }: O
             <div className="pe-detail-item">
               <span className="pe-detail-label">Ownership</span>
               <span className="pe-detail-value">{formatOwnership(company?.ownershipPercentage ?? null)}</span>
+            </div>
+            <div className="pe-detail-item">
+              <span className="pe-detail-label">Stage</span>
+              <span className="pe-detail-value">{STAGE_OPTIONS.find(o => o.value === company?.stage)?.label ?? '-'}</span>
+            </div>
+            <div className="pe-detail-item">
+              <span className="pe-detail-label">Expected Exit Horizon</span>
+              <span className="pe-detail-value">{EXIT_HORIZON_OPTIONS.find(o => o.value === company?.exitHorizon)?.label ?? '-'}</span>
             </div>
           </div>
         )}

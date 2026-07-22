@@ -24,7 +24,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       case 'PUT': {
         const {
           investedValue, pricePerShare, currentPricePerShare, quantityHeld,
-          investmentDate, investmentValuation, currency,
+          investmentDate, investmentValuation, currency, stage, exitHorizon,
         } = req.body;
 
         if (investedValue === undefined || investedValue === null) {
@@ -51,6 +51,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           investmentDate,
           investmentValuation,
           currency,
+          stage,
+          exitHorizon,
         });
         const metrics = calculateMetrics(updated);
         return res.status(200).json({ company: updated, metrics });
