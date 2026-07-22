@@ -1795,7 +1795,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
 
 
 const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAnalyst?: boolean }> = ({ gridKeyData, stocks, isAnalyst = false }) => {
-    const [selectedChart, setSelectedChart] = useState<'allocation' | 'performance' | 'growth' | 'sectors' | 'rotation' | 'value' | 'quality' | 'events' | 'themes' | 'deals'>('allocation');
+    const [selectedChart, setSelectedChart] = useState<'allocation' | 'performance' | 'growth' | 'sectors' | 'rotation' | 'value' | 'quality' | 'events' | 'themes' | 'deals' | 'factsheet'>('allocation');
     const [portfolioHistory, setPortfolioHistory] = useState<{date: string; value: number; timestamp: number}[]>([]);
     const [metricsHistory, setMetricsHistory] = useState<({ date: string } & PortfolioMetricsSnapshot)[]>([]);
 
@@ -3533,6 +3533,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
                 <button className={selectedChart === 'events' ? 'active' : ''} onClick={() => setSelectedChart('events')}>Corporate Events</button>
                 <button className={selectedChart === 'themes' ? 'active' : ''} onClick={() => setSelectedChart('themes')}>Themes</button>
                 <button className={selectedChart === 'deals' ? 'active' : ''} onClick={() => setSelectedChart('deals')}>Bulk/Block Deals</button>
+                {!isAnalyst && <button className={selectedChart === 'factsheet' ? 'active' : ''} onClick={() => setSelectedChart('factsheet')}>Factsheet</button>}
             </div>
 
             <div className="charts-container">
@@ -3546,6 +3547,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
                 {selectedChart === 'events' && <CorporateEventsChart />}
                 {selectedChart === 'themes' && <ThemesChart />}
                 {selectedChart === 'deals' && <BulkDealsChart />}
+                {selectedChart === 'factsheet' && <FactsheetPage stocks={stocks} gridKeyData={gridKeyData} portfolioHistory={portfolioHistory} isAnalyst={isAnalyst} />}
             </div>
         </div>
     );
@@ -3856,7 +3858,7 @@ interface PrivateInvestments {
 
 const App: React.FC = () => {
     const { user, loading: authLoading, logout, isAdmin, isAnalyst, isManager } = useAuth();
-    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'entrydata' | 'pe' | 'pipeline' | 'factsheet' | 'admin'>('pipeline');
+    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'entrydata' | 'pe' | 'pipeline' | 'admin'>('pipeline');
     const [menuOpen, setMenuOpen] = useState(false);
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
@@ -4080,7 +4082,6 @@ const App: React.FC = () => {
                     {isManager && <button className={page === 'entrydata' ? 'active' : ''} onClick={() => setPage('entrydata')}>Entry Data</button>}
                     <button className={page === 'pe' ? 'active' : ''} onClick={() => setPage('pe')}>PE Tracker</button>
                     <button className={page === 'pipeline' ? 'active' : ''} onClick={() => setPage('pipeline')}>Pipeline</button>
-                    {!isAnalyst && <button className={page === 'factsheet' ? 'active' : ''} onClick={() => setPage('factsheet')}>Factsheet</button>}
                     {isAdmin && (
                         <button className={page === 'admin' ? 'active' : ''} onClick={() => setPage('admin')} style={{ background: page === 'admin' ? 'var(--accent-color)' : 'rgba(234, 179, 8, 0.15)', color: page === 'admin' ? 'white' : '#eab308' }}>Admin</button>
                     )}
@@ -4109,7 +4110,6 @@ const App: React.FC = () => {
                         ] : []),
                         { id: 'pe', label: 'PE Tracker' },
                         { id: 'pipeline', label: 'Pipeline' },
-                        ...(!isAnalyst ? [{ id: 'factsheet', label: 'Factsheet' }] : []),
                         ...(isAdmin ? [{ id: 'admin', label: 'Admin' }] : []),
                     ].map(item => (
                         <button
@@ -4134,7 +4134,6 @@ const App: React.FC = () => {
                 {page === 'entrydata' && <EntryDataPage gridKeyData={gridKeyData} stocks={stocks} />}
                 {page === 'pe' && <PETracker />}
                 {page === 'pipeline' && <PipelinePage />}
-                {page === 'factsheet' && <FactsheetPage stocks={stocks} gridKeyData={gridKeyData} portfolioHistory={portfolioHistory} isAnalyst={isAnalyst} />}
                 {page === 'admin' && <AdminPanel />}
             </main>
         </>

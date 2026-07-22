@@ -62,9 +62,10 @@ const getPerfColor = (value: number | null): string => {
     return 'transparent';
 };
 
+// Dashboard money is always shown in lakhs (no crore roll-up), e.g. "₹631.34 L".
 const formatCurrency = (value: number | null): string => {
     if (value === null) return 'N/A';
-    return `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+    return `₹${(value / 100000).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} L`;
 };
 
 const formatPercent = (value: number | null, decimals: number = 2): string => {
