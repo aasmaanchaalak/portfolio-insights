@@ -13,6 +13,33 @@
   --error-color: #dc3545;
 
 
+  /* ── Design language tokens (DESIGN.md) — used by the Dashboard ── */
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* neutrals — hue 264 */
+  --bg-page: oklch(0.97 0.004 260);
+  --surface: #ffffff;
+  --surface-faint: oklch(0.975 0.003 264);
+  --dl-border: oklch(0.92 0.005 264);
+  --dl-border-inner: oklch(0.94 0.004 264);
+  --ink: oklch(0.24 0.012 264);
+  --ink-2: oklch(0.45 0.01 264);
+  --ink-muted: oklch(0.55 0.01 264);
+  --ink-label: oklch(0.58 0.01 264);
+  /* interactive */
+  --dl-accent: oklch(0.5 0.13 264);
+  --dl-accent-hover: oklch(0.42 0.14 264);
+  --accent-bar: oklch(0.55 0.11 264);
+  /* semantic */
+  --dl-positive: oklch(0.5 0.13 150);
+  --dl-negative: oklch(0.55 0.16 27);
+  --dl-warning: oklch(0.7 0.15 60);
+  /* geometry */
+  --radius-card: 12px;
+  --radius-control: 8px;
+  --radius-chip: 5px;
+  --radius-pill: 20px;
+
   /* Heatmap Palette */
   --positive-color-strong: #A5D6A7;
   --positive-color-medium: #C8E6C9;
@@ -4013,4 +4040,248 @@ a:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: 'Segoe UI', sans-serif;
+}
+
+/* ============================================================
+   DASHBOARD — DESIGN LANGUAGE (DESIGN.md)
+   Scoped to .dashboard-page so the rest of the app is untouched.
+   Calm chrome, expressive data · one neutral hue (264) ·
+   mono + right-aligned figures · borders over shadows.
+   ============================================================ */
+.dashboard-page {
+  font-family: var(--font-sans);
+  color: var(--ink);
+  background: var(--bg-page);
+  padding: 1.5rem 1.5rem 3rem;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.002em;
+}
+
+/* Every figure renders in the mono face with tabular alignment. */
+.dashboard-page .card-value,
+.dashboard-page .card-change,
+.dashboard-page .card-subtext.benchmark,
+.dashboard-page .metric-value,
+.dashboard-page .metric-value-small,
+.dashboard-page .metric-subvalue,
+.dashboard-page .metric-subtext,
+.dashboard-page .alert-change,
+.dashboard-page .alert-count,
+.dashboard-page .alerts-refresh-timer,
+.dashboard-page .sector-return,
+.dashboard-page .sector-count,
+.dashboard-page .sector-rank,
+.dashboard-page .leaderboard-gain,
+.dashboard-page .leaderboard-rank,
+.dashboard-page .positioning-allocation-percent,
+.dashboard-page .driver-rank,
+.dashboard-page .technical-table td {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ── Section headings — quiet hairline, not a heavy rule ── */
+.dashboard-page .dashboard-section { margin-bottom: 1.75rem; }
+.dashboard-page .section-title,
+.dashboard-page .section-header-with-toggle .section-title {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--ink);
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--dl-border);
+}
+.dashboard-page .section-title .alert-count { color: var(--ink-muted); font-weight: 500; }
+.dashboard-page .alerts-refresh-timer { color: var(--ink-muted); font-size: 11px; }
+.dashboard-page .section-subtitle { color: var(--ink-muted); font-size: 12px; }
+
+/* ── Performance strip: seamless cells joined by a 1px bg-gap grid,
+     inside one rounded, clipped container (gap = bg bleed-through). ── */
+.dashboard-page .overview-cards {
+  gap: 1px;
+  background: var(--dl-border);
+  border: 1px solid var(--dl-border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+.dashboard-page .overview-card {
+  background: var(--surface);
+  border: 0;
+  border-radius: 0;
+  padding: 16px 18px;
+  gap: 6px;
+}
+.dashboard-page .overview-card .card-label,
+.dashboard-page .metric-card .metric-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-label);
+}
+.dashboard-page .overview-card .card-value {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1.15;
+}
+.dashboard-page .overview-card .card-subtext { font-size: 11.5px; color: var(--ink-muted); }
+.dashboard-page .overview-card .card-subtext.benchmark { font-size: 11px; letter-spacing: 0.01em; }
+
+/* ── Metric cells: label → large mono value → caption, left-aligned ── */
+.dashboard-page .metrics-grid {
+  gap: 1px;
+  background: var(--dl-border);
+  border: 1px solid var(--dl-border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+.dashboard-page .metric-card {
+  background: var(--surface);
+  border: 0;
+  border-radius: 0;
+  text-align: left;
+  padding: 15px 16px;
+}
+.dashboard-page .metric-card .metric-label { margin-bottom: 7px; }
+.dashboard-page .metric-card .metric-value {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.dashboard-page .metric-card .metric-value-small { font-size: 14px; font-weight: 600; color: var(--ink); }
+.dashboard-page .metric-card .metric-subvalue,
+.dashboard-page .metric-card .metric-subtext { color: var(--ink-muted); font-size: 11.5px; }
+
+/* ── Semantic color: ONLY on signed numbers / status ── */
+.dashboard-page .positive,
+.dashboard-page .card-value.positive,
+.dashboard-page .metric-value.positive,
+.dashboard-page .card-change.positive,
+.dashboard-page .card-subtext.benchmark.positive,
+.dashboard-page .sector-return.positive,
+.dashboard-page .leaderboard-gain.positive,
+.dashboard-page .metric-subtext .positive { color: var(--dl-positive); }
+.dashboard-page .negative,
+.dashboard-page .card-value.negative,
+.dashboard-page .metric-value.negative,
+.dashboard-page .card-change.negative,
+.dashboard-page .card-subtext.benchmark.negative,
+.dashboard-page .sector-return.negative,
+.dashboard-page .leaderboard-gain.negative,
+.dashboard-page .metric-subtext .negative { color: var(--dl-negative); }
+.dashboard-page .metric-value.warning { color: var(--dl-warning); }
+
+/* ── Generic card surfaces (alerts / sectors / leaderboards / positioning) ── */
+.dashboard-page .alert-column,
+.dashboard-page .sector-list-card,
+.dashboard-page .leaderboard-card,
+.dashboard-page .positioning-allocation-card,
+.dashboard-page .return-drivers-chart,
+.dashboard-page .technical-table-container {
+  background: var(--surface);
+  border: 1px solid var(--dl-border);
+  border-radius: var(--radius-card);
+  padding: 18px 20px;
+}
+.dashboard-page .alerts-grid,
+.dashboard-page .sector-performance-grid,
+.dashboard-page .leaderboard-grid { gap: 16px; }
+
+.dashboard-page .alert-column-title,
+.dashboard-page .sector-list-title,
+.dashboard-page .leaderboard-title,
+.dashboard-page .positioning-allocation-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 12px;
+}
+.dashboard-page .sector-list-title.positive,
+.dashboard-page .leaderboard-title.positive { color: var(--dl-positive); }
+.dashboard-page .sector-list-title.negative,
+.dashboard-page .leaderboard-title.negative { color: var(--dl-negative); }
+
+/* Rows: identity left (sans), value right (mono) */
+.dashboard-page .alert-row,
+.dashboard-page .sector-list-item,
+.dashboard-page .leaderboard-item {
+  border-radius: var(--radius-chip);
+  padding: 7px 8px;
+}
+.dashboard-page .alert-row:hover,
+.dashboard-page .sector-list-item:hover,
+.dashboard-page .leaderboard-item:hover { background: var(--surface-faint); }
+.dashboard-page .alert-name,
+.dashboard-page .sector-name,
+.dashboard-page .leaderboard-name,
+.dashboard-page .stock-name { color: var(--ink); font-weight: 500; }
+.dashboard-page .sector-count,
+.dashboard-page .alert-count { color: var(--ink-muted); }
+.dashboard-page .leaderboard-rank,
+.dashboard-page .sector-rank,
+.dashboard-page .driver-rank { color: var(--ink-muted); font-weight: 500; }
+
+/* ── Bar / rank viz: thin 6px track + accent-bar fill ── */
+.dashboard-page .positioning-allocation-bar-container {
+  background: oklch(0.94 0.005 264);
+  border-radius: var(--radius-pill);
+  height: 6px;
+  overflow: hidden;
+}
+.dashboard-page .positioning-allocation-percent { color: var(--ink); font-weight: 600; }
+.dashboard-page .positioning-allocation-label { color: var(--ink-2); }
+
+/* ── Table: mono right-aligned numerics, sticky muted header ── */
+.dashboard-page .technical-table-container { padding: 0; overflow: hidden; }
+.dashboard-page .technical-table { width: 100%; border-collapse: collapse; }
+.dashboard-page .technical-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-faint);
+  color: var(--ink-label);
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: right;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--dl-border);
+}
+.dashboard-page .technical-table thead th:first-child { text-align: left; }
+.dashboard-page .technical-table td {
+  text-align: right;
+  padding: 11px 14px;
+  font-size: 12.5px;
+  color: var(--ink);
+  border-bottom: 1px solid var(--dl-border-inner);
+}
+.dashboard-page .technical-table td:first-child,
+.dashboard-page .technical-table .stock-name-cell {
+  text-align: left;
+  font-family: var(--font-sans);
+  font-weight: 500;
+}
+.dashboard-page .technical-table tbody tr:hover { background: var(--surface-faint); }
+.dashboard-page .technical-table tbody tr:last-child td { border-bottom: 0; }
+
+/* ── Toggle pills (period switch) ── */
+.dashboard-page .period-toggle button {
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--dl-border);
+  background: var(--surface);
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 14px;
+}
+.dashboard-page .period-toggle button.active {
+  background: var(--dl-accent);
+  border-color: var(--dl-accent);
+  color: #fff;
 }
