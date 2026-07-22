@@ -58,6 +58,18 @@ function pnlReturn(items: Holding[], key: 'return1M' | 'return3M' | 'return1Y'):
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+// Fetch that transparently refreshes an expired 15-min access token and retries
+// once. Without this, a stale token makes the benchmark / PE fetches 401 and the
+// factsheet silently renders blanks.
+async function authedFetch(url: string, init?: RequestInit): Promise<Response> {
+  let res = await fetch(url, init);
+  if (res.status === 401) {
+    await fetch('/api/auth/refresh', { method: 'POST' }).catch(() => {});
+    res = await fetch(url, init);
+  }
+  return res;
+}
+
 export function FactsheetPage({ stocks, gridKeyData, portfolioHistory, isAnalyst = false }: FactsheetPageProps) {
   // Default reporting month = latest completed month is overkill; use current month.
   const [month, setMonth] = useState<string>(() => {
@@ -77,7 +89,7 @@ export function FactsheetPage({ stocks, gridKeyData, portfolioHistory, isAnalyst
   // Load persisted inputs for the selected month
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/factsheet-inputs?month=${month}`)
+    authedFetch(`/api/factsheet-inputs?month=${month}`)
       .then(r => (r.ok ? r.json() : null))
       .then((data: FactsheetInputs | null) => {
         if (cancelled || !data) return;
@@ -92,8 +104,8 @@ export function FactsheetPage({ stocks, gridKeyData, portfolioHistory, isAnalyst
 
   // Benchmark + PE aggregate (once)
   useEffect(() => {
-    fetch('/api/nifty-smallcap').then(r => (r.ok ? r.json() : null)).then(d => d && setNifty(d)).catch(() => {});
-    fetch('/api/pe/factsheet-summary').then(r => (r.ok ? r.json() : null)).then(d => d && setPe(d)).catch(() => {});
+    authedFetch('/api/nifty-smallcap').then(r => (r.ok ? r.json() : null)).then(d => d && setNifty(d)).catch(() => {});
+    authedFetch('/api/pe/factsheet-summary').then(r => (r.ok ? r.json() : null)).then(d => d && setPe(d)).catch(() => {});
   }, []);
 
   // ---- Public equity enrichment ----
@@ -270,7 +282,7 @@ export function FactsheetPage({ stocks, gridKeyData, portfolioHistory, isAnalyst
   const save = useCallback(async () => {
     setSaving(true);
     try {
-      const res = await fetch('/api/factsheet-inputs', {
+      const res = await authedFetch('/api/factsheet-inputs', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ month, cashPosition, pmNote, fnoPositions }),
@@ -426,7 +438,7 @@ export function FactsheetPage({ stocks, gridKeyData, portfolioHistory, isAnalyst
             <img
               src="/sagun-capital-logo.png"
               alt="Sagun Capital"
-              style={{ height: 34, display: 'block' }}
+              style={{ height: 54, display: 'block' }}
               onError={e => {
                 const el = e.currentTarget;
                 el.style.display = 'none';
@@ -434,8 +446,7 @@ export function FactsheetPage({ stocks, gridKeyData, portfolioHistory, isAnalyst
                 if (sib) sib.style.display = 'block';
               }}
             />
-            <div className="fs-h" style={{ fontSize: 22, letterSpacing: 0.2, display: 'none' }}>Sagun Capital</div>
-            <div style={{ fontSize: 11, color: GREY, marginTop: 3, letterSpacing: 0.4 }}>Consolidated Portfolio · Monthly Investment Factsheet</div>
+            <div className="fs-h" style={{ fontSize: 30, letterSpacing: 0.2, display: 'none' }}>Sagun Capital</div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div className="fs-h" style={{ fontSize: 15 }}>{monthLabel}</div>
