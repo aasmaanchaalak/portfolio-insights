@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Stock, GridKeyData } from '../../types';
+import { PEFactsheetSummary } from '../../types/pe';
 import {
   CONVICTION_LABELS,
   STRATEGY_LABELS,
@@ -62,10 +63,16 @@ const getPerfColor = (value: number | null): string => {
     return 'transparent';
 };
 
-// Dashboard money is always shown in lakhs (no crore roll-up), e.g. "₹631.34 L".
 const formatCurrency = (value: number | null): string => {
     if (value === null) return 'N/A';
-    return `₹${(value / 100000).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} L`;
+    return `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+};
+
+// Headline portfolio figures (Public Value, Private Investments) shown in whole
+// lakhs, no crore roll-up and no decimals — e.g. "₹631 L".
+const formatLakhs = (value: number | null): string => {
+    if (value === null) return 'N/A';
+    return `₹${(value / 100000).toLocaleString('en-IN', { maximumFractionDigits: 0 })} L`;
 };
 
 const formatPercent = (value: number | null, decimals: number = 2): string => {
@@ -91,6 +98,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
     const [statesLoaded, setStatesLoaded] = useState(false);
     const [alertsLoaded, setAlertsLoaded] = useState(false);
     const [niftySmallcap, setNiftySmallcap] = useState<NiftySmallcapData | null>(null);
+    const [peSummary, setPeSummary] = useState<PEFactsheetSummary | null>(null);
     const [positioningData, setPositioningData] = useState<Record<string, { conviction: string; strategyType: string; actionIntent: string }>>({});
     const [ytdReturn, setYtdReturn] = useState<{ pct: number; startValue: number; latestValue: number; startDate: string } | null>(null);
     const [alertsRefreshIn, setAlertsRefreshIn] = useState<string>('');
@@ -245,6 +253,11 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             }
         };
         loadNiftySmallcap();
+        // Private book current value comes from the PE tracker (current NAV of held companies)
+        fetch('/api/pe/factsheet-summary')
+            .then(r => (r.ok ? r.json() : null))
+            .then(d => d && setPeSummary(d))
+            .catch(err => console.error('Error loading PE summary:', err));
     }, []);
 
     // Load positioning data on mount
@@ -1145,15 +1158,15 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 <h2 className="section-title">Portfolio Overview</h2>
                 <div className="overview-cards">
                     <div className="overview-card">
-                        <div className="card-label">Total Value</div>
-                        <div className="card-value">{isAnalyst ? '••••••' : formatCurrency(totalCurrentAmount)}</div>
+                        <div className="card-label">Public Value</div>
+                        <div className="card-value">{isAnalyst ? '••••••' : formatLakhs(totalCurrentAmount)}</div>
                         <div className="card-subtext">{stockCount} stocks</div>
                     </div>
-                    {!isAnalyst && privateInvestments.count > 0 && (
+                    {!isAnalyst && peSummary && peSummary.heldCount > 0 && (
                         <div className="overview-card">
                             <div className="card-label">Private Investments</div>
-                            <div className="card-value">{formatCurrency(privateInvestments.totalInvested)}</div>
-                            <div className="card-subtext">{privateInvestments.count} stocks</div>
+                            <div className="card-value">{formatLakhs(peSummary.currentNav)}</div>
+                            <div className="card-subtext">{peSummary.heldCount} companies · current NAV</div>
                         </div>
                     )}
                     <div className="overview-card">

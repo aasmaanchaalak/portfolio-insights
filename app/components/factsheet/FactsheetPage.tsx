@@ -423,7 +423,18 @@ export function FactsheetPage({ stocks, gridKeyData, portfolioHistory, isAnalyst
         {/* masthead */}
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: `2px solid ${NAVY}`, paddingBottom: 12 }}>
           <div>
-            <div className="fs-h" style={{ fontSize: 22, letterSpacing: 0.2 }}>Sagun Family Office</div>
+            <img
+              src="/sagun-capital-logo.png"
+              alt="Sagun Capital"
+              style={{ height: 34, display: 'block' }}
+              onError={e => {
+                const el = e.currentTarget;
+                el.style.display = 'none';
+                const sib = el.nextElementSibling as HTMLElement | null;
+                if (sib) sib.style.display = 'block';
+              }}
+            />
+            <div className="fs-h" style={{ fontSize: 22, letterSpacing: 0.2, display: 'none' }}>Sagun Capital</div>
             <div style={{ fontSize: 11, color: GREY, marginTop: 3, letterSpacing: 0.4 }}>Consolidated Portfolio · Monthly Investment Factsheet</div>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -628,7 +639,7 @@ export function FactsheetPage({ stocks, gridKeyData, portfolioHistory, isAnalyst
       <section className="factsheet-page">
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: `2px solid ${NAVY}`, paddingBottom: 8 }}>
           <div className="fs-h" style={{ fontSize: 14 }}>Holdings &amp; Exposure</div>
-          <div style={{ fontSize: 9.5, color: GREY }}>Sagun Family Office · {monthLabel} · As of {asOf}</div>
+          <div style={{ fontSize: 9.5, color: GREY }}>Sagun Capital · {monthLabel} · As of {asOf}</div>
         </header>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 22 }}>
