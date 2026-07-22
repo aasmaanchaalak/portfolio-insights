@@ -85,6 +85,7 @@ export function FactsheetPage({ stocks, gridKeyData, portfolioHistory, isAnalyst
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [showControls, setShowControls] = useState(true);
+  const [generated, setGenerated] = useState(false);
 
   // Load persisted inputs for the selected month
   useEffect(() => {
@@ -102,11 +103,12 @@ export function FactsheetPage({ stocks, gridKeyData, portfolioHistory, isAnalyst
     return () => { cancelled = true; };
   }, [month]);
 
-  // Benchmark + PE aggregate (once)
+  // Benchmark + PE aggregate — fetched only once the user clicks Generate.
   useEffect(() => {
+    if (!generated) return;
     authedFetch('/api/nifty-smallcap').then(r => (r.ok ? r.json() : null)).then(d => d && setNifty(d)).catch(() => {});
     authedFetch('/api/pe/factsheet-summary').then(r => (r.ok ? r.json() : null)).then(d => d && setPe(d)).catch(() => {});
-  }, []);
+  }, [generated]);
 
   // ---- Public equity enrichment ----
   const holdings = useMemo<Holding[]>(() => {
@@ -416,9 +418,10 @@ export function FactsheetPage({ stocks, gridKeyData, portfolioHistory, isAnalyst
           </div>
 
           <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center' }}>
-            <button className="fs-btn fs-btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save inputs'}</button>
-            <button className="fs-btn fs-btn-secondary" onClick={() => window.print()}>Print / PDF</button>
-            <button className="fs-btn fs-btn-secondary" onClick={() => setShowControls(false)}>Hide controls</button>
+            <button className="fs-btn fs-btn-primary" onClick={() => setGenerated(true)}>{generated ? 'Regenerate' : 'Generate factsheet'}</button>
+            <button className="fs-btn fs-btn-secondary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save inputs'}</button>
+            <button className="fs-btn fs-btn-secondary" onClick={() => window.print()} disabled={!generated}>Print / PDF</button>
+            {generated && <button className="fs-btn fs-btn-secondary" onClick={() => setShowControls(false)}>Hide controls</button>}
             {savedAt && <span style={{ fontSize: 12, color: 'var(--text-secondary,#888)' }}>Saved {new Date(savedAt).toLocaleString()}</span>}
           </div>
         </div>
@@ -430,6 +433,13 @@ export function FactsheetPage({ stocks, gridKeyData, portfolioHistory, isAnalyst
         </div>
       )}
 
+      {!generated && (
+        <div style={{ maxWidth: '210mm', margin: '0 auto', padding: '64px 24px', textAlign: 'center', color: '#6b7078', fontSize: 13, border: '1px dashed #dcdad3', borderRadius: 12, background: '#fff' }}>
+          Set the reporting month, cash, note and F&amp;O positions above, then click <b>Generate factsheet</b>.
+        </div>
+      )}
+
+      {generated && (<>
       {/* ================= PAGE 1 ================= */}
       <section className="factsheet-page">
         {/* masthead */}
@@ -814,6 +824,7 @@ export function FactsheetPage({ stocks, gridKeyData, portfolioHistory, isAnalyst
           <span>Page 2 of 2</span>
         </footer>
       </section>
+      </>)}
     </div>
   );
 }
