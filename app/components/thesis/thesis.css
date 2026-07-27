@@ -969,6 +969,72 @@
   color: white;
 }
 
+/* Stacked notes list */
+.notes-section-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.notes-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.note-item {
+  padding: 0.75rem 1rem;
+  background-color: #fffbeb;
+  border-radius: 8px;
+  border-left: 3px solid #f59e0b;
+}
+
+.note-item-text {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--primary-text-color);
+  white-space: pre-wrap;
+}
+
+.note-item-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.note-item-meta {
+  font-size: 0.72rem;
+  color: var(--secondary-text-color);
+}
+
+.note-item-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+/* Edit button lives inline in the footer here, not absolutely positioned */
+.note-item .note-edit-btn {
+  position: static;
+  top: auto;
+  right: auto;
+}
+
+.note-delete-btn {
+  background: none;
+  border: none;
+  color: #dc2626;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+}
+
+.note-delete-btn:hover {
+  text-decoration: underline;
+}
+
 /* History Timeline */
 .thesis-history-toggle {
   display: flex;

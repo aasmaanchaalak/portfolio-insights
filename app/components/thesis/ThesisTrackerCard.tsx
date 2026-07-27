@@ -12,7 +12,7 @@ import { ThesisStatusBadge } from './ThesisStatusBadge';
 import { KPIList } from './KPIList';
 import { BreakConditionsList } from './BreakConditionsList';
 import { SignalsSection } from './SignalsSection';
-import { LatestNote } from './LatestNote';
+import { NotesSection } from './NotesSection';
 import { ThesisHistoryTimeline } from './ThesisHistoryTimeline';
 import './thesis.css';
 
@@ -26,6 +26,9 @@ interface ThesisTrackerCardProps {
   error: string | null;
   onCreateThesis: (data: Omit<CreateThesisRequest, 'stockCode' | 'stockName'>) => Promise<void>;
   onUpdateThesis: (data: UpdateThesisRequest) => Promise<void>;
+  onAddNote: (content: string) => Promise<void>;
+  onEditNote: (noteId: string, content: string) => Promise<void>;
+  onDeleteNote: (noteId: string) => Promise<void>;
   onClearError: () => void;
 }
 
@@ -39,6 +42,9 @@ export function ThesisTrackerCard({
   error,
   onCreateThesis,
   onUpdateThesis,
+  onAddNote,
+  onEditNote,
+  onDeleteNote,
   onClearError,
 }: ThesisTrackerCardProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -114,13 +120,6 @@ export function ThesisTrackerCard({
       changeNote: 'Updated investment thesis',
     });
     setIsEditing(false);
-  };
-
-  const handleNoteSave = async (note: string) => {
-    await onUpdateThesis({
-      latestNote: note,
-      changeNote: 'Added new note',
-    });
   };
 
   const handleMarkReviewed = async () => {
@@ -263,10 +262,11 @@ export function ThesisTrackerCard({
         <div className="thesis-section-header">
           <span>Notes</span>
         </div>
-        <LatestNote
-          note={thesis.latestNote}
-          noteHistory={recentHistory.filter(h => h.actionType === 'note_added' && h.newValue)}
-          onSave={handleNoteSave}
+        <NotesSection
+          notes={thesis.notes}
+          onAdd={onAddNote}
+          onEdit={onEditNote}
+          onDelete={onDeleteNote}
           disabled={isSaving}
         />
       </div>

@@ -5,6 +5,7 @@ import {
   ThesisKPI,
   ThesisBreakCondition,
   ThesisSignal,
+  ThesisNote,
   ThesisHistoryEntry,
   ThesisStatus,
   CreateThesisRequest,
@@ -31,7 +32,7 @@ export async function getThesisByStockCode(stockCode: string): Promise<Thesis | 
 
   if (!thesis) return null;
 
-  const [kpis, breakConditions, signals] = await Promise.all([
+  const [kpis, breakConditions, signals, notes] = await Promise.all([
     query<ThesisKPI>(
       `SELECT id, thesis_id as "thesisId", description, target_value as "targetValue",
               current_status as "currentStatus", sort_order as "sortOrder", created_at as "createdAt"
@@ -50,6 +51,7 @@ export async function getThesisByStockCode(stockCode: string): Promise<Thesis | 
        FROM thesis_signals WHERE thesis_id = $1 AND is_active = true ORDER BY created_at DESC`,
       [thesis.id]
     ),
+    getNotesByThesisId(thesis.id),
   ]);
 
   return {
@@ -57,7 +59,99 @@ export async function getThesisByStockCode(stockCode: string): Promise<Thesis | 
     kpis,
     breakConditions,
     signals,
+    notes,
   };
+}
+
+// ============ Notes (stacked, editable) ============
+
+const NOTE_COLUMNS = `id, thesis_id as "thesisId", content, user_email as "userEmail",
+                      created_at as "createdAt", updated_at as "updatedAt"`;
+
+// Fetch all notes for a thesis, newest first.
+// Accepts an optional client so it can read uncommitted rows inside a transaction.
+export async function getNotesByThesisId(
+  thesisId: string,
+  client?: PoolClient
+): Promise<ThesisNote[]> {
+  const sql = `SELECT ${NOTE_COLUMNS} FROM thesis_notes WHERE thesis_id = $1 ORDER BY created_at DESC`;
+  if (client) {
+    const result = await client.query(sql, [thesisId]);
+    return result.rows as ThesisNote[];
+  }
+  return query<ThesisNote>(sql, [thesisId]);
+}
+
+// Keep the denormalized theses.latest_note in sync with the newest note.
+async function syncLatestNote(client: PoolClient, thesisId: string): Promise<void> {
+  await client.query(
+    `UPDATE theses
+     SET latest_note = (
+           SELECT content FROM thesis_notes
+           WHERE thesis_id = $1 ORDER BY created_at DESC LIMIT 1
+         ),
+         updated_at = NOW()
+     WHERE id = $1`,
+    [thesisId]
+  );
+}
+
+// Add a note to a stock's thesis
+export async function addNote(
+  stockCode: string,
+  content: string,
+  userEmail?: string
+): Promise<ThesisNote[]> {
+  return transaction(async (client: PoolClient) => {
+    const thesis = await client.query('SELECT id FROM theses WHERE stock_code = $1', [stockCode]);
+    if (thesis.rows.length === 0) {
+      throw new Error('Thesis not found');
+    }
+    const thesisId = thesis.rows[0].id;
+
+    await client.query(
+      `INSERT INTO thesis_notes (id, thesis_id, content, user_email) VALUES ($1, $2, $3, $4)`,
+      [generateUUID(), thesisId, content, userEmail || null]
+    );
+
+    await syncLatestNote(client, thesisId);
+    return getNotesByThesisId(thesisId, client);
+  });
+}
+
+// Edit an existing note
+export async function updateNote(noteId: string, content: string): Promise<ThesisNote[] | null> {
+  return transaction(async (client: PoolClient) => {
+    const existing = await client.query('SELECT thesis_id FROM thesis_notes WHERE id = $1', [noteId]);
+    if (existing.rows.length === 0) {
+      return null;
+    }
+    const thesisId = existing.rows[0].thesis_id;
+
+    await client.query(
+      `UPDATE thesis_notes SET content = $1, updated_at = NOW() WHERE id = $2`,
+      [content, noteId]
+    );
+
+    await syncLatestNote(client, thesisId);
+    return getNotesByThesisId(thesisId, client);
+  });
+}
+
+// Delete a note
+export async function deleteNote(noteId: string): Promise<ThesisNote[] | null> {
+  return transaction(async (client: PoolClient) => {
+    const existing = await client.query('SELECT thesis_id FROM thesis_notes WHERE id = $1', [noteId]);
+    if (existing.rows.length === 0) {
+      return null;
+    }
+    const thesisId = existing.rows[0].thesis_id;
+
+    await client.query('DELETE FROM thesis_notes WHERE id = $1', [noteId]);
+
+    await syncLatestNote(client, thesisId);
+    return getNotesByThesisId(thesisId, client);
+  });
 }
 
 // Fetch recent history entries
@@ -219,6 +313,7 @@ export async function createThesis(data: CreateThesisRequest, userEmail?: string
       kpis: kpisResult.rows,
       breakConditions: bcResult.rows,
       signals: signalsResult.rows,
+      notes: await getNotesByThesisId(thesisId, client),
     };
   });
 }
@@ -428,6 +523,7 @@ export async function updateThesis(
       kpis: kpisResult.rows,
       breakConditions: bcResult.rows,
       signals: signalsResult.rows,
+      notes: await getNotesByThesisId(thesisId, client),
     };
   });
 }

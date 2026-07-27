@@ -142,6 +142,43 @@ export function StockDetailDrawer({
     }
   };
 
+  const applyNotes = (notes: Thesis['notes']) => {
+    setThesis(prev => (prev ? { ...prev, notes, latestNote: notes[0]?.content ?? null } : prev));
+  };
+
+  const handleNoteRequest = async (method: string, path: string, body?: any) => {
+    if (!stockCode) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      const response = await fetch(path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      });
+      if (response.ok) {
+        const result = await response.json();
+        applyNotes(result.notes || []);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to save note');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to save note');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAddNote = (content: string) =>
+    handleNoteRequest('POST', `/api/thesis/${encodeURIComponent(stockCode || '')}/notes`, { content });
+
+  const handleEditNote = (noteId: string, content: string) =>
+    handleNoteRequest('PUT', `/api/thesis/${encodeURIComponent(stockCode || '')}/notes/${noteId}`, { content });
+
+  const handleDeleteNote = (noteId: string) =>
+    handleNoteRequest('DELETE', `/api/thesis/${encodeURIComponent(stockCode || '')}/notes/${noteId}`);
+
   const renderContent = () => {
     if (activeTab === 'details') {
       return <StockDetailsTab stockCode={stockCode} stockName={stockName} isAnalyst={isAnalyst} />;
@@ -162,6 +199,9 @@ export function StockDetailDrawer({
             error={error}
             onCreateThesis={handleCreateThesis}
             onUpdateThesis={handleUpdateThesis}
+            onAddNote={handleAddNote}
+            onEditNote={handleEditNote}
+            onDeleteNote={handleDeleteNote}
             onClearError={() => setError(null)}
           />
           <AttachmentSection module="thesis" entityId={stockCode || ''} />

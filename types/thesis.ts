@@ -39,6 +39,17 @@ export interface Thesis {
   kpis: ThesisKPI[];
   breakConditions: ThesisBreakCondition[];
   signals: ThesisSignal[];
+  notes: ThesisNote[];
+}
+
+// Note Interface (stacked, editable notes)
+export interface ThesisNote {
+  id: string;
+  thesisId?: string;
+  content: string;
+  userEmail: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // KPI Interface
