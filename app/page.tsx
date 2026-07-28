@@ -61,7 +61,21 @@ const calculateTrend = (stock: Stock): TrendType => {
 
 const formatValue = (value: number | null, suffix = '') => {
     if (value === null || value === undefined) return 'N/A';
-    return `${value}${suffix}`;
+    const s = `${value}${suffix}`;
+    // Real minus glyph (U+2212) per DESIGN.md number formatting.
+    return s.charAt(0) === '-' ? `−${s.slice(1)}` : s;
+};
+
+// Signed percentage with a real minus glyph (U+2212), fixed to 2 decimals.
+const fmtSignedPct = (value: number | null | undefined) => {
+    if (value === null || value === undefined) return 'N/A';
+    return `${value < 0 ? '−' : ''}${Math.abs(value).toFixed(2)}%`;
+};
+
+// Signed rupee amount with a real minus glyph (U+2212).
+const fmtSignedCur = (value: number | null | undefined) => {
+    if (value === null || value === undefined) return 'N/A';
+    return `${value < 0 ? '−' : ''}₹${Math.abs(value).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 };
 
 const perfColumns: { key: keyof Stock; label: string }[] = [
@@ -595,6 +609,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     const [showFilterPopover, setShowFilterPopover] = useState(false);
     const [remarksModalData, setRemarksModalData] = useState<any>(null);
     const [columnFilterOpen, setColumnFilterOpen] = useState<string | null>(null);
+    const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
     // Stock detail drawer state
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -1251,15 +1266,6 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
 
     return (
         <>
-            <header className="main-header">
-                <h1>Portfolio Insights</h1>
-                {totalCurrentAmount > 0 && !isAnalyst && (
-                    <div className="portfolio-summary">
-                        <span className="portfolio-label">Total Holdings Value:</span>
-                        <span className="portfolio-value">₹{totalCurrentAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
-                    </div>
-                )}
-            </header>
 
             {gridKeyData.length === 0 ? (
                 <div className="empty-state">
@@ -1278,6 +1284,32 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                             />
                         </div>
                         <div className="action-buttons">
+                            <div className="view-toggle" role="group" aria-label="View mode">
+                                <button
+                                    type="button"
+                                    className={`view-toggle-btn ${viewMode === 'table' ? 'active' : ''}`}
+                                    onClick={() => setViewMode('table')}
+                                    title="Table view"
+                                    aria-pressed={viewMode === 'table'}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm15 2h-4v3h4zm0 4h-4v3h4zm0 4h-4v3h3a1 1 0 0 0 1-1zm-5 3v-3H6v3zm-5 0v-3H1v2a1 1 0 0 0 1 1zm-4-4h4V8H1zm0-4h4V4H1zm5 0h4V4H6zm4 4H6v3h4z"/>
+                                    </svg>
+                                    Table
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`view-toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
+                                    onClick={() => setViewMode('grid')}
+                                    title="Grid view"
+                                    aria-pressed={viewMode === 'grid'}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5z"/>
+                                    </svg>
+                                    Grid
+                                </button>
+                            </div>
                             <button className="export-btn" onClick={exportToCSV}>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                                     <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
@@ -1367,6 +1399,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                         </div>
                     )}
 
+                    {viewMode === 'table' ? (
                     <div className="stock-table-container">
                     <table className="stock-table">
                         <thead>
@@ -1631,14 +1664,14 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                     {isColumnVisible('currentPrice') && <td className="text-right">{(item as any).currentPrice !== null && (item as any).currentPrice !== undefined ? `₹${(item as any).currentPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
                                     {isColumnVisible('calculatedAmount') && <td className="text-right current-amount-cell">{(item as any).calculatedAmount !== null && (item as any).calculatedAmount !== undefined ? `₹${(item as any).calculatedAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
                                     {isColumnVisible('absoluteGain') && <td className="text-right" style={{ color: (item as any).absoluteGain !== null ? ((item as any).absoluteGain >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>
-                                        {(item as any).absoluteGain !== null && (item as any).absoluteGain !== undefined ? `₹${(item as any).absoluteGain.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}
+                                        {fmtSignedCur((item as any).absoluteGain)}
                                     </td>}
                                     {visibleColumns['gainPercentage'] && <td className="text-right" style={{ color: (item as any).gainPercentage !== null ? ((item as any).gainPercentage >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit', fontWeight: 500 }}>
-                                        {(item as any).gainPercentage !== null && (item as any).gainPercentage !== undefined ? `${(item as any).gainPercentage.toFixed(2)}%` : 'N/A'}
+                                        {fmtSignedPct((item as any).gainPercentage)}
                                     </td>}
                                     {visibleColumns['weightage'] && <td className="text-right weightage-cell">{(item as any).weightage !== null ? `${((item as any).weightage).toFixed(2)}%` : 'N/A'}</td>}
                                     {visibleColumns['portfolioContribution'] && <td className="text-right" style={{ color: (item as any).portfolioContribution !== null ? ((item as any).portfolioContribution >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit', fontWeight: 500 }}>
-                                        {(item as any).portfolioContribution !== null ? `${((item as any).portfolioContribution).toFixed(2)}%` : 'N/A'}
+                                        {fmtSignedPct((item as any).portfolioContribution)}
                                     </td>}
                                     {visibleColumns['sparkline'] && <td className="sparkline-td">
                                         <Sparkline data={(item as any).sparklineData || []} />
@@ -1648,18 +1681,18 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                     {visibleColumns['priceToEarning'] && <td className="text-right">{(item as any).priceToEarning !== null && (item as any).priceToEarning !== undefined ? (item as any).priceToEarning.toFixed(2) : 'N/A'}</td>}
                                     {visibleColumns['marketCap'] && <td className="text-right">{(item as any).marketCap !== null && (item as any).marketCap !== undefined ? ((item as any).marketCap >= 1000 ? `₹${((item as any).marketCap / 1000).toFixed(1)}K Cr` : `₹${(item as any).marketCap.toFixed(0)} Cr`) : 'N/A'}</td>}
                                     {visibleColumns['rsi'] && <td className="text-right" style={{ color: (item as any).rsi !== null ? ((item as any).rsi > 70 ? 'var(--error-color)' : (item as any).rsi < 30 ? 'var(--success-color)' : 'inherit') : 'inherit' }}>{(item as any).rsi !== null && (item as any).rsi !== undefined ? (item as any).rsi.toFixed(1) : 'N/A'}</td>}
-                                    {visibleColumns['roce'] && <td className="text-right" style={{ color: (item as any).roce !== null ? ((item as any).roce >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{(item as any).roce !== null && (item as any).roce !== undefined ? `${(item as any).roce.toFixed(2)}%` : 'N/A'}</td>}
+                                    {visibleColumns['roce'] && <td className="text-right" style={{ color: (item as any).roce !== null ? ((item as any).roce >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct((item as any).roce)}</td>}
                                     {visibleColumns['yoyQuarterlyProfitGrowth'] && <td className="text-right" style={{ color: (item as any).yoyQuarterlyProfitGrowth !== null ? ((item as any).yoyQuarterlyProfitGrowth >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>
-                                        {(item as any).yoyQuarterlyProfitGrowth !== null && (item as any).yoyQuarterlyProfitGrowth !== undefined ? `${(item as any).yoyQuarterlyProfitGrowth.toFixed(2)}%` : 'N/A'}
+                                        {fmtSignedPct((item as any).yoyQuarterlyProfitGrowth)}
                                     </td>}
                                     {visibleColumns['yoyQuarterlySalesGrowth'] && <td className="text-right" style={{ color: (item as any).yoyQuarterlySalesGrowth !== null ? ((item as any).yoyQuarterlySalesGrowth >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>
-                                        {(item as any).yoyQuarterlySalesGrowth !== null && (item as any).yoyQuarterlySalesGrowth !== undefined ? `${(item as any).yoyQuarterlySalesGrowth.toFixed(2)}%` : 'N/A'}
+                                        {fmtSignedPct((item as any).yoyQuarterlySalesGrowth)}
                                     </td>}
                                     {visibleColumns['dma50ChangePercent'] && <td className="text-right" style={{ color: (item as any).dma50ChangePercent !== null ? ((item as any).dma50ChangePercent >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>
-                                        {(item as any).dma50ChangePercent !== null && (item as any).dma50ChangePercent !== undefined ? `${(item as any).dma50ChangePercent.toFixed(2)}%` : 'N/A'}
+                                        {fmtSignedPct((item as any).dma50ChangePercent)}
                                     </td>}
                                     {visibleColumns['dma200ChangePercent'] && <td className="text-right" style={{ color: (item as any).dma200ChangePercent !== null ? ((item as any).dma200ChangePercent >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>
-                                        {(item as any).dma200ChangePercent !== null && (item as any).dma200ChangePercent !== undefined ? `${(item as any).dma200ChangePercent.toFixed(2)}%` : 'N/A'}
+                                        {fmtSignedPct((item as any).dma200ChangePercent)}
                                     </td>}
                                     {visibleColumns['downFrom52WeekHigh'] && <td className="text-right">
                                         {(item as any).downFrom52WeekHigh !== null && (item as any).downFrom52WeekHigh !== undefined ? `${(item as any).downFrom52WeekHigh.toFixed(2)}%` : 'N/A'}
@@ -1719,6 +1752,78 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                         </tbody>
                     </table>
                 </div>
+                ) : (
+                    <div className="stock-grid">
+                        {filteredAndSortedData.map((item, index) => {
+                            const gain = (item as any).gainPercentage;
+                            const gainColor = gain === null || gain === undefined ? 'inherit' : (gain >= 0 ? 'var(--success-color)' : 'var(--error-color)');
+                            const fmtCur = (v: any) => (v !== null && v !== undefined ? `₹${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A');
+                            const fmtPct = (v: any) => fmtSignedPct(v === null || v === undefined ? null : Number(v));
+                            const pctColor = (v: any) => (v === null || v === undefined ? 'inherit' : (v >= 0 ? 'var(--success-color)' : 'var(--error-color)'));
+                            return (
+                                <div key={`${item.scripName}-${index}`} className="stock-grid-card">
+                                    <div className="stock-grid-card-header">
+                                        <span
+                                            className="stock-name-clickable"
+                                            onClick={() => handleStockNameClick(item)}
+                                            title="Click to view/edit remarks"
+                                        >
+                                            {item.scripName}
+                                        </span>
+                                        {(item as any).trend && (
+                                            <span className={`trend-badge trend-${(item as any).trend.toLowerCase().replace(/\s+/g, '-')}`}>
+                                                {(item as any).trend}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="stock-grid-price-row">
+                                        <span className="stock-grid-price">{fmtCur((item as any).currentPrice)}</span>
+                                        <span className="stock-grid-gain" style={{ color: gainColor }}>
+                                            {gain !== null && gain !== undefined ? `${gain >= 0 ? '+' : '−'}${Math.abs(gain).toFixed(2)}%` : 'N/A'}
+                                        </span>
+                                    </div>
+                                    <div className="stock-grid-metrics">
+                                        {!isAnalyst && (
+                                            <>
+                                                <div className="stock-grid-metric">
+                                                    <span className="stock-grid-metric-label">Qty</span>
+                                                    <span className="stock-grid-metric-value">{item.quantity !== null && item.quantity !== undefined ? item.quantity.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : 'N/A'}</span>
+                                                </div>
+                                                <div className="stock-grid-metric">
+                                                    <span className="stock-grid-metric-label">Value</span>
+                                                    <span className="stock-grid-metric-value">{fmtCur((item as any).calculatedAmount)}</span>
+                                                </div>
+                                            </>
+                                        )}
+                                        <div className="stock-grid-metric">
+                                            <span className="stock-grid-metric-label">Weightage</span>
+                                            <span className="stock-grid-metric-value">{(item as any).weightage !== null && (item as any).weightage !== undefined ? `${(item as any).weightage.toFixed(2)}%` : 'N/A'}</span>
+                                        </div>
+                                        <div className="stock-grid-metric">
+                                            <span className="stock-grid-metric-label">Avg Buy</span>
+                                            <span className="stock-grid-metric-value">{fmtCur(item.averageBuyPrice)}</span>
+                                        </div>
+                                        <div className="stock-grid-metric">
+                                            <span className="stock-grid-metric-label">P/E</span>
+                                            <span className="stock-grid-metric-value">{(item as any).priceToEarning !== null && (item as any).priceToEarning !== undefined ? (item as any).priceToEarning.toFixed(2) : 'N/A'}</span>
+                                        </div>
+                                        <div className="stock-grid-metric">
+                                            <span className="stock-grid-metric-label">1M</span>
+                                            <span className="stock-grid-metric-value" style={{ color: pctColor((item as any).return1M) }}>{fmtPct((item as any).return1M)}</span>
+                                        </div>
+                                        <div className="stock-grid-metric">
+                                            <span className="stock-grid-metric-label">1Y</span>
+                                            <span className="stock-grid-metric-value" style={{ color: pctColor((item as any).return1Y) }}>{fmtPct((item as any).return1Y)}</span>
+                                        </div>
+                                    </div>
+                                    {(item as any).industry && (
+                                        <div className="stock-grid-card-footer">{(item as any).industry}</div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
                 </>
             )}
 
@@ -4075,7 +4180,7 @@ const App: React.FC = () => {
                 {/* Desktop nav links */}
                 <div className="main-nav-links">
                     <button className={page === 'dashboard' ? 'active' : ''} onClick={() => setPage('dashboard')}>Dashboard</button>
-                    <button className={page === 'insights' ? 'active' : ''} onClick={() => setPage('insights')}>Portfolio Insights</button>
+                    <button className={page === 'insights' ? 'active' : ''} onClick={() => setPage('insights')}>Public Portfolio</button>
                     <button className={page === 'analysis' ? 'active' : ''} onClick={() => setPage('analysis')}>Analysis</button>
                     {isManager && <button className={page === 'upload' ? 'active' : ''} onClick={() => setPage('upload')}>Screener Data</button>}
                     {isManager && <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>}
@@ -4101,7 +4206,7 @@ const App: React.FC = () => {
                 <div className="main-nav-mobile" onClick={() => setMenuOpen(false)}>
                     {[
                         { id: 'dashboard', label: 'Dashboard' },
-                        { id: 'insights', label: 'Portfolio Insights' },
+                        { id: 'insights', label: 'Public Portfolio' },
                         { id: 'analysis', label: 'Analysis' },
                         ...(isManager ? [
                             { id: 'upload', label: 'Screener Data' },
