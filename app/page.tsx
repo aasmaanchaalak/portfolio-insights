@@ -855,6 +855,23 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         if (activeViewId === id) setActiveViewId(null);
     };
 
+    // Delete requires an explicit confirmation so it can't happen by accident.
+    const handleDeleteView = (view: SavedView) => {
+        if (typeof window !== 'undefined' && !window.confirm(`Delete the saved view "${view.name}"? This can't be undone.`)) {
+            return;
+        }
+        deleteView(view.id);
+    };
+
+    // Turn off the active view: clear its highlight and reset all filters back
+    // to the unfiltered default.
+    const deactivateView = () => {
+        setActiveViewId(null);
+        setFilters({ ...INITIAL_FILTERS });
+        setRangeFilters({ ...INITIAL_RANGE_FILTERS });
+        setPositioningFilters(INITIAL_POSITIONING_FILTERS);
+    };
+
     // Lookup of stock by NSE/BSE code (lowercased). Built once per stocks change
     // so enrichment is O(n) instead of an O(n²) find-in-map.
     const stockByCode = useMemo(() => {
@@ -1565,8 +1582,31 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                 <span className="saved-views-label">Views</span>
                                 {savedViews.map(v => (
                                     <div key={v.id} className={`saved-view-chip ${activeViewId === v.id ? 'active' : ''}`}>
-                                        <button type="button" className="saved-view-apply" onClick={() => applyView(v)} title="Apply this view">{v.name}</button>
-                                        <button type="button" className="saved-view-delete" onClick={() => deleteView(v.id)} title="Delete this view">×</button>
+                                        <button
+                                            type="button"
+                                            className="saved-view-apply"
+                                            onClick={() => (activeViewId === v.id ? deactivateView() : applyView(v))}
+                                            title={activeViewId === v.id ? 'View is on — click to turn off' : 'Click to apply this view'}
+                                        >
+                                            {activeViewId === v.id && (
+                                                <svg className="saved-view-check" width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                                                    <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/>
+                                                </svg>
+                                            )}
+                                            {v.name}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="saved-view-delete"
+                                            onClick={() => handleDeleteView(v)}
+                                            title="Delete this view"
+                                            aria-label={`Delete view ${v.name}`}
+                                        >
+                                            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                                                <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0z"/>
+                                                <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z"/>
+                                            </svg>
+                                        </button>
                                     </div>
                                 ))}
                                 {activeViewId && (
@@ -1589,7 +1629,6 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                                         <path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm15 2h-4v3h4zm0 4h-4v3h4zm0 4h-4v3h3a1 1 0 0 0 1-1zm-5 3v-3H6v3zm-5 0v-3H1v2a1 1 0 0 0 1 1zm-4-4h4V8H1zm0-4h4V4H1zm5 0h4V4H6zm4 4H6v3h4z"/>
                                     </svg>
-                                    Table
                                 </button>
                                 <button
                                     type="button"
@@ -1601,7 +1640,6 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                                         <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5z"/>
                                     </svg>
-                                    Grid
                                 </button>
                             </div>
                             <button className="export-btn" onClick={exportToCSV}>

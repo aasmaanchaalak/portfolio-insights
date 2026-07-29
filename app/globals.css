@@ -1210,6 +1210,9 @@ a:hover {
 }
 
 .saved-view-apply {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   border: none;
   background: transparent;
   color: var(--primary-text-color);
@@ -1223,15 +1226,38 @@ a:hover {
   font-weight: 600;
 }
 
+.saved-view-check {
+  flex: none;
+}
+
+/* Delete is intentionally low-key: hidden until you hover the chip, and it
+   asks for confirmation before removing the view. */
 .saved-view-delete {
+  display: inline-flex;
+  align-items: center;
   border: none;
   border-left: 1px solid var(--border-color);
   background: transparent;
   color: var(--secondary-text-color);
-  padding: 0 0.5rem;
-  font-size: 14px;
+  padding: 0 0.45rem;
   line-height: 1;
   cursor: pointer;
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  border-left-color: transparent;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.15s, width 0.15s, padding 0.15s;
+}
+
+.saved-view-chip:hover .saved-view-delete,
+.saved-view-chip:focus-within .saved-view-delete {
+  width: auto;
+  padding-left: 0.45rem;
+  padding-right: 0.45rem;
+  border-left-color: var(--border-color);
+  opacity: 1;
 }
 
 .saved-view-delete:hover {
