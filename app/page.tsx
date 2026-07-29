@@ -580,32 +580,90 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateIn
 // Columns that should be hidden from analysts (financial amounts)
 const ANALYST_RESTRICTED_COLUMNS = ['quantity', 'investedAmount', 'calculatedAmount', 'absoluteGain', 'pledgedQty', 'pledgedWhere', 'freeQty'];
 
+// Trend options used by the multi-select trend filter.
+const TREND_OPTIONS = ['Strong Uptrend', 'Uptrend', 'Neutral', 'Downtrend', 'Strong Downtrend'];
+
+// Sentinel used inside the assignee/bucket multi-selects to match rows with no value.
+const UNASSIGNED = 'Unassigned';
+
+// Categorical filter state. Multi-selects hold an array of selected values
+// (empty = no filter). Text fields and the single-select pledged filter are strings.
+interface FilterState {
+    searchTerm: string;
+    remarksSearch: string;
+    trend: string[];
+    assignedTo: string[];
+    bucket: string[];
+    industryGroup: string[];
+    industry: string[];
+    pledged: string; // 'All' | 'Pledged' | 'Unpledged' | 'LAS' | 'F&O'
+}
+
+const INITIAL_FILTERS: FilterState = {
+    searchTerm: '',
+    remarksSearch: '',
+    trend: [],
+    assignedTo: [],
+    bucket: [],
+    industryGroup: [],
+    industry: [],
+    pledged: 'All',
+};
+
+// Every numeric column that supports a min/max range filter. Range-filter state
+// keys follow a regular `${key}Min` / `${key}Max` convention so filtering and the
+// popover UI can be driven entirely from this list.
+const NUMERIC_FILTER_DEFS: { key: string; label: string }[] = [
+    { key: 'gainPercentage', label: 'Gain %' },
+    { key: 'weightage', label: 'Weightage %' },
+    { key: 'portfolioContribution', label: 'Portfolio Contribution %' },
+    { key: 'priceToEarning', label: 'P/E' },
+    { key: 'marketCap', label: 'Market Cap (Cr)' },
+    { key: 'rsi', label: 'RSI' },
+    { key: 'roce', label: 'ROCE %' },
+    { key: 'yoyQuarterlyProfitGrowth', label: 'Profit Growth %' },
+    { key: 'yoyQuarterlySalesGrowth', label: 'Sales Growth %' },
+    { key: 'dma50ChangePercent', label: 'Chg % vs 50 DMA' },
+    { key: 'dma200ChangePercent', label: 'Chg % vs 200 DMA' },
+    { key: 'downFrom52WeekHigh', label: 'Down from 52W High %' },
+    { key: 'upFrom52WeekLow', label: 'Up from 52W Low %' },
+    { key: 'return1D', label: '1D %' },
+    { key: 'return1W', label: '1W %' },
+    { key: 'return1M', label: '1M %' },
+    { key: 'return3M', label: '3M %' },
+    { key: 'return6M', label: '6M %' },
+    { key: 'return1Y', label: '1Y %' },
+];
+
+const NUMERIC_FILTER_KEYS = new Set(NUMERIC_FILTER_DEFS.map(d => d.key));
+
+const INITIAL_RANGE_FILTERS: Record<string, string> = NUMERIC_FILTER_DEFS.reduce((acc, def) => {
+    acc[`${def.key}Min`] = '';
+    acc[`${def.key}Max`] = '';
+    return acc;
+}, {} as Record<string, string>);
+
+// Coerce a (possibly legacy-shaped) saved filter object into the current FilterState.
+const normalizeFilters = (f: any): FilterState => ({
+    searchTerm: typeof f?.searchTerm === 'string' ? f.searchTerm : '',
+    remarksSearch: typeof f?.remarksSearch === 'string' ? f.remarksSearch : '',
+    trend: Array.isArray(f?.trend) ? f.trend : [],
+    assignedTo: Array.isArray(f?.assignedTo) ? f.assignedTo : [],
+    bucket: Array.isArray(f?.bucket) ? f.bucket : [],
+    industryGroup: Array.isArray(f?.industryGroup) ? f.industryGroup : [],
+    industry: Array.isArray(f?.industry) ? f.industry : [],
+    pledged: typeof f?.pledged === 'string' ? f.pledged : 'All',
+});
+
 const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void; isAnalyst?: boolean; teamMembers?: string[] }> = ({ gridKeyData, stocks, onStocksUpdate, isAnalyst = false, teamMembers = [] }) => {
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' }>({
         key: 'scripName',
         direction: 'ascending',
     });
     const [remarkValue, setRemarkValue] = useState<string>('');
-    const [filters, setFilters] = useState({
-        searchTerm: '',
-        assignedTo: 'All',
-        bucket: 'All',
-        remarksSearch: '',
-        trend: 'All',
-    });
+    const [filters, setFilters] = useState<FilterState>(() => ({ ...INITIAL_FILTERS }));
     const [positioningFilters, setPositioningFilters] = useState<PositioningFilterState>(INITIAL_POSITIONING_FILTERS);
-    const [rangeFilters, setRangeFilters] = useState({
-        gainPercentageMin: '',
-        gainPercentageMax: '',
-        profitGrowthMin: '',
-        profitGrowthMax: '',
-        salesGrowthMin: '',
-        salesGrowthMax: '',
-        peMin: '',
-        peMax: '',
-        weightageMin: '',
-        weightageMax: '',
-    });
+    const [rangeFilters, setRangeFilters] = useState<Record<string, string>>(() => ({ ...INITIAL_RANGE_FILTERS }));
     const [showFilterPopover, setShowFilterPopover] = useState(false);
     const [remarksModalData, setRemarksModalData] = useState<any>(null);
     const [columnFilterOpen, setColumnFilterOpen] = useState<string | null>(null);
@@ -758,9 +816,11 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
 
     const applyView = (view: SavedView) => {
         const s = view.state || ({} as SavedView['state']);
-        if (s.filters) setFilters(s.filters);
-        if (s.positioningFilters) setPositioningFilters(s.positioningFilters);
-        if (s.rangeFilters) setRangeFilters(s.rangeFilters);
+        // Normalize against current defaults so views saved before a filter-shape
+        // change still apply cleanly.
+        setFilters(normalizeFilters(s.filters));
+        setPositioningFilters(s.positioningFilters || INITIAL_POSITIONING_FILTERS);
+        setRangeFilters({ ...INITIAL_RANGE_FILTERS, ...(s.rangeFilters || {}) });
         if (s.sortConfig) setSortConfig(s.sortConfig);
         if (s.visibleColumns) setVisibleColumns(s.visibleColumns);
         if (s.viewMode) setViewMode(s.viewMode);
@@ -795,18 +855,25 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         if (activeViewId === id) setActiveViewId(null);
     };
 
+    // Lookup of stock by NSE/BSE code (lowercased). Built once per stocks change
+    // so enrichment is O(n) instead of an O(n²) find-in-map.
+    const stockByCode = useMemo(() => {
+        const map = new Map<string, Stock>();
+        for (const stock of stocks) {
+            if (stock.nseCode) map.set(stock.nseCode.toLowerCase(), stock);
+            if (stock.bseCode) map.set(stock.bseCode.toLowerCase(), stock);
+        }
+        return map;
+    }, [stocks]);
+
+    const findStockForItem = (item: { nseCode: string | null; bseCode: string | null }) =>
+        (item.nseCode ? stockByCode.get(item.nseCode.toLowerCase()) : undefined)
+        ?? (item.bseCode ? stockByCode.get(item.bseCode.toLowerCase()) : undefined);
+
     // Enrich GridKey data with all stock data from portfolio and calculate amounts
     const enrichedData = useMemo(() => {
         return gridKeyData.map(item => {
-            const matchedStock = stocks.find(stock => {
-                if (item.nseCode && stock.nseCode) {
-                    return item.nseCode.toLowerCase() === stock.nseCode.toLowerCase();
-                }
-                if (item.bseCode && stock.bseCode) {
-                    return item.bseCode.toLowerCase() === stock.bseCode.toLowerCase();
-                }
-                return false;
-            });
+            const matchedStock = findStockForItem(item);
             const currentPrice = matchedStock?.currentPrice || null;
             const calculatedAmount = (item.quantity && currentPrice) ? item.quantity * currentPrice : null;
             const investedAmount = (item.quantity && item.averageBuyPrice) ? item.quantity * item.averageBuyPrice : null;
@@ -906,15 +973,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
 
             // Calculate portfolio contribution (YTD return * weightage) with fallback logic
             let ytdReturn: number | null = null;
-            const matchedStock = stocks.find(stock => {
-                if (item.nseCode && stock.nseCode) {
-                    return item.nseCode.toLowerCase() === stock.nseCode.toLowerCase();
-                }
-                if (item.bseCode && stock.bseCode) {
-                    return item.bseCode.toLowerCase() === stock.bseCode.toLowerCase();
-                }
-                return false;
-            });
+            const matchedStock = findStockForItem(item);
 
             if (matchedStock) {
                 // Try 1Y first, then fallback to 6M, then 3M
@@ -970,17 +1029,76 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         return rangeFilters[minKey] !== '' || rangeFilters[maxKey] !== '';
     };
 
-    // Map column keys to range filter keys
-    const getFilterKeys = (columnKey: string): { min: keyof typeof rangeFilters; max: keyof typeof rangeFilters} | null => {
-        const mapping: Record<string, { min: keyof typeof rangeFilters; max: keyof typeof rangeFilters }> = {
-            'gainPercentage': { min: 'gainPercentageMin', max: 'gainPercentageMax' },
-            'yoyQuarterlyProfitGrowth': { min: 'profitGrowthMin', max: 'profitGrowthMax' },
-            'yoyQuarterlySalesGrowth': { min: 'salesGrowthMin', max: 'salesGrowthMax' },
-            'priceToEarning': { min: 'peMin', max: 'peMax' },
-            'weightage': { min: 'weightageMin', max: 'weightageMax' },
-        };
-        return mapping[columnKey] || null;
+    // Range-filter keys follow a regular `${columnKey}Min/Max` convention.
+    const getFilterKeys = (columnKey: string): { min: string; max: string } | null => {
+        return NUMERIC_FILTER_KEYS.has(columnKey)
+            ? { min: `${columnKey}Min`, max: `${columnKey}Max` }
+            : null;
     };
+
+    // Toggle a value in one of the multi-select categorical filters.
+    const toggleMultiFilter = (name: 'trend' | 'assignedTo' | 'bucket' | 'industryGroup' | 'industry', value: string) => {
+        setFilters(prev => {
+            const current = prev[name];
+            const next = current.includes(value)
+                ? current.filter(v => v !== value)
+                : [...current, value];
+            return { ...prev, [name]: next };
+        });
+    };
+
+    const clearAllFilters = () => {
+        setFilters({ ...INITIAL_FILTERS });
+        setRangeFilters({ ...INITIAL_RANGE_FILTERS });
+        setPositioningFilters(INITIAL_POSITIONING_FILTERS);
+    };
+
+    // Distinct industry / industry-group values present in the current holdings,
+    // used to populate the multi-select filter checkboxes.
+    const availableIndustries = useMemo(
+        () => Array.from(new Set(enrichedData.map(i => (i as any).industry).filter(Boolean))).sort() as string[],
+        [enrichedData]
+    );
+    const availableIndustryGroups = useMemo(
+        () => Array.from(new Set(enrichedData.map(i => (i as any).industryGroup).filter(Boolean))).sort() as string[],
+        [enrichedData]
+    );
+
+    // Count of active filters, for the popover header / clear button.
+    const activeFilterCount =
+        (filters.trend.length ? 1 : 0) +
+        (filters.assignedTo.length ? 1 : 0) +
+        (filters.bucket.length ? 1 : 0) +
+        (filters.industryGroup.length ? 1 : 0) +
+        (filters.industry.length ? 1 : 0) +
+        (filters.pledged !== 'All' ? 1 : 0) +
+        (filters.remarksSearch ? 1 : 0) +
+        NUMERIC_FILTER_DEFS.reduce((n, d) => n + ((rangeFilters[`${d.key}Min`] || rangeFilters[`${d.key}Max`]) ? 1 : 0), 0) +
+        positioningFilters.convictions.length + positioningFilters.strategies.length + positioningFilters.actions.length;
+
+    // Renders one multi-select filter as a scrollable checkbox list.
+    const renderCheckGroup = (
+        name: 'trend' | 'assignedTo' | 'bucket' | 'industryGroup' | 'industry',
+        label: string,
+        options: string[],
+    ) => (
+        <div className="filter-group">
+            <label>{label}{filters[name].length ? ` (${filters[name].length})` : ''}</label>
+            <div className="filter-check-list">
+                {options.length === 0 && <span className="filter-empty">None available</span>}
+                {options.map(opt => (
+                    <label key={opt} className="filter-check">
+                        <input
+                            type="checkbox"
+                            checked={filters[name].includes(opt)}
+                            onChange={() => toggleMultiFilter(name, opt)}
+                        />
+                        <span>{opt}</span>
+                    </label>
+                ))}
+            </div>
+        </div>
+    );
 
     const filteredAndSortedData = useMemo(() => {
         let filtered = [...enrichedDataWithWeightage];
@@ -992,22 +1110,36 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             );
         }
 
-        // Apply assignment filter
-        if (filters.assignedTo !== 'All') {
-            if (filters.assignedTo === 'Unassigned') {
-                filtered = filtered.filter(item => !(item as any).assignedTo);
-            } else {
-                filtered = filtered.filter(item => (item as any).assignedTo === filters.assignedTo);
-            }
+        // Apply assignment filter (multi-select; 'Unassigned' matches rows with no assignee)
+        if (filters.assignedTo.length > 0) {
+            filtered = filtered.filter(item => filters.assignedTo.includes((item as any).assignedTo || UNASSIGNED));
         }
 
-        // Apply bucket filter
-        if (filters.bucket !== 'All') {
-            if (filters.bucket === 'Unassigned') {
-                filtered = filtered.filter(item => !(item as any).bucket);
-            } else {
-                filtered = filtered.filter(item => (item as any).bucket === filters.bucket);
-            }
+        // Apply bucket filter (multi-select; 'Unassigned' matches rows with no bucket)
+        if (filters.bucket.length > 0) {
+            filtered = filtered.filter(item => filters.bucket.includes((item as any).bucket || UNASSIGNED));
+        }
+
+        // Apply industry group filter (multi-select)
+        if (filters.industryGroup.length > 0) {
+            filtered = filtered.filter(item => filters.industryGroup.includes((item as any).industryGroup));
+        }
+
+        // Apply industry filter (multi-select)
+        if (filters.industry.length > 0) {
+            filtered = filtered.filter(item => filters.industry.includes((item as any).industry));
+        }
+
+        // Apply pledged filter
+        if (filters.pledged !== 'All') {
+            filtered = filtered.filter(item => {
+                const qty = (item as any).pledgedQty;
+                const where = (item as any).pledgedWhere;
+                const isPledged = qty != null && qty > 0;
+                if (filters.pledged === 'Pledged') return isPledged;
+                if (filters.pledged === 'Unpledged') return !isPledged;
+                return where === filters.pledged; // 'LAS' or 'F&O'
+            });
         }
 
         // Apply remarks filter
@@ -1017,9 +1149,9 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             );
         }
 
-        // Apply trend filter
-        if (filters.trend !== 'All') {
-            filtered = filtered.filter(item => (item as any).trend === filters.trend);
+        // Apply trend filter (multi-select)
+        if (filters.trend.length > 0) {
+            filtered = filtered.filter(item => filters.trend.includes((item as any).trend));
         }
 
         // Apply positioning filters
@@ -1042,50 +1174,17 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             });
         }
 
-        // Apply range filters
+        // Apply numeric range filters (data-driven from NUMERIC_FILTER_DEFS)
         filtered = filtered.filter(item => {
             const data = item as any;
-
-            // Gain Percentage filter
-            if (rangeFilters.gainPercentageMin !== '' && data.gainPercentage !== null) {
-                if (data.gainPercentage < parseFloat(rangeFilters.gainPercentageMin)) return false;
+            for (const def of NUMERIC_FILTER_DEFS) {
+                const v = data[def.key];
+                if (v === null || v === undefined) continue;
+                const minRaw = rangeFilters[`${def.key}Min`];
+                const maxRaw = rangeFilters[`${def.key}Max`];
+                if (minRaw !== undefined && minRaw !== '' && v < parseFloat(minRaw)) return false;
+                if (maxRaw !== undefined && maxRaw !== '' && v > parseFloat(maxRaw)) return false;
             }
-            if (rangeFilters.gainPercentageMax !== '' && data.gainPercentage !== null) {
-                if (data.gainPercentage > parseFloat(rangeFilters.gainPercentageMax)) return false;
-            }
-
-            // Profit Growth filter
-            if (rangeFilters.profitGrowthMin !== '' && data.yoyQuarterlyProfitGrowth !== null) {
-                if (data.yoyQuarterlyProfitGrowth < parseFloat(rangeFilters.profitGrowthMin)) return false;
-            }
-            if (rangeFilters.profitGrowthMax !== '' && data.yoyQuarterlyProfitGrowth !== null) {
-                if (data.yoyQuarterlyProfitGrowth > parseFloat(rangeFilters.profitGrowthMax)) return false;
-            }
-
-            // Sales Growth filter
-            if (rangeFilters.salesGrowthMin !== '' && data.yoyQuarterlySalesGrowth !== null) {
-                if (data.yoyQuarterlySalesGrowth < parseFloat(rangeFilters.salesGrowthMin)) return false;
-            }
-            if (rangeFilters.salesGrowthMax !== '' && data.yoyQuarterlySalesGrowth !== null) {
-                if (data.yoyQuarterlySalesGrowth > parseFloat(rangeFilters.salesGrowthMax)) return false;
-            }
-
-            // P/E filter
-            if (rangeFilters.peMin !== '' && data.priceToEarning !== null) {
-                if (data.priceToEarning < parseFloat(rangeFilters.peMin)) return false;
-            }
-            if (rangeFilters.peMax !== '' && data.priceToEarning !== null) {
-                if (data.priceToEarning > parseFloat(rangeFilters.peMax)) return false;
-            }
-
-            // Weightage filter
-            if (rangeFilters.weightageMin !== '' && data.weightage !== null) {
-                if (data.weightage < parseFloat(rangeFilters.weightageMin)) return false;
-            }
-            if (rangeFilters.weightageMax !== '' && data.weightage !== null) {
-                if (data.weightage > parseFloat(rangeFilters.weightageMax)) return false;
-            }
-
             return true;
         });
 
@@ -1462,6 +1561,23 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                             />
                         </div>
                         <div className="action-buttons">
+                            <div className="saved-views-inline">
+                                <span className="saved-views-label">Views</span>
+                                {savedViews.map(v => (
+                                    <div key={v.id} className={`saved-view-chip ${activeViewId === v.id ? 'active' : ''}`}>
+                                        <button type="button" className="saved-view-apply" onClick={() => applyView(v)} title="Apply this view">{v.name}</button>
+                                        <button type="button" className="saved-view-delete" onClick={() => deleteView(v.id)} title="Delete this view">×</button>
+                                    </div>
+                                ))}
+                                {activeViewId && (
+                                    <button type="button" className="saved-view-update" onClick={updateActiveView} title="Overwrite the active view with current filters & columns">
+                                        Update
+                                    </button>
+                                )}
+                                <button type="button" className="saved-view-save" onClick={saveCurrentView} title="Save current filters & columns as a view">
+                                    + Save View
+                                </button>
+                            </div>
                             <div className="view-toggle" role="group" aria-label="View mode">
                                 <button
                                     type="button"
@@ -1504,25 +1620,6 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                         </div>
                     </div>
 
-                    <div className="saved-views-bar">
-                        <span className="saved-views-label">Views</span>
-                        {savedViews.length === 0 && <span className="saved-views-empty">No saved views yet — set up filters/columns and save one</span>}
-                        {savedViews.map(v => (
-                            <div key={v.id} className={`saved-view-chip ${activeViewId === v.id ? 'active' : ''}`}>
-                                <button type="button" className="saved-view-apply" onClick={() => applyView(v)} title="Apply this view">{v.name}</button>
-                                <button type="button" className="saved-view-delete" onClick={() => deleteView(v.id)} title="Delete this view">×</button>
-                            </div>
-                        ))}
-                        {activeViewId && (
-                            <button type="button" className="saved-view-update" onClick={updateActiveView} title="Overwrite the active view with current filters & columns">
-                                Update
-                            </button>
-                        )}
-                        <button type="button" className="saved-view-save" onClick={saveCurrentView} title="Save current filters & columns as a view">
-                            + Save View
-                        </button>
-                    </div>
-
                     <PositioningFilters
                         filters={positioningFilters}
                         onChange={setPositioningFilters}
@@ -1532,47 +1629,69 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                         <div className="popover-backdrop" onClick={() => setShowFilterPopover(false)}>
                             <div className="popover-content" onClick={e => e.stopPropagation()}>
                                 <div className="popover-header">
-                                    <h3>Filter & View Options</h3>
-                                    <button className="close-btn" onClick={() => setShowFilterPopover(false)}>×</button>
+                                    <h3>Filters &amp; Columns{activeFilterCount ? ` · ${activeFilterCount} active` : ''}</h3>
+                                    <div className="popover-header-actions">
+                                        {activeFilterCount > 0 && (
+                                            <button type="button" className="clear-filter-btn" onClick={clearAllFilters}>Clear all</button>
+                                        )}
+                                        <button className="close-btn" onClick={() => setShowFilterPopover(false)}>×</button>
+                                    </div>
                                 </div>
                                 <div className="popover-body">
-                                    <div className="filter-group">
-                                        <label htmlFor="trend">Trend</label>
-                                        <select id="trend" name="trend" value={filters.trend} onChange={handleFilterChange}>
-                                            <option value="All">All Trends</option>
-                                            <option value="Strong Uptrend">Strong Uptrend</option>
-                                            <option value="Uptrend">Uptrend</option>
-                                            <option value="Neutral">Neutral</option>
-                                            <option value="Downtrend">Downtrend</option>
-                                            <option value="Strong Downtrend">Strong Downtrend</option>
-                                        </select>
+                                    <div className="filter-grid">
+                                        {renderCheckGroup('trend', 'Trend', TREND_OPTIONS)}
+                                        {renderCheckGroup('bucket', 'Bucket', [UNASSIGNED, ...BUCKETS])}
+                                        {renderCheckGroup('assignedTo', 'Assigned To', [UNASSIGNED, ...teamMembers])}
+                                        {renderCheckGroup('industryGroup', 'Industry Group', availableIndustryGroups)}
+                                        {renderCheckGroup('industry', 'Industry', availableIndustries)}
+                                        {!isAnalyst && (
+                                            <div className="filter-group">
+                                                <label htmlFor="pledged">Pledged</label>
+                                                <select id="pledged" name="pledged" value={filters.pledged} onChange={handleFilterChange}>
+                                                    <option value="All">All</option>
+                                                    <option value="Pledged">Pledged (any)</option>
+                                                    <option value="Unpledged">Unpledged</option>
+                                                    <option value="LAS">LAS</option>
+                                                    <option value="F&O">F&amp;O</option>
+                                                </select>
+                                            </div>
+                                        )}
+                                        <div className="filter-group">
+                                            <label htmlFor="remarksSearch">Search Remarks</label>
+                                            <input
+                                                type="text"
+                                                id="remarksSearch"
+                                                name="remarksSearch"
+                                                placeholder="Search in remarks..."
+                                                value={filters.remarksSearch}
+                                                onChange={handleFilterChange}
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="filter-group">
-                                        <label htmlFor="assignedTo">Assigned To</label>
-                                        <select id="assignedTo" name="assignedTo" value={filters.assignedTo} onChange={handleFilterChange}>
-                                            <option value="All">All</option>
-                                            <option value="Unassigned">Unassigned</option>
-                                            {teamMembers.map(member => <option key={member} value={member}>{member}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className="filter-group">
-                                        <label htmlFor="bucket">Bucket</label>
-                                        <select id="bucket" name="bucket" value={filters.bucket} onChange={handleFilterChange}>
-                                            <option value="All">All Buckets</option>
-                                            <option value="Unassigned">Unassigned</option>
-                                            {BUCKETS.map(bucket => <option key={bucket} value={bucket}>{bucket}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className="filter-group">
-                                        <label htmlFor="remarksSearch">Search Remarks</label>
-                                        <input
-                                            type="text"
-                                            id="remarksSearch"
-                                            name="remarksSearch"
-                                            placeholder="Search in remarks..."
-                                            value={filters.remarksSearch}
-                                            onChange={handleFilterChange}
-                                        />
+
+                                    <div className="filter-ranges-container">
+                                        <label>Numeric Ranges (min / max)</label>
+                                        <div className="filter-range-grid">
+                                            {NUMERIC_FILTER_DEFS.map(def => (
+                                                <div key={def.key} className="filter-range-row">
+                                                    <span className="filter-range-label">{def.label}</span>
+                                                    <input
+                                                        type="number"
+                                                        placeholder="Min"
+                                                        name={`${def.key}Min`}
+                                                        value={rangeFilters[`${def.key}Min`] ?? ''}
+                                                        onChange={handleRangeFilterChange}
+                                                    />
+                                                    <input
+                                                        type="number"
+                                                        placeholder="Max"
+                                                        name={`${def.key}Max`}
+                                                        value={rangeFilters[`${def.key}Max`] ?? ''}
+                                                        onChange={handleRangeFilterChange}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
 
                                     <div className="column-toggles-container">
@@ -4271,24 +4390,27 @@ const App: React.FC = () => {
 
             setLoading(true);
             try {
-                // Load portfolio data
-                const portfolioResponse = await fetch('/api/portfolio');
+                // These three requests are independent, so fire them together
+                // instead of awaiting each in series (cuts initial load latency).
+                const [portfolioResponse, gridKeyResponse, historyResponse] = await Promise.all([
+                    fetch('/api/portfolio'),
+                    fetch('/api/gridkey'),
+                    fetch('/api/portfolio-history'),
+                ]);
+
                 if (!portfolioResponse.ok) {
                     throw new Error('Failed to fetch portfolio data');
                 }
-                const portfolioData = await portfolioResponse.json();
-                setStocks(portfolioData);
+                setStocks(await portfolioResponse.json());
 
-                // Load GridKey data and private investments
-                const gridKeyResponse = await fetch('/api/gridkey');
+                // GridKey data and private investments
                 if (gridKeyResponse.ok) {
                     const { gridKeyData, privateInvestments: privInv } = await gridKeyResponse.json();
                     setGridKeyData(gridKeyData || []);
                     setPrivateInvestments(privInv || { totalInvested: 0, count: 0 });
                 }
 
-                // Load portfolio history alongside other data
-                const historyResponse = await fetch('/api/portfolio-history');
+                // Portfolio history
                 if (historyResponse.ok) {
                     setPortfolioHistory(await historyResponse.json());
                 }
