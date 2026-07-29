@@ -1015,6 +1015,141 @@ a:hover {
   border-color: var(--accent-color);
 }
 
+/* Inline pledge quantity editor */
+.stock-table td.pledge-cell {
+  padding: 0.4rem 0.6rem;
+}
+
+.pledge-qty-input {
+  width: 90px;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--background-color);
+  color: var(--primary-text-color);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  text-align: right;
+  transition: border-color 0.2s;
+}
+
+.pledge-qty-input:hover {
+  border-color: var(--accent-color);
+}
+
+.pledge-qty-input:focus {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 1px;
+  border-color: var(--accent-color);
+}
+
+/* Table totals / weighted-average footer */
+.stock-table tfoot .summary-row td {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background-color: var(--surface-faint);
+  border-top: 2px solid var(--border-color);
+  border-bottom: none;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.stock-table tfoot .summary-row td.sticky-col {
+  z-index: 3;
+  background-color: var(--surface-color);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10.5px;
+  color: var(--ink-label);
+}
+
+/* Saved views bar */
+.saved-views-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.25rem 0 1rem;
+}
+
+.saved-views-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-label);
+  margin-right: 0.25rem;
+}
+
+.saved-views-empty {
+  font-size: 12px;
+  color: var(--secondary-text-color);
+}
+
+.saved-view-chip {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  overflow: hidden;
+  background-color: var(--surface-color);
+}
+
+.saved-view-chip.active {
+  border-color: var(--accent-color);
+  background-color: color-mix(in oklch, var(--accent-color) 12%, transparent);
+}
+
+.saved-view-apply {
+  border: none;
+  background: transparent;
+  color: var(--primary-text-color);
+  padding: 0.3rem 0.75rem;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.saved-view-chip.active .saved-view-apply {
+  color: var(--accent-color);
+  font-weight: 600;
+}
+
+.saved-view-delete {
+  border: none;
+  border-left: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--secondary-text-color);
+  padding: 0 0.5rem;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.saved-view-delete:hover {
+  color: var(--error-color);
+  background-color: var(--surface-faint);
+}
+
+.saved-view-save,
+.saved-view-update {
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background-color: var(--surface-color);
+  color: var(--primary-text-color);
+  padding: 0.3rem 0.85rem;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.saved-view-save:hover,
+.saved-view-update:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
 .remark-display {
   padding: 0.75rem 1rem;
   cursor: pointer;

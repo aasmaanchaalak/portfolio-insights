@@ -36,6 +36,8 @@ export interface Stock {
   entryPrice?: number | null; // Price when stock was first added
   positioning?: StockPositioning; // Conviction, strategy, action intent
   themes?: string[];
+  pledgedQty?: number | null;     // Quantity pledged for LAS / F&O margin
+  pledgedWhere?: 'LAS' | 'F&O' | null; // Where the shares are pledged
 }
 
 export interface GridKeyData {

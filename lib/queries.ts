@@ -631,6 +631,66 @@ export async function bulkSetEntryData(entries: { stockCode: string; entryDate: 
   }
 }
 
+// ============ Stock Pledges ============
+//
+// We pledge listed holdings for LAS (Loan Against Securities) and F&O margin.
+// Tracks the pledged quantity and where it is pledged for each stock code.
+
+export type PledgeWhere = 'LAS' | 'F&O';
+
+export interface StockPledge {
+  pledgedQty: number | null;
+  pledgedWhere: PledgeWhere | null;
+}
+
+let pledgesTableReady = false;
+async function ensurePledgesTable(): Promise<void> {
+  if (pledgesTableReady) return;
+  await query(`
+    CREATE TABLE IF NOT EXISTS stock_pledges (
+      stock_code    VARCHAR(50) PRIMARY KEY,
+      pledged_qty   NUMERIC,
+      pledged_where VARCHAR(10) CHECK (pledged_where IN ('LAS', 'F&O')),
+      updated_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `);
+  pledgesTableReady = true;
+}
+
+export async function getAllPledges(): Promise<Record<string, StockPledge>> {
+  await ensurePledgesTable();
+  const rows = await query<any>(`SELECT stock_code, pledged_qty, pledged_where FROM stock_pledges`);
+  const result: Record<string, StockPledge> = {};
+  rows.forEach(row => {
+    result[row.stock_code] = {
+      pledgedQty: row.pledged_qty != null ? Number(row.pledged_qty) : null,
+      pledgedWhere: row.pledged_where || null,
+    };
+  });
+  return result;
+}
+
+export async function setPledge(
+  stockCode: string,
+  pledgedQty: number | null,
+  pledgedWhere: PledgeWhere | null
+): Promise<void> {
+  await ensurePledgesTable();
+  // Remove the record entirely when there is nothing pledged.
+  if ((pledgedQty == null || pledgedQty === 0) && !pledgedWhere) {
+    await query(`DELETE FROM stock_pledges WHERE stock_code = $1`, [stockCode]);
+    return;
+  }
+  await query(`
+    INSERT INTO stock_pledges (stock_code, pledged_qty, pledged_where)
+    VALUES ($1, $2, $3)
+    ON CONFLICT (stock_code) DO UPDATE SET
+      pledged_qty = $2,
+      pledged_where = $3,
+      updated_at = NOW()
+  `, [stockCode, pledgedQty, pledgedWhere]);
+}
+
 // ============ Technical States ============
 
 export interface TechnicalState {

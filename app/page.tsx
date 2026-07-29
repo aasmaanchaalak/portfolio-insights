@@ -578,7 +578,7 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateIn
 };
 
 // Columns that should be hidden from analysts (financial amounts)
-const ANALYST_RESTRICTED_COLUMNS = ['quantity', 'investedAmount', 'calculatedAmount', 'absoluteGain'];
+const ANALYST_RESTRICTED_COLUMNS = ['quantity', 'investedAmount', 'calculatedAmount', 'absoluteGain', 'pledgedQty', 'pledgedWhere', 'freeQty'];
 
 const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void; isAnalyst?: boolean; teamMembers?: string[] }> = ({ gridKeyData, stocks, onStocksUpdate, isAnalyst = false, teamMembers = [] }) => {
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' }>({
@@ -617,6 +617,9 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
 
     const allInsightsColumns = [
         { key: 'quantity', label: 'Quantity' },
+        { key: 'pledgedQty', label: 'Pledged Qty' },
+        { key: 'pledgedWhere', label: 'Pledged Where' },
+        { key: 'freeQty', label: 'Free Qty' },
         { key: 'averageBuyPrice', label: 'Avg Buy Price' },
         { key: 'investedAmount', label: 'Invested Amount' },
         { key: 'currentPrice', label: 'Current Price' },
@@ -705,6 +708,93 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         setSortConfig({ key, direction });
     };
 
+    // ===== Saved Views (Public Portfolio only) =====
+    // A view snapshots the filters, sort, column visibility and view mode so it
+    // can be re-applied with a single click. Persisted per-browser in localStorage.
+    const SAVED_VIEWS_KEY = 'portfolioSavedViews';
+    interface SavedView {
+        id: string;
+        name: string;
+        state: {
+            filters: typeof filters;
+            positioningFilters: PositioningFilterState;
+            rangeFilters: typeof rangeFilters;
+            sortConfig: typeof sortConfig;
+            visibleColumns: Record<string, boolean>;
+            viewMode: 'table' | 'grid';
+        };
+    }
+
+    const loadSavedViews = (): SavedView[] => {
+        if (typeof window !== 'undefined') {
+            try {
+                const saved = localStorage.getItem(SAVED_VIEWS_KEY);
+                if (saved) return JSON.parse(saved);
+            } catch (e) {
+                return [];
+            }
+        }
+        return [];
+    };
+
+    const [savedViews, setSavedViews] = useState<SavedView[]>(loadSavedViews);
+    const [activeViewId, setActiveViewId] = useState<string | null>(null);
+
+    const persistViews = (views: SavedView[]) => {
+        setSavedViews(views);
+        if (typeof window !== 'undefined') {
+            localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(views));
+        }
+    };
+
+    const captureViewState = (): SavedView['state'] => ({
+        filters,
+        positioningFilters,
+        rangeFilters,
+        sortConfig,
+        visibleColumns,
+        viewMode,
+    });
+
+    const applyView = (view: SavedView) => {
+        const s = view.state || ({} as SavedView['state']);
+        if (s.filters) setFilters(s.filters);
+        if (s.positioningFilters) setPositioningFilters(s.positioningFilters);
+        if (s.rangeFilters) setRangeFilters(s.rangeFilters);
+        if (s.sortConfig) setSortConfig(s.sortConfig);
+        if (s.visibleColumns) setVisibleColumns(s.visibleColumns);
+        if (s.viewMode) setViewMode(s.viewMode);
+        setActiveViewId(view.id);
+    };
+
+    const saveCurrentView = () => {
+        const name = typeof window !== 'undefined' ? window.prompt('Save current view as:') : null;
+        if (!name || !name.trim()) return;
+        const trimmed = name.trim();
+        const existing = savedViews.find(v => v.name.toLowerCase() === trimmed.toLowerCase());
+        let id: string;
+        let next: SavedView[];
+        if (existing) {
+            id = existing.id;
+            next = savedViews.map(v => (v.id === existing.id ? { ...v, state: captureViewState() } : v));
+        } else {
+            id = `view-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+            next = [...savedViews, { id, name: trimmed, state: captureViewState() }];
+        }
+        persistViews(next);
+        setActiveViewId(id);
+    };
+
+    const updateActiveView = () => {
+        if (!activeViewId) return;
+        persistViews(savedViews.map(v => (v.id === activeViewId ? { ...v, state: captureViewState() } : v)));
+    };
+
+    const deleteView = (id: string) => {
+        persistViews(savedViews.filter(v => v.id !== id));
+        if (activeViewId === id) setActiveViewId(null);
+    };
+
     // Enrich GridKey data with all stock data from portfolio and calculate amounts
     const enrichedData = useMemo(() => {
         return gridKeyData.map(item => {
@@ -725,6 +815,11 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                 ? (absoluteGain / investedAmount) * 100
                 : null;
             const trend = matchedStock ? calculateTrend(matchedStock) : null;
+
+            // Pledge data (LAS / F&O). Free qty = held quantity minus pledged.
+            const pledgedQty = matchedStock?.pledgedQty ?? null;
+            const pledgedWhere = matchedStock?.pledgedWhere ?? null;
+            const freeQty = item.quantity != null ? item.quantity - (pledgedQty || 0) : null;
 
             // Calculate sparkline data (synthetic historical trend)
             const todayValue = 100;
@@ -790,7 +885,10 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                 bucket: matchedStock?.bucket || null,
                 entryDate: matchedStock?.entryDate || null,
                 entryPrice: matchedStock?.entryPrice || null,
-                positioning: matchedStock?.positioning || null
+                positioning: matchedStock?.positioning || null,
+                pledgedQty,
+                pledgedWhere,
+                freeQty
             };
         });
     }, [gridKeyData, stocks]);
@@ -1010,6 +1108,56 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         return filtered;
     }, [enrichedDataWithWeightage, sortConfig, filters, rangeFilters, positioningFilters]);
 
+    // Column totals / weighted averages for the currently displayed rows.
+    // Sums for value-like columns; value-weighted averages for ratio/return
+    // columns. Reflects whatever filters (and therefore saved view) are active.
+    const summary = useMemo(() => {
+        const rows = filteredAndSortedData as any[];
+        const sum = (key: string) => rows.reduce((acc, r) => acc + (typeof r[key] === 'number' && !isNaN(r[key]) ? r[key] : 0), 0);
+        const wavg = (key: string) => {
+            let num = 0, den = 0;
+            for (const r of rows) {
+                const v = r[key];
+                const w = r.calculatedAmount;
+                if (typeof v === 'number' && !isNaN(v) && typeof w === 'number' && w > 0) {
+                    num += v * w;
+                    den += w;
+                }
+            }
+            return den > 0 ? num / den : null;
+        };
+        const totalInvested = sum('investedAmount');
+        const totalGain = sum('absoluteGain');
+        return {
+            count: rows.length,
+            quantity: sum('quantity'),
+            pledgedQty: sum('pledgedQty'),
+            freeQty: sum('freeQty'),
+            investedAmount: totalInvested,
+            calculatedAmount: sum('calculatedAmount'),
+            absoluteGain: totalGain,
+            gainPercentage: totalInvested > 0 ? (totalGain / totalInvested) * 100 : null,
+            weightage: sum('weightage'),
+            portfolioContribution: sum('portfolioContribution'),
+            priceToEarning: wavg('priceToEarning'),
+            marketCap: wavg('marketCap'),
+            rsi: wavg('rsi'),
+            roce: wavg('roce'),
+            yoyQuarterlyProfitGrowth: wavg('yoyQuarterlyProfitGrowth'),
+            yoyQuarterlySalesGrowth: wavg('yoyQuarterlySalesGrowth'),
+            dma50ChangePercent: wavg('dma50ChangePercent'),
+            dma200ChangePercent: wavg('dma200ChangePercent'),
+            downFrom52WeekHigh: wavg('downFrom52WeekHigh'),
+            upFrom52WeekLow: wavg('upFrom52WeekLow'),
+            return1D: wavg('return1D'),
+            return1W: wavg('return1W'),
+            return1M: wavg('return1M'),
+            return3M: wavg('return3M'),
+            return6M: wavg('return6M'),
+            return1Y: wavg('return1Y'),
+        };
+    }, [filteredAndSortedData]);
+
     const SortIndicator: React.FC<{ columnKey: string }> = ({ columnKey }) => {
         if (sortConfig.key !== columnKey) return null;
         return <span className="sort-indicator">{sortConfig.direction === 'ascending' ? '▲' : '▼'}</span>;
@@ -1149,6 +1297,36 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             }
         } catch (error) {
             console.error('Error saving bucket:', error);
+        }
+    };
+
+    // Save pledge quantity and/or where. Pass the whole next state so a single
+    // POST persists both fields together.
+    const handlePledgeChange = async (item: any, next: { pledgedQty?: number | null; pledgedWhere?: string | null }) => {
+        const code = item.nseCode || item.bseCode;
+        if (!code) return;
+
+        const pledgedQty = next.pledgedQty !== undefined ? next.pledgedQty : (item.pledgedQty ?? null);
+        const pledgedWhere = next.pledgedWhere !== undefined ? next.pledgedWhere : (item.pledgedWhere ?? null);
+
+        try {
+            const response = await fetch('/api/pledges', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, pledgedQty, pledgedWhere })
+            });
+
+            if (response.ok) {
+                const updatedStocks = stocks.map(s => {
+                    if ((s.nseCode && s.nseCode === item.nseCode) || (s.bseCode && s.bseCode === item.bseCode)) {
+                        return { ...s, pledgedQty: pledgedQty as any, pledgedWhere: (pledgedWhere || null) as any };
+                    }
+                    return s;
+                });
+                onStocksUpdate(updatedStocks);
+            }
+        } catch (error) {
+            console.error('Error saving pledge:', error);
         }
     };
 
@@ -1326,6 +1504,25 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                         </div>
                     </div>
 
+                    <div className="saved-views-bar">
+                        <span className="saved-views-label">Views</span>
+                        {savedViews.length === 0 && <span className="saved-views-empty">No saved views yet — set up filters/columns and save one</span>}
+                        {savedViews.map(v => (
+                            <div key={v.id} className={`saved-view-chip ${activeViewId === v.id ? 'active' : ''}`}>
+                                <button type="button" className="saved-view-apply" onClick={() => applyView(v)} title="Apply this view">{v.name}</button>
+                                <button type="button" className="saved-view-delete" onClick={() => deleteView(v.id)} title="Delete this view">×</button>
+                            </div>
+                        ))}
+                        {activeViewId && (
+                            <button type="button" className="saved-view-update" onClick={updateActiveView} title="Overwrite the active view with current filters & columns">
+                                Update
+                            </button>
+                        )}
+                        <button type="button" className="saved-view-save" onClick={saveCurrentView} title="Save current filters & columns as a view">
+                            + Save View
+                        </button>
+                    </div>
+
                     <PositioningFilters
                         filters={positioningFilters}
                         onChange={setPositioningFilters}
@@ -1412,6 +1609,21 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                 {isColumnVisible('quantity') && <th className="text-right" onClick={() => requestSort('quantity')}>
                                     <div className="th-content">
                                         <span>Quantity <SortIndicator columnKey="quantity" /></span>
+                                    </div>
+                                </th>}
+                                {isColumnVisible('pledgedQty') && <th className="text-right" onClick={() => requestSort('pledgedQty')}>
+                                    <div className="th-content">
+                                        <span>Pledged Qty <SortIndicator columnKey="pledgedQty" /></span>
+                                    </div>
+                                </th>}
+                                {isColumnVisible('pledgedWhere') && <th onClick={() => requestSort('pledgedWhere')}>
+                                    <div className="th-content">
+                                        <span>Pledged Where <SortIndicator columnKey="pledgedWhere" /></span>
+                                    </div>
+                                </th>}
+                                {isColumnVisible('freeQty') && <th className="text-right" onClick={() => requestSort('freeQty')}>
+                                    <div className="th-content">
+                                        <span>Free Qty <SortIndicator columnKey="freeQty" /></span>
                                     </div>
                                 </th>}
                                 {isColumnVisible('averageBuyPrice') && <th className="text-right avg-buy-price-col" onClick={() => requestSort('averageBuyPrice')}>
@@ -1659,6 +1871,34 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         </span>
                                     </td>
                                     {isColumnVisible('quantity') && <td className="text-right">{item.quantity !== null && item.quantity !== undefined ? item.quantity.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : 'N/A'}</td>}
+                                    {isColumnVisible('pledgedQty') && <td className="text-right pledge-cell">
+                                        <input
+                                            key={`pledge-${item.nseCode || item.bseCode}-${(item as any).pledgedQty ?? ''}`}
+                                            type="number"
+                                            className="pledge-qty-input"
+                                            min="0"
+                                            defaultValue={(item as any).pledgedQty ?? ''}
+                                            placeholder="—"
+                                            onBlur={(e) => {
+                                                const raw = e.target.value.trim();
+                                                const next = raw === '' ? null : Number(raw);
+                                                const current = (item as any).pledgedQty ?? null;
+                                                if (next !== current) handlePledgeChange(item, { pledgedQty: next });
+                                            }}
+                                        />
+                                    </td>}
+                                    {isColumnVisible('pledgedWhere') && <td className="assignment-cell">
+                                        <select
+                                            value={(item as any).pledgedWhere || ''}
+                                            onChange={(e) => handlePledgeChange(item, { pledgedWhere: e.target.value || null })}
+                                            className="assignment-select"
+                                        >
+                                            <option value="">—</option>
+                                            <option value="LAS">LAS</option>
+                                            <option value="F&O">F&amp;O</option>
+                                        </select>
+                                    </td>}
+                                    {isColumnVisible('freeQty') && <td className="text-right">{(item as any).freeQty !== null && (item as any).freeQty !== undefined ? (item as any).freeQty.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : 'N/A'}</td>}
                                     {isColumnVisible('averageBuyPrice') && <td className="text-right avg-buy-price-col">{item.averageBuyPrice !== null && item.averageBuyPrice !== undefined ? `₹${item.averageBuyPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
                                     {isColumnVisible('investedAmount') && <td className="text-right">{(item as any).investedAmount !== null && (item as any).investedAmount !== undefined ? `₹${(item as any).investedAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
                                     {isColumnVisible('currentPrice') && <td className="text-right">{(item as any).currentPrice !== null && (item as any).currentPrice !== undefined ? `₹${(item as any).currentPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
@@ -1750,6 +1990,47 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                 </tr>
                             ))}
                         </tbody>
+                        <tfoot>
+                            <tr className="summary-row">
+                                <td className="sticky-col">Total / Wtd Avg ({summary.count})</td>
+                                {isColumnVisible('quantity') && <td className="text-right">{summary.quantity.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>}
+                                {isColumnVisible('pledgedQty') && <td className="text-right">{summary.pledgedQty.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>}
+                                {isColumnVisible('pledgedWhere') && <td></td>}
+                                {isColumnVisible('freeQty') && <td className="text-right">{summary.freeQty.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>}
+                                {isColumnVisible('averageBuyPrice') && <td></td>}
+                                {isColumnVisible('investedAmount') && <td className="text-right">{`₹${summary.investedAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}</td>}
+                                {isColumnVisible('currentPrice') && <td></td>}
+                                {isColumnVisible('calculatedAmount') && <td className="text-right">{`₹${summary.calculatedAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}</td>}
+                                {isColumnVisible('absoluteGain') && <td className="text-right" style={{ color: summary.absoluteGain >= 0 ? 'var(--success-color)' : 'var(--error-color)' }}>{fmtSignedCur(summary.absoluteGain)}</td>}
+                                {visibleColumns['gainPercentage'] && <td className="text-right" style={{ color: summary.gainPercentage !== null ? (summary.gainPercentage >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit', fontWeight: 500 }}>{fmtSignedPct(summary.gainPercentage)}</td>}
+                                {visibleColumns['weightage'] && <td className="text-right">{`${summary.weightage.toFixed(2)}%`}</td>}
+                                {visibleColumns['portfolioContribution'] && <td className="text-right" style={{ color: summary.portfolioContribution !== null ? (summary.portfolioContribution >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit', fontWeight: 500 }}>{fmtSignedPct(summary.portfolioContribution)}</td>}
+                                {visibleColumns['sparkline'] && <td></td>}
+                                {visibleColumns['industryGroup'] && <td></td>}
+                                {visibleColumns['industry'] && <td></td>}
+                                {visibleColumns['priceToEarning'] && <td className="text-right">{summary.priceToEarning !== null ? summary.priceToEarning.toFixed(2) : 'N/A'}</td>}
+                                {visibleColumns['marketCap'] && <td className="text-right">{summary.marketCap !== null ? (summary.marketCap >= 1000 ? `₹${(summary.marketCap / 1000).toFixed(1)}K Cr` : `₹${summary.marketCap.toFixed(0)} Cr`) : 'N/A'}</td>}
+                                {visibleColumns['rsi'] && <td className="text-right">{summary.rsi !== null ? summary.rsi.toFixed(1) : 'N/A'}</td>}
+                                {visibleColumns['roce'] && <td className="text-right" style={{ color: summary.roce !== null ? (summary.roce >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.roce)}</td>}
+                                {visibleColumns['yoyQuarterlyProfitGrowth'] && <td className="text-right" style={{ color: summary.yoyQuarterlyProfitGrowth !== null ? (summary.yoyQuarterlyProfitGrowth >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.yoyQuarterlyProfitGrowth)}</td>}
+                                {visibleColumns['yoyQuarterlySalesGrowth'] && <td className="text-right" style={{ color: summary.yoyQuarterlySalesGrowth !== null ? (summary.yoyQuarterlySalesGrowth >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.yoyQuarterlySalesGrowth)}</td>}
+                                {visibleColumns['dma50ChangePercent'] && <td className="text-right" style={{ color: summary.dma50ChangePercent !== null ? (summary.dma50ChangePercent >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.dma50ChangePercent)}</td>}
+                                {visibleColumns['dma200ChangePercent'] && <td className="text-right" style={{ color: summary.dma200ChangePercent !== null ? (summary.dma200ChangePercent >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.dma200ChangePercent)}</td>}
+                                {visibleColumns['downFrom52WeekHigh'] && <td className="text-right">{summary.downFrom52WeekHigh !== null ? `${summary.downFrom52WeekHigh.toFixed(2)}%` : 'N/A'}</td>}
+                                {visibleColumns['upFrom52WeekLow'] && <td className="text-right">{summary.upFrom52WeekLow !== null ? `${summary.upFrom52WeekLow.toFixed(2)}%` : 'N/A'}</td>}
+                                {visibleColumns['trend'] && <td></td>}
+                                {visibleColumns['return1D'] && <td className="text-right" style={{ color: summary.return1D !== null ? (summary.return1D >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.return1D)}</td>}
+                                {visibleColumns['return1W'] && <td className="text-right" style={{ color: summary.return1W !== null ? (summary.return1W >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.return1W)}</td>}
+                                {visibleColumns['return1M'] && <td className="text-right" style={{ color: summary.return1M !== null ? (summary.return1M >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.return1M)}</td>}
+                                {visibleColumns['return3M'] && <td className="text-right" style={{ color: summary.return3M !== null ? (summary.return3M >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.return3M)}</td>}
+                                {visibleColumns['return6M'] && <td className="text-right" style={{ color: summary.return6M !== null ? (summary.return6M >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.return6M)}</td>}
+                                {visibleColumns['return1Y'] && <td className="text-right" style={{ color: summary.return1Y !== null ? (summary.return1Y >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.return1Y)}</td>}
+                                {visibleColumns['remarks'] && <td></td>}
+                                {visibleColumns['assignedTo'] && <td></td>}
+                                {visibleColumns['bucket'] && <td></td>}
+                                {visibleColumns['positioning'] && <td></td>}
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
                 ) : (

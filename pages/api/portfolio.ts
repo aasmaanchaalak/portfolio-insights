@@ -9,6 +9,7 @@ import {
   getAllEntryData,
   getAllPositioning,
   getAllThemes,
+  getAllPledges,
   setRemark,
   setAssignment,
   setBucket,
@@ -32,13 +33,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         }
 
         // Fetch all metadata and GridKey in parallel
-        const [remarksMap, assignmentsMap, bucketsMap, entryDataMap, positioningMap, themesMap, gridKey] = await Promise.all([
+        const [remarksMap, assignmentsMap, bucketsMap, entryDataMap, positioningMap, themesMap, pledgesMap, gridKey] = await Promise.all([
           getAllRemarks(),
           getAllAssignments(),
           getAllBuckets(),
           getAllEntryData(),
           getAllPositioning(),
           getAllThemes(),
+          getAllPledges(),
           getGridKeyData(),
         ]);
 
@@ -84,6 +86,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             entryPrice: entryData ? entryData.entryPrice : null,
             positioning: code && positioningMap[code] ? positioningMap[code] : null,
             themes: code && themesMap[code] ? themesMap[code] : [],
+            pledgedQty: code && pledgesMap[code] ? pledgesMap[code].pledgedQty : null,
+            pledgedWhere: code && pledgesMap[code] ? pledgesMap[code].pledgedWhere : null,
           };
         });
 
@@ -160,7 +164,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           }
 
           // Remove metadata fields from stock data before storing
-          const { remarks, assignedTo, bucket, entryDate, entryPrice, positioning, ...stockWithoutExtras } = stock;
+          const { remarks, assignedTo, bucket, entryDate, entryPrice, positioning, pledgedQty, pledgedWhere, freeQty, ...stockWithoutExtras } = stock;
           return stockWithoutExtras;
         }));
 
