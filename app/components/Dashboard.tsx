@@ -34,6 +34,7 @@ interface TechnicalState {
     dma50Above200: boolean; // for golden/death cross
     near52WeekHigh: boolean;
     near52WeekLow: boolean;
+    belowCost: boolean; // current price below average buy price
     profitGrowthAbove15: boolean;
     salesGrowthAbove15: boolean;
     timestamp?: string;
@@ -43,7 +44,7 @@ interface Alert {
     id: string;
     stockCode: string;
     stockName: string;
-    alertType: 'CROSSED_BELOW_50DMA' | 'CROSSED_ABOVE_50DMA' | 'CROSSED_BELOW_200DMA' | 'CROSSED_ABOVE_200DMA' | 'DEATH_CROSS' | 'GOLDEN_CROSS' | 'NEAR_52W_HIGH' | 'NEAR_52W_LOW' | 'WEAK_PROFIT_GROWTH' | 'WEAK_SALES_GROWTH' | 'PROFIT_GROWTH_DROPPED' | 'PROFIT_GROWTH_RECOVERED' | 'SALES_GROWTH_DROPPED' | 'SALES_GROWTH_RECOVERED';
+    alertType: 'CROSSED_BELOW_50DMA' | 'CROSSED_ABOVE_50DMA' | 'CROSSED_BELOW_200DMA' | 'CROSSED_ABOVE_200DMA' | 'DEATH_CROSS' | 'GOLDEN_CROSS' | 'NEAR_52W_HIGH' | 'NEAR_52W_LOW' | 'CROSSED_BELOW_COST' | 'WEAK_PROFIT_GROWTH' | 'WEAK_SALES_GROWTH' | 'PROFIT_GROWTH_DROPPED' | 'PROFIT_GROWTH_RECOVERED' | 'SALES_GROWTH_DROPPED' | 'SALES_GROWTH_RECOVERED';
     message: string;
     currentPrice: number;
     thresholdValue: number;
@@ -183,6 +184,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 const currentPrice = item.currentPrice!;
                 const dma50 = item.dma50;
                 const dma200 = item.dma200;
+                const avgBuyPrice = item.averageBuyPrice;
                 const downFrom52WH = item.downFrom52WeekHigh;
                 const upFrom52WL = item.upFrom52WeekLow;
                 const profitGrowth = item.yoyQuarterlyProfitGrowth;
@@ -196,6 +198,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                     dma50Above200: (dma50 !== null && dma200 !== null) ? dma50 > dma200 : false,
                     near52WeekHigh: downFrom52WH !== null ? downFrom52WH <= 5 : false,
                     near52WeekLow: upFrom52WL !== null ? upFrom52WL <= 10 : false,
+                    belowCost: (avgBuyPrice !== null && avgBuyPrice !== undefined && avgBuyPrice > 0) ? currentPrice < avgBuyPrice : false,
                     profitGrowthAbove15: profitGrowth !== null ? profitGrowth >= 15 : false,
                     salesGrowthAbove15: salesGrowth !== null ? salesGrowth >= 15 : false,
                     timestamp: new Date().toISOString(),
@@ -506,6 +509,27 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                     isRead: false,
                 });
             }
+
+            const avgBuyPrice = enrichedItem?.averageBuyPrice || 0;
+
+            // Fell below cost (was at/above avg buy price, now below).
+            // Require an explicit `false` in the previous state — a missing field
+            // (states saved before this feature existed) means "unknown", so we
+            // skip firing and let the crossing register on a future update.
+            if (previous.belowCost === false && current.belowCost) {
+                newTransitionAlerts.push({
+                    id: `${current.stockCode}-crossed-below-cost-${today}`,
+                    stockCode: current.stockCode,
+                    stockName: current.stockName,
+                    alertType: 'CROSSED_BELOW_COST',
+                    message: 'Just fell below cost',
+                    currentPrice,
+                    thresholdValue: avgBuyPrice,
+                    changePercent: avgBuyPrice > 0 ? ((currentPrice - avgBuyPrice) / avgBuyPrice) * 100 : 0,
+                    triggeredAt: today,
+                    isRead: false,
+                });
+            }
         });
 
         // Merge new alerts with stored alerts (stored alerts already persisted in Redis)
@@ -800,6 +824,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             'GOLDEN_CROSS': 3,
             'NEAR_52W_LOW': 4,
             'NEAR_52W_HIGH': 4,
+            'CROSSED_BELOW_COST': 5,
         };
         // Sort order for growth: Profit first, then Sales
         const growthOrder: Record<string, number> = {
@@ -810,7 +835,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         };
 
         const weakTechnicals = transitionAlerts
-            .filter(a => ['DEATH_CROSS', 'CROSSED_BELOW_200DMA', 'CROSSED_BELOW_50DMA', 'NEAR_52W_LOW'].includes(a.alertType))
+            .filter(a => ['DEATH_CROSS', 'CROSSED_BELOW_200DMA', 'CROSSED_BELOW_50DMA', 'NEAR_52W_LOW', 'CROSSED_BELOW_COST'].includes(a.alertType))
             .sort((a, b) => (technicalOrder[a.alertType] || 99) - (technicalOrder[b.alertType] || 99));
 
         const weakGrowth = transitionAlerts
@@ -844,6 +869,8 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 return '52W Hi';
             case 'NEAR_52W_LOW':
                 return '52W Lo';
+            case 'CROSSED_BELOW_COST':
+                return 'Cost';
             case 'PROFIT_GROWTH_DROPPED':
             case 'PROFIT_GROWTH_RECOVERED':
                 return 'Profit';
