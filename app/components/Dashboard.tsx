@@ -96,6 +96,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
     const [transitionAlerts, setTransitionAlerts] = useState<Alert[]>([]);
     const [storedAlerts, setStoredAlerts] = useState<Alert[]>([]);
     const [performersPeriod, setPerformersPeriod] = useState<'daily' | 'yearly'>('daily');
+    const [driverPeriod, setDriverPeriod] = useState<'1D' | '1M' | '3M' | '6M' | '1Y' | 'ALL'>('1Y');
     const [statesLoaded, setStatesLoaded] = useState(false);
     const [alertsLoaded, setAlertsLoaded] = useState(false);
     const [niftySmallcap, setNiftySmallcap] = useState<NiftySmallcapData | null>(null);
@@ -618,6 +619,54 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         return item.return1Y;
     };
 
+    // Check if stock was bought more recently than N months ago
+    const isNewerThanMonths = (entryDate: string | null | undefined, months: number): boolean => {
+        if (!entryDate) return false;
+        const entry = new Date(entryDate);
+        const cutoff = new Date();
+        cutoff.setMonth(cutoff.getMonth() - months);
+        return entry > cutoff;
+    };
+
+    // Effective return over a fixed window: for stocks bought within the window,
+    // use actual return since entry instead of the full screener window return.
+    const getEffectivePeriodReturn = (item: any, screenerReturn: number | null, months: number): number | null => {
+        const { entryDate, entryPrice, currentPrice } = item;
+        if (isNewerThanMonths(entryDate, months) && entryPrice && currentPrice) {
+            return ((currentPrice - entryPrice) / entryPrice) * 100;
+        }
+        return screenerReturn;
+    };
+
+    // Per-stock return used for the Return Drivers section, by selected period
+    const getDriverReturn = (item: any): number | null => {
+        switch (driverPeriod) {
+            case '1D':
+                return item.return1D;
+            case '1M':
+                return getEffectivePeriodReturn(item, item.return1M, 1);
+            case '3M':
+                return getEffectivePeriodReturn(item, item.return3M, 3);
+            case '6M':
+                return getEffectivePeriodReturn(item, item.return6M, 6);
+            case '1Y':
+                return getEffective1YReturn(item) ?? item.return6M ?? item.return3M ?? null;
+            case 'ALL':
+                return item.gainPercentage ?? null;
+            default:
+                return null;
+        }
+    };
+
+    const driverPeriodLabel = ({
+        '1D': '1D',
+        '1M': '1M',
+        '3M': '3M',
+        '6M': '6M',
+        '1Y': '1Y',
+        'ALL': 'All Time',
+    } as const)[driverPeriod];
+
     // Calculate P&L metrics
     const pnlMetrics = useMemo(() => {
         // Calculate weighted daily, weekly, monthly, yearly P&L
@@ -890,19 +939,17 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 const weightage = totalCurrentAmount > 0
                     ? (item.calculatedAmount! / totalCurrentAmount) * 100
                     : 0;
-                // Use effective 1Y return: actual return for new stocks (<1 year), screener return for old
-                const effective1YReturn = getEffective1YReturn(item);
-                // Fallback to 6M → 3M only for old stocks without 1Y data
-                const ytdReturn = effective1YReturn ?? item.return6M ?? item.return3M ?? null;
-                const portfolioContribution = (ytdReturn !== null && weightage > 0)
-                    ? (ytdReturn * weightage) / (100 + ytdReturn)
+                // Per-stock return for the selected period (1D/1M/3M/6M/1Y/All time)
+                const periodReturn = getDriverReturn(item);
+                const portfolioContribution = (periodReturn !== null && weightage > 0)
+                    ? (periodReturn * weightage) / (100 + periodReturn)
                     : null;
                 return {
                     name: item.scripName,
                     code: item.nseCode || item.bseCode || '',
                     portfolioContribution,
                     weightage,
-                    ytdReturn,
+                    ytdReturn: periodReturn,
                     holdingValue: item.calculatedAmount || 0,
                     isOthers: false,
                 };
@@ -979,7 +1026,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             maxAbsContribution,
             hasData: true,
         };
-    }, [enrichedData, totalCurrentAmount]);
+    }, [enrichedData, totalCurrentAmount, driverPeriod]);
 
     // Sector Performance - Top 5 Gainers and Losers
     const sectorPerformance = useMemo(() => {
@@ -1466,7 +1513,20 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             {/* Portfolio Return Drivers */}
             <section className="dashboard-section return-drivers-section">
                 <div className="return-drivers-header">
-                    <h2 className="section-title">Portfolio Return Drivers (1Y)</h2>
+                    <div className="return-drivers-title-row">
+                        <h2 className="section-title">Portfolio Return Drivers ({driverPeriodLabel})</h2>
+                        <div className="period-toggle">
+                            {(['1D', '1M', '3M', '6M', '1Y', 'ALL'] as const).map(p => (
+                                <button
+                                    key={p}
+                                    className={`toggle-btn ${driverPeriod === p ? 'active' : ''}`}
+                                    onClick={() => setDriverPeriod(p)}
+                                >
+                                    {p === 'ALL' ? 'All Time' : p}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                     <p className="section-subtitle">How much did each stock add or drain?</p>
                 </div>
 

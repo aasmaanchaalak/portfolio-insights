@@ -3765,8 +3765,21 @@ a:hover {
   margin-bottom: 1rem;
 }
 
+.return-drivers-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.25rem;
+}
+
 .return-drivers-header .section-title {
   margin-bottom: 0.25rem;
+}
+
+.return-drivers-title-row .section-title {
+  margin-bottom: 0;
 }
 
 .section-subtitle {
