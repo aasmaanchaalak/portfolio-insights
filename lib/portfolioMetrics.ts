@@ -223,8 +223,8 @@ export interface MetricDef {
 export const PORTFOLIO_METRIC_DEFS: MetricDef[] = [
   { key: 'avgROCE', label: 'Avg ROCE', format: 'percent' },
   { key: 'avgRSI', label: 'Avg RSI', format: 'number' },
-  { key: 'avgProfitGrowth', label: 'Avg Profit Growth (QoQ YoY)', format: 'percent' },
-  { key: 'avgSalesGrowth', label: 'Avg Sales Growth (QoQ YoY)', format: 'percent' },
+  { key: 'avgProfitGrowth', label: 'Avg Profit Growth (YoY Quarterly)', format: 'percent' },
+  { key: 'avgSalesGrowth', label: 'Avg Sales Growth (YoY Quarterly)', format: 'percent' },
   { key: 'avgPE', label: 'Weighted Avg P/E', format: 'number' },
   { key: 'avgMarketCap', label: 'Avg Market Cap (₹ Cr)', format: 'crore', analystRestricted: true },
   { key: 'avgDMA50', label: 'Avg vs 50 DMA', format: 'percent' },
