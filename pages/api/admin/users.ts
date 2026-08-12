@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { withAuth } from '../../../lib/authMiddleware';
-import { getAllUsers, updateUserRole, getUserByEmail, UserRole } from '../../../lib/queries';
+import { getAllUsers, updateUserRole, getUserByEmail, deleteUser, deleteUserSessions, UserRole } from '../../../lib/queries';
 
 const ADMIN_EMAIL = 'aditya@saguncapital.com';
 
@@ -56,8 +56,34 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         console.error('Error updating user role:', error);
         res.status(500).json({ error: 'Failed to update user role' });
       }
+    } else if (req.method === 'DELETE') {
+      try {
+        const { email } = req.body;
+
+        if (!email) {
+          return res.status(400).json({ error: 'Email is required' });
+        }
+
+        // Check if user exists
+        const user = await getUserByEmail(email);
+        if (!user) {
+          return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Prevent admin from deleting themselves
+        if (email === ADMIN_EMAIL) {
+          return res.status(400).json({ error: 'Cannot delete admin account' });
+        }
+
+        await deleteUserSessions(email);
+        await deleteUser(email);
+        res.status(200).json({ success: true, message: 'User deleted successfully' });
+      } catch (error) {
+        console.error('Error deleting user:', error);
+        res.status(500).json({ error: 'Failed to delete user' });
+      }
     } else {
-      res.setHeader('Allow', ['GET', 'PUT']);
+      res.setHeader('Allow', ['GET', 'PUT', 'DELETE']);
       res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error) {

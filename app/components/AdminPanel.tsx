@@ -256,6 +256,30 @@ export default function AdminPanel() {
     }
   };
 
+  const deleteUser = async (email: string) => {
+    if (!confirm(`Delete ${email}? This removes their account and logs them out. They can re-register if still on the allowlist.`)) return;
+
+    try {
+      setUpdating(email);
+      const res = await fetch('/api/admin/users', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete user');
+      }
+
+      setUsers(prev => prev.filter(user => user.email !== email));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete user');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   const updateRole = async (email: string, newRole: 'portfolio' | 'analyst' | 'manager') => {
     try {
       setUpdating(email);
@@ -512,16 +536,25 @@ export default function AdminPanel() {
                     {user.email === 'aditya@saguncapital.com' ? (
                       <span className="admin-protected">Protected</span>
                     ) : (
-                      <select
-                        value={user.role}
-                        onChange={(e) => updateRole(user.email, e.target.value as 'portfolio' | 'analyst' | 'manager')}
-                        disabled={updating === user.email}
-                        className="role-select"
-                      >
-                        <option value="analyst">Analyst</option>
-                        <option value="portfolio">Portfolio</option>
-                        <option value="manager">Manager</option>
-                      </select>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <select
+                          value={user.role}
+                          onChange={(e) => updateRole(user.email, e.target.value as 'portfolio' | 'analyst' | 'manager')}
+                          disabled={updating === user.email}
+                          className="role-select"
+                        >
+                          <option value="analyst">Analyst</option>
+                          <option value="portfolio">Portfolio</option>
+                          <option value="manager">Manager</option>
+                        </select>
+                        <button
+                          onClick={() => deleteUser(user.email)}
+                          disabled={updating === user.email}
+                          className="remove-btn"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>
