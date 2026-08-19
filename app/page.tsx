@@ -4348,7 +4348,7 @@ const App: React.FC = () => {
         <div className="app-root">
             <header className="topnav">
                 <div className="topnav-brand">
-                    <img className="topnav-logo" src="/assets/sagun-capital-logo.png" alt="Sagun Capital" />
+                    <img className="topnav-logo" src="/sagun-capital-logo.png" alt="Sagun Capital" />
                 </div>
                 <nav className="topnav-links">
                     {navItems.map(item => (
