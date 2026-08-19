@@ -96,7 +96,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
     const [transitionAlerts, setTransitionAlerts] = useState<Alert[]>([]);
     const [storedAlerts, setStoredAlerts] = useState<Alert[]>([]);
     const [performersPeriod, setPerformersPeriod] = useState<'daily' | 'yearly'>('daily');
-    const [driverPeriod, setDriverPeriod] = useState<'1D' | '1M' | '3M' | '6M' | '1Y' | 'ALL'>('1Y');
+    const [driverPeriod, setDriverPeriod] = useState<'1D' | '1M' | '3M' | '6M' | '1Y' | 'ALL'>('1D');
     const [statesLoaded, setStatesLoaded] = useState(false);
     const [alertsLoaded, setAlertsLoaded] = useState(false);
     const [niftySmallcap, setNiftySmallcap] = useState<NiftySmallcapData | null>(null);
@@ -312,9 +312,13 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             const currentPrice = enrichedItem?.currentPrice || 0;
             const dma50 = enrichedItem?.dma50 || 0;
             const dma200 = enrichedItem?.dma200 || 0;
+            // % distance of price from each DMA. Crossings within ±1% are noise
+            // (price sitting right on the line) and are filtered out.
+            const dma50Pct = dma50 > 0 ? ((currentPrice - dma50) / dma50) * 100 : 0;
+            const dma200Pct = dma200 > 0 ? ((currentPrice - dma200) / dma200) * 100 : 0;
 
             // Crossed below 50 DMA (was above, now below)
-            if (previous.above50DMA && !current.above50DMA) {
+            if (previous.above50DMA && !current.above50DMA && Math.abs(dma50Pct) >= 1) {
                 newTransitionAlerts.push({
                     id: `${current.stockCode}-crossed-below-50dma-${today}`,
                     stockCode: current.stockCode,
@@ -323,14 +327,14 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                     message: 'Just crossed below 50 DMA',
                     currentPrice,
                     thresholdValue: dma50,
-                    changePercent: dma50 > 0 ? ((currentPrice - dma50) / dma50) * 100 : 0,
+                    changePercent: dma50Pct,
                     triggeredAt: today,
                     isRead: false,
                 });
             }
 
             // Crossed above 50 DMA (was below, now above)
-            if (!previous.above50DMA && current.above50DMA) {
+            if (!previous.above50DMA && current.above50DMA && Math.abs(dma50Pct) >= 1) {
                 newTransitionAlerts.push({
                     id: `${current.stockCode}-crossed-above-50dma-${today}`,
                     stockCode: current.stockCode,
@@ -339,14 +343,14 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                     message: 'Just crossed above 50 DMA',
                     currentPrice,
                     thresholdValue: dma50,
-                    changePercent: dma50 > 0 ? ((currentPrice - dma50) / dma50) * 100 : 0,
+                    changePercent: dma50Pct,
                     triggeredAt: today,
                     isRead: false,
                 });
             }
 
             // Crossed below 200 DMA
-            if (previous.above200DMA && !current.above200DMA) {
+            if (previous.above200DMA && !current.above200DMA && Math.abs(dma200Pct) >= 1) {
                 newTransitionAlerts.push({
                     id: `${current.stockCode}-crossed-below-200dma-${today}`,
                     stockCode: current.stockCode,
@@ -355,14 +359,14 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                     message: 'Just crossed below 200 DMA',
                     currentPrice,
                     thresholdValue: dma200,
-                    changePercent: dma200 > 0 ? ((currentPrice - dma200) / dma200) * 100 : 0,
+                    changePercent: dma200Pct,
                     triggeredAt: today,
                     isRead: false,
                 });
             }
 
             // Crossed above 200 DMA
-            if (!previous.above200DMA && current.above200DMA) {
+            if (!previous.above200DMA && current.above200DMA && Math.abs(dma200Pct) >= 1) {
                 newTransitionAlerts.push({
                     id: `${current.stockCode}-crossed-above-200dma-${today}`,
                     stockCode: current.stockCode,
@@ -371,7 +375,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                     message: 'Just crossed above 200 DMA',
                     currentPrice,
                     thresholdValue: dma200,
-                    changePercent: dma200 > 0 ? ((currentPrice - dma200) / dma200) * 100 : 0,
+                    changePercent: dma200Pct,
                     triggeredAt: today,
                     isRead: false,
                 });
@@ -404,74 +408,6 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                     currentPrice,
                     thresholdValue: dma200,
                     changePercent: 0,
-                    triggeredAt: today,
-                    isRead: false,
-                });
-            }
-
-            // Profit Growth dropped below 15%
-            if (previous.profitGrowthAbove15 && !current.profitGrowthAbove15) {
-                const profitGrowth = enrichedItem?.yoyQuarterlyProfitGrowth || 0;
-                newTransitionAlerts.push({
-                    id: `${current.stockCode}-profit-growth-dropped-${today}`,
-                    stockCode: current.stockCode,
-                    stockName: current.stockName,
-                    alertType: 'PROFIT_GROWTH_DROPPED',
-                    message: `Profit growth dropped below 15% (now ${profitGrowth.toFixed(1)}%)`,
-                    currentPrice,
-                    thresholdValue: 15,
-                    changePercent: profitGrowth,
-                    triggeredAt: today,
-                    isRead: false,
-                });
-            }
-
-            // Profit Growth recovered above 15%
-            if (!previous.profitGrowthAbove15 && current.profitGrowthAbove15) {
-                const profitGrowth = enrichedItem?.yoyQuarterlyProfitGrowth || 0;
-                newTransitionAlerts.push({
-                    id: `${current.stockCode}-profit-growth-recovered-${today}`,
-                    stockCode: current.stockCode,
-                    stockName: current.stockName,
-                    alertType: 'PROFIT_GROWTH_RECOVERED',
-                    message: `Profit growth recovered above 15% (now ${profitGrowth.toFixed(1)}%)`,
-                    currentPrice,
-                    thresholdValue: 15,
-                    changePercent: profitGrowth,
-                    triggeredAt: today,
-                    isRead: false,
-                });
-            }
-
-            // Sales Growth dropped below 15%
-            if (previous.salesGrowthAbove15 && !current.salesGrowthAbove15) {
-                const salesGrowth = enrichedItem?.yoyQuarterlySalesGrowth || 0;
-                newTransitionAlerts.push({
-                    id: `${current.stockCode}-sales-growth-dropped-${today}`,
-                    stockCode: current.stockCode,
-                    stockName: current.stockName,
-                    alertType: 'SALES_GROWTH_DROPPED',
-                    message: `Sales growth dropped below 15% (now ${salesGrowth.toFixed(1)}%)`,
-                    currentPrice,
-                    thresholdValue: 15,
-                    changePercent: salesGrowth,
-                    triggeredAt: today,
-                    isRead: false,
-                });
-            }
-
-            // Sales Growth recovered above 15%
-            if (!previous.salesGrowthAbove15 && current.salesGrowthAbove15) {
-                const salesGrowth = enrichedItem?.yoyQuarterlySalesGrowth || 0;
-                newTransitionAlerts.push({
-                    id: `${current.stockCode}-sales-growth-recovered-${today}`,
-                    stockCode: current.stockCode,
-                    stockName: current.stockName,
-                    alertType: 'SALES_GROWTH_RECOVERED',
-                    message: `Sales growth recovered above 15% (now ${salesGrowth.toFixed(1)}%)`,
-                    currentPrice,
-                    thresholdValue: 15,
-                    changePercent: salesGrowth,
                     triggeredAt: today,
                     isRead: false,
                 });
@@ -658,15 +594,6 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         }
     };
 
-    const driverPeriodLabel = ({
-        '1D': '1D',
-        '1M': '1M',
-        '3M': '3M',
-        '6M': '6M',
-        '1Y': '1Y',
-        'ALL': 'All Time',
-    } as const)[driverPeriod];
-
     // Calculate P&L metrics
     const pnlMetrics = useMemo(() => {
         // Calculate weighted daily, weekly, monthly, yearly P&L
@@ -725,7 +652,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         let peSum = 0, peWeight = 0;
         let profitGrowthSum = 0, profitGrowthWeight = 0;
         let salesGrowthSum = 0, salesGrowthWeight = 0;
-        let marketCapSum = 0, marketCapWeight = 0;
+        const marketCaps: number[] = [];
         let rsiSum = 0, rsiWeight = 0;
         let roceSum = 0, roceWeight = 0;
         let dma50Sum = 0, dma50Weight = 0;
@@ -751,8 +678,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 salesGrowthWeight += weight;
             }
             if (item.marketCap !== null) {
-                marketCapSum += item.marketCap * weight;
-                marketCapWeight += weight;
+                marketCaps.push(item.marketCap);
             }
             if (item.rsi !== null) {
                 rsiSum += item.rsi * weight;
@@ -796,11 +722,20 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             ? stocksWithValue.reduce((sum, item) => sum + (item.calculatedAmount || 0), 0) / stocksWithValue.length
             : null;
 
+        // Median market cap across held stocks (a few mega/micro caps skew the mean).
+        const sortedMcaps = [...marketCaps].sort((a, b) => a - b);
+        const n = sortedMcaps.length;
+        const medianMarketCap = n === 0
+            ? null
+            : n % 2 === 1
+                ? sortedMcaps[(n - 1) / 2]
+                : (sortedMcaps[n / 2 - 1] + sortedMcaps[n / 2]) / 2;
+
         return {
             avgPE: peWeight > 0 ? peSum / peWeight : null,
             avgProfitGrowth: profitGrowthWeight > 0 ? profitGrowthSum / profitGrowthWeight : null,
             avgSalesGrowth: salesGrowthWeight > 0 ? salesGrowthSum / salesGrowthWeight : null,
-            avgMarketCap: marketCapWeight > 0 ? marketCapSum / marketCapWeight : null,
+            medianMarketCap,
             avgRSI: rsiWeight > 0 ? rsiSum / rsiWeight : null,
             avgROCE: roceWeight > 0 ? roceSum / roceWeight : null,
             avgDMA50: dma50Weight > 0 ? dma50Sum / dma50Weight : null,
@@ -875,32 +810,102 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             'NEAR_52W_HIGH': 4,
             'CROSSED_BELOW_COST': 5,
         };
-        // Sort order for growth: Profit first, then Sales
-        const growthOrder: Record<string, number> = {
-            'PROFIT_GROWTH_DROPPED': 1,
-            'PROFIT_GROWTH_RECOVERED': 1,
-            'SALES_GROWTH_DROPPED': 2,
-            'SALES_GROWTH_RECOVERED': 2,
+        // DMA crossings within ±1% are noise. Filter here too (not just at
+        // generation) so older sub-1% alerts already saved in the DB are hidden.
+        const dmaTypes = new Set(['CROSSED_BELOW_50DMA', 'CROSSED_ABOVE_50DMA', 'CROSSED_BELOW_200DMA', 'CROSSED_ABOVE_200DMA']);
+        const passesThreshold = (a: Alert) => !dmaTypes.has(a.alertType) || Math.abs(a.changePercent) >= 1;
+
+        // Reconcile Golden/Death Cross against the stock's CURRENT 50-vs-200
+        // alignment. A stored cross that contradicts where the DMAs sit now is
+        // stale (whipsaw within the 24h window) and is hidden — so a stock can
+        // never show in both Golden and Death Cross.
+        const alignByCode = new Map(currentStates.map(s => [s.stockCode, s.dma50Above200]));
+        const crossConsistent = (a: Alert) => {
+            if (a.alertType === 'DEATH_CROSS') return alignByCode.get(a.stockCode) === false;
+            if (a.alertType === 'GOLDEN_CROSS') return alignByCode.get(a.stockCode) === true;
+            return true;
         };
 
         const weakTechnicals = transitionAlerts
             .filter(a => ['DEATH_CROSS', 'CROSSED_BELOW_200DMA', 'CROSSED_BELOW_50DMA', 'NEAR_52W_LOW', 'CROSSED_BELOW_COST'].includes(a.alertType))
+            .filter(passesThreshold)
+            .filter(crossConsistent)
             .sort((a, b) => (technicalOrder[a.alertType] || 99) - (technicalOrder[b.alertType] || 99));
-
-        const weakGrowth = transitionAlerts
-            .filter(a => ['PROFIT_GROWTH_DROPPED', 'SALES_GROWTH_DROPPED'].includes(a.alertType))
-            .sort((a, b) => (growthOrder[a.alertType] || 99) - (growthOrder[b.alertType] || 99));
 
         const goodTechnicals = transitionAlerts
             .filter(a => ['GOLDEN_CROSS', 'CROSSED_ABOVE_200DMA', 'CROSSED_ABOVE_50DMA', 'NEAR_52W_HIGH'].includes(a.alertType))
+            .filter(passesThreshold)
+            .filter(crossConsistent)
             .sort((a, b) => (technicalOrder[a.alertType] || 99) - (technicalOrder[b.alertType] || 99));
 
-        const goodGrowth = transitionAlerts
-            .filter(a => ['PROFIT_GROWTH_RECOVERED', 'SALES_GROWTH_RECOVERED'].includes(a.alertType))
-            .sort((a, b) => (growthOrder[a.alertType] || 99) - (growthOrder[b.alertType] || 99));
+        // Group weak signals by stock → one row with condition chips + a value.
+        const CHIP_LABEL: Record<string, string> = {
+            DEATH_CROSS: 'Death cross',
+            CROSSED_BELOW_200DMA: 'Below 200 DMA',
+            CROSSED_BELOW_50DMA: 'Below 50 DMA',
+            NEAR_52W_LOW: 'At 52w low',
+            CROSSED_BELOW_COST: 'Below cost',
+        };
+        const CHIP_ORDER: Record<string, number> = {
+            DEATH_CROSS: 0, CROSSED_BELOW_200DMA: 1, CROSSED_BELOW_50DMA: 2, NEAR_52W_LOW: 3, CROSSED_BELOW_COST: 4,
+        };
+        const rsiByCode = new Map(enrichedData.map(i => [(i.nseCode || i.bseCode || ''), i.rsi]));
+        const nseByCode = new Map(enrichedData.map(i => [(i.nseCode || i.bseCode || ''), i.nseCode || '']));
+        const ret1DByCode = new Map(enrichedData.map(i => [(i.nseCode || i.bseCode || ''), i.return1D]));
+        // Prefer the NSE ticker when the full name is long or the row carries more
+        // than one alert (keeps the row from overflowing). Falls back to the full
+        // name (CSS ellipsis trims it) when no NSE ticker exists.
+        const NAME_LIMIT = 'Suyog Telematics Ltd'.length;
+        const displayName = (code: string, name: string, alertCount: number) => {
+            const nse = nseByCode.get(code);
+            return ((name.length > NAME_LIMIT || alertCount > 1) && nse) ? nse : name;
+        };
+        const groups = new Map<string, { code: string; name: string; value: number; types: string[] }>();
+        for (const a of weakTechnicals) {
+            let g = groups.get(a.stockCode);
+            if (!g) { g = { code: a.stockCode, name: a.stockName, value: a.changePercent, types: [] }; groups.set(a.stockCode, g); }
+            g.types.push(a.alertType);
+        }
+        const weakGroups = Array.from(groups.values()).map(g => {
+            const chips = [...g.types]
+                .sort((x, y) => (CHIP_ORDER[x] ?? 9) - (CHIP_ORDER[y] ?? 9))
+                .map(t => CHIP_LABEL[t])
+                .filter(Boolean);
+            const rsi = rsiByCode.get(g.code);
+            if (rsi != null && rsi < 30) chips.push(`RSI ${Math.round(rsi)}`);
+            const value = ret1DByCode.get(g.code) ?? null;
+            return { code: g.code, name: displayName(g.code, g.name, g.types.length), fullName: g.name, value, chips };
+        }).sort((a, b) => (a.value ?? 0) - (b.value ?? 0)); // weakest day first
 
-        return { weakTechnicals, weakGrowth, goodTechnicals, goodGrowth };
-    }, [transitionAlerts]);
+        // Mirror for good signals → "Strengthening" panel.
+        const CHIP_LABEL_GOOD: Record<string, string> = {
+            GOLDEN_CROSS: 'Golden cross',
+            CROSSED_ABOVE_200DMA: 'Above 200 DMA',
+            CROSSED_ABOVE_50DMA: 'Above 50 DMA',
+            NEAR_52W_HIGH: 'At 52w high',
+        };
+        const CHIP_ORDER_GOOD: Record<string, number> = {
+            GOLDEN_CROSS: 0, CROSSED_ABOVE_200DMA: 1, CROSSED_ABOVE_50DMA: 2, NEAR_52W_HIGH: 3,
+        };
+        const goodMap = new Map<string, { code: string; name: string; value: number; types: string[] }>();
+        for (const a of goodTechnicals) {
+            let g = goodMap.get(a.stockCode);
+            if (!g) { g = { code: a.stockCode, name: a.stockName, value: a.changePercent, types: [] }; goodMap.set(a.stockCode, g); }
+            g.types.push(a.alertType);
+        }
+        const goodGroups = Array.from(goodMap.values()).map(g => {
+            const chips = [...g.types]
+                .sort((x, y) => (CHIP_ORDER_GOOD[x] ?? 9) - (CHIP_ORDER_GOOD[y] ?? 9))
+                .map(t => CHIP_LABEL_GOOD[t])
+                .filter(Boolean);
+            const rsi = rsiByCode.get(g.code);
+            if (rsi != null && rsi > 70) chips.push(`RSI ${Math.round(rsi)}`);
+            const value = ret1DByCode.get(g.code) ?? null;
+            return { code: g.code, name: displayName(g.code, g.name, g.types.length), fullName: g.name, value, chips };
+        }).sort((a, b) => (b.value ?? 0) - (a.value ?? 0)); // strongest day first
+
+        return { weakTechnicals, weakGroups, goodTechnicals, goodGroups };
+    }, [transitionAlerts, currentStates, enrichedData]);
 
     // Helper to get short indicator label
     const getIndicatorLabel = (alertType: string): string => {
@@ -976,9 +981,9 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         const positiveContributors = sorted.filter(item => (item.portfolioContribution || 0) > 0);
         const negativeContributors = sorted.filter(item => (item.portfolioContribution || 0) < 0);
 
-        // Top 11 positive and others
-        const topPositive = positiveContributors.slice(0, 11);
-        const otherPositive = positiveContributors.slice(11);
+        // Top 10 positive and others
+        const topPositive = positiveContributors.slice(0, 9);
+        const otherPositive = positiveContributors.slice(9);
         const othersPositiveRow = otherPositive.length > 0 ? {
             name: `Others (${otherPositive.length} stocks)`,
             portfolioContribution: otherPositive.reduce((sum, item) => sum + (item.portfolioContribution || 0), 0),
@@ -986,8 +991,8 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         } : null;
 
         // Bottom 10 negative and others
-        const bottomNegative = negativeContributors.slice(-10).reverse();
-        const otherNegative = negativeContributors.slice(0, -10);
+        const bottomNegative = negativeContributors.slice(-9).reverse();
+        const otherNegative = negativeContributors.slice(0, -9);
         const othersNegativeRow = otherNegative.length > 0 ? {
             name: `Others (${otherNegative.length} stocks)`,
             portfolioContribution: otherNegative.reduce((sum, item) => sum + (item.portfolioContribution || 0), 0),
@@ -1177,33 +1182,6 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         };
     }, [enrichedData]);
 
-    // Technical Status Table Data
-    const technicalStatusData = useMemo(() => {
-        return enrichedData
-            .filter(item => item.currentPrice !== null)
-            .map(item => {
-                const vs50DMA = item.dma50 !== null && item.currentPrice !== null
-                    ? ((item.currentPrice - item.dma50) / item.dma50) * 100
-                    : null;
-                const vs200DMA = item.dma200 !== null && item.currentPrice !== null
-                    ? ((item.currentPrice - item.dma200) / item.dma200) * 100
-                    : null;
-
-                return {
-                    name: item.scripName,
-                    code: item.nseCode || item.bseCode || '',
-                    price: item.currentPrice,
-                    vs50DMA,
-                    vs200DMA,
-                    downFrom52WH: item.downFrom52WeekHigh,
-                    upFrom52WL: item.upFrom52WeekLow,
-                    rsi: item.rsi,
-                    return1D: item.return1D,
-                };
-            })
-            .sort((a, b) => (a.vs50DMA || 0) - (b.vs50DMA || 0));
-    }, [enrichedData]);
-
     const getAlertIcon = (type: string) => {
         if (type.includes('BELOW') || type.includes('DEATH') || type.includes('LOW') || type.includes('DROPPED')) {
             return '🔴';
@@ -1301,6 +1279,162 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 </div>
             </section>
 
+            {/* Technical Alerts + Return Drivers — side by side */}
+            <div className="dashboard-two-col">
+            {/* Technical Alerts */}
+            <section className="dashboard-section">
+                <h2 className="section-title">
+                    Technical Alerts
+                    <span className="alert-count">({categorizedAlerts.weakGroups.length + categorizedAlerts.goodTechnicals.length})</span>
+                    {alertsRefreshIn && (
+                        <span className="alerts-refresh-timer">refreshes in {alertsRefreshIn}</span>
+                    )}
+                </h2>
+
+                {(categorizedAlerts.weakGroups.length + categorizedAlerts.goodTechnicals.length) === 0 ? (
+                    <div className="empty-alerts">No state changes detected since last update</div>
+                ) : (
+                    <div className="alerts-grid">
+                        {/* Weakening */}
+                        <div className="alert-column weak">
+                            <h3 className="weak-panel-title">Weakening <span className="weak-panel-count">{categorizedAlerts.weakGroups.length} holdings</span></h3>
+                            <div className="alert-column-list">
+                                {categorizedAlerts.weakGroups.map(g => (
+                                    <div key={g.code} className="weak-row">
+                                        <span className="weak-name" title={g.fullName}>{g.name}</span>
+                                        <span className="weak-chips">
+                                            {g.chips.map((c, i) => <span key={i} className="weak-chip">{c}</span>)}
+                                        </span>
+                                        {g.value == null ? (
+                                            <span className="weak-value">—</span>
+                                        ) : (
+                                            <span className={`weak-value ${g.value >= 0 ? 'positive' : 'negative'}`}>
+                                                {g.value >= 0 ? '+' : ''}{g.value.toFixed(2)}%
+                                            </span>
+                                        )}
+                                    </div>
+                                ))}
+                                {categorizedAlerts.weakGroups.length === 0 && (
+                                    <div className="alert-empty">None</div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Strengthening */}
+                        <div className="alert-column good">
+                            <h3 className="good-panel-title">Strengthening <span className="weak-panel-count">{categorizedAlerts.goodGroups.length} holdings</span></h3>
+                            <div className="alert-column-list">
+                                {categorizedAlerts.goodGroups.map(g => (
+                                    <div key={g.code} className="weak-row">
+                                        <span className="weak-name" title={g.fullName}>{g.name}</span>
+                                        <span className="weak-chips">
+                                            {g.chips.map((c, i) => <span key={i} className="weak-chip">{c}</span>)}
+                                        </span>
+                                        {g.value == null ? (
+                                            <span className="weak-value">—</span>
+                                        ) : (
+                                            <span className={`weak-value ${g.value >= 0 ? 'positive' : 'negative'}`}>
+                                                {g.value >= 0 ? '+' : ''}{g.value.toFixed(2)}%
+                                            </span>
+                                        )}
+                                    </div>
+                                ))}
+                                {categorizedAlerts.goodGroups.length === 0 && (
+                                    <div className="alert-empty">None</div>
+                                )}
+                            </div>
+                        </div>
+
+                    </div>
+                )}
+            </section>
+
+            {/* Portfolio Return Drivers */}
+            <section className="dashboard-section return-drivers-section">
+                <div className="return-drivers-header">
+                    <div className="return-drivers-title-row">
+                        <h2 className="section-title">
+                            Portfolio Return Drivers
+                            {returnDrivers && (
+                                <span className={`rd-return ${returnDrivers.portfolioReturn >= 0 ? 'positive' : 'negative'}`}>
+                                    ({returnDrivers.portfolioReturn >= 0 ? '+' : ''}{returnDrivers.portfolioReturn.toFixed(2)}%)
+                                </span>
+                            )}
+                        </h2>
+                        <div className="period-toggle">
+                            {(['1D', '1M', '3M', '6M', '1Y', 'ALL'] as const).map(p => (
+                                <button
+                                    key={p}
+                                    className={`toggle-btn ${driverPeriod === p ? 'active' : ''}`}
+                                    onClick={() => setDriverPeriod(p)}
+                                >
+                                    {p === 'ALL' ? 'All Time' : p}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {!returnDrivers ? (
+                    <div className="empty-state">No contribution data for this period.</div>
+                ) : (
+                    <>
+                        {/* Zero-centered Horizontal Bar Chart */}
+                        <div className="return-drivers-chart">
+                            {returnDrivers.unifiedList.map((item, index) => {
+                                const contribution = item.portfolioContribution;
+                                const isPositive = contribution >= 0;
+                                // Baseline offset left so gains (which dominate) get more room to
+                                // the right and losses read as short left stubs. Same per-unit
+                                // scale on both sides, clamped to each side's span.
+                                const BASELINE = 40; // % from left
+                                const raw = returnDrivers.maxAbsContribution > 0
+                                    ? (Math.abs(contribution) / returnDrivers.maxAbsContribution) * 58
+                                    : 0;
+
+                                return (
+                                    <div key={index} className={`driver-row ${item.isOthers ? 'others-row' : ''}`}>
+                                        {/* Left: Rank + Name */}
+                                        <div className="driver-info">
+                                            {!item.isOthers && <span className="driver-rank">{item.rank}</span>}
+                                            <span className={`driver-name ${item.isOthers ? 'muted' : ''}`}>{item.name}</span>
+                                        </div>
+
+                                        {/* Middle: Bar Zone with offset baseline */}
+                                        <div className="driver-bar-zone">
+                                            <div className="driver-zero-line" style={{ left: `${BASELINE}%` }} />
+                                            {isPositive ? (
+                                                <div
+                                                    className={`driver-bar positive ${item.isOthers ? 'muted' : ''}`}
+                                                    style={{
+                                                        left: `${BASELINE}%`,
+                                                        width: `${Math.min(raw, 58)}%`,
+                                                    }}
+                                                />
+                                            ) : (
+                                                <div
+                                                    className={`driver-bar negative ${item.isOthers ? 'muted' : ''}`}
+                                                    style={{
+                                                        right: `${100 - BASELINE}%`,
+                                                        width: `${Math.min(raw, 38)}%`,
+                                                    }}
+                                                />
+                                            )}
+                                        </div>
+
+                                        {/* Right: Value */}
+                                        <div className={`driver-value ${isPositive ? 'positive' : 'negative'}`}>
+                                            {isPositive ? '+' : ''}{contribution.toFixed(2)}%
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
+                )}
+            </section>
+            </div>
+
             {/* Portfolio Health & Weighted Metrics */}
             <section className="dashboard-section">
                 <h2 className="section-title">Portfolio Quality</h2>
@@ -1365,9 +1499,9 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                         </div>
                     </div>
                     <div className="metric-card">
-                        <div className="metric-label">Avg Market Cap</div>
+                        <div className="metric-label">Median Market Cap</div>
                         <div className="metric-value">
-                            {weightedMetrics.avgMarketCap !== null ? formatCurrency(weightedMetrics.avgMarketCap) : 'N/A'}
+                            {weightedMetrics.medianMarketCap !== null ? formatCurrency(weightedMetrics.medianMarketCap) : 'N/A'}
                         </div>
                     </div>
                     <div className="metric-card">
@@ -1423,198 +1557,6 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                         </div>
                     </div>
                 </div>
-            </section>
-
-            {/* Technical Alerts - 4 Column Layout */}
-            <section className="dashboard-section">
-                <h2 className="section-title">
-                    Technical Alerts
-                    <span className="alert-count">({transitionAlerts.length})</span>
-                    {alertsRefreshIn && (
-                        <span className="alerts-refresh-timer">refreshes in {alertsRefreshIn}</span>
-                    )}
-                </h2>
-
-                {transitionAlerts.length === 0 ? (
-                    <div className="empty-alerts">No state changes detected since last update</div>
-                ) : (
-                    <div className="alerts-grid">
-                        {/* Weak Technicals */}
-                        <div className="alert-column weak">
-                            <h3 className="alert-column-title">Weak Technicals ({categorizedAlerts.weakTechnicals.length})</h3>
-                            <div className="alert-column-list">
-                                {categorizedAlerts.weakTechnicals.map(alert => (
-                                    <div key={alert.id} className="alert-row">
-                                        <span className="alert-name">{alert.stockName}</span>
-                                        <span className="alert-change negative">{formatPercent(alert.changePercent)}</span>
-                                        <span className="alert-indicator">{getIndicatorLabel(alert.alertType)}</span>
-                                    </div>
-                                ))}
-                                {categorizedAlerts.weakTechnicals.length === 0 && (
-                                    <div className="alert-empty">None</div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Weak Growth */}
-                        <div className="alert-column weak">
-                            <h3 className="alert-column-title">Weak Growth ({categorizedAlerts.weakGrowth.length})</h3>
-                            <div className="alert-column-list">
-                                {categorizedAlerts.weakGrowth.map(alert => (
-                                    <div key={alert.id} className="alert-row">
-                                        <span className="alert-name">{alert.stockName}</span>
-                                        <span className="alert-change negative">{formatPercent(alert.changePercent)}</span>
-                                        <span className="alert-indicator">{getIndicatorLabel(alert.alertType)}</span>
-                                    </div>
-                                ))}
-                                {categorizedAlerts.weakGrowth.length === 0 && (
-                                    <div className="alert-empty">None</div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Good Technicals */}
-                        <div className="alert-column good">
-                            <h3 className="alert-column-title">Good Technicals ({categorizedAlerts.goodTechnicals.length})</h3>
-                            <div className="alert-column-list">
-                                {categorizedAlerts.goodTechnicals.map(alert => (
-                                    <div key={alert.id} className="alert-row">
-                                        <span className="alert-name">{alert.stockName}</span>
-                                        <span className="alert-change positive">{formatPercent(alert.changePercent)}</span>
-                                        <span className="alert-indicator">{getIndicatorLabel(alert.alertType)}</span>
-                                    </div>
-                                ))}
-                                {categorizedAlerts.goodTechnicals.length === 0 && (
-                                    <div className="alert-empty">None</div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Good Growth */}
-                        <div className="alert-column good">
-                            <h3 className="alert-column-title">Good Growth ({categorizedAlerts.goodGrowth.length})</h3>
-                            <div className="alert-column-list">
-                                {categorizedAlerts.goodGrowth.map(alert => (
-                                    <div key={alert.id} className="alert-row">
-                                        <span className="alert-name">{alert.stockName}</span>
-                                        <span className="alert-change positive">{formatPercent(alert.changePercent)}</span>
-                                        <span className="alert-indicator">{getIndicatorLabel(alert.alertType)}</span>
-                                    </div>
-                                ))}
-                                {categorizedAlerts.goodGrowth.length === 0 && (
-                                    <div className="alert-empty">None</div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </section>
-
-            {/* Portfolio Return Drivers */}
-            <section className="dashboard-section return-drivers-section">
-                <div className="return-drivers-header">
-                    <div className="return-drivers-title-row">
-                        <h2 className="section-title">Portfolio Return Drivers ({driverPeriodLabel})</h2>
-                        <div className="period-toggle">
-                            {(['1D', '1M', '3M', '6M', '1Y', 'ALL'] as const).map(p => (
-                                <button
-                                    key={p}
-                                    className={`toggle-btn ${driverPeriod === p ? 'active' : ''}`}
-                                    onClick={() => setDriverPeriod(p)}
-                                >
-                                    {p === 'ALL' ? 'All Time' : p}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                    <p className="section-subtitle">How much did each stock add or drain?</p>
-                </div>
-
-                {!returnDrivers ? (
-                    <div className="empty-state">No contribution data for this period.</div>
-                ) : (
-                    <>
-                        {/* Summary Strip */}
-                        <div className="return-drivers-summary">
-                            <div className="summary-item">
-                                <span className="summary-label">Portfolio Return</span>
-                                <span className={`summary-value ${returnDrivers.portfolioReturn >= 0 ? 'positive' : 'negative'}`}>
-                                    {returnDrivers.portfolioReturn >= 0 ? '+' : ''}{returnDrivers.portfolioReturn.toFixed(2)}%
-                                </span>
-                            </div>
-                            <span className="summary-divider">•</span>
-                            <div className="summary-item">
-                                <span className="summary-label">Top 3 Stocks</span>
-                                <span className="summary-value positive">
-                                    +{returnDrivers.top3Contribution.toFixed(2)}%
-                                </span>
-                            </div>
-                            <span className="summary-divider">•</span>
-                            <div className="summary-item">
-                                <span className="summary-label">Bottom 3 Stocks</span>
-                                <span className="summary-value negative">
-                                    {returnDrivers.bottom3Contribution.toFixed(2)}%
-                                </span>
-                            </div>
-                            <span className="summary-divider">•</span>
-                            <div className="summary-item">
-                                <span className="summary-label">Top Contributor</span>
-                                <span className="summary-value positive">
-                                    {returnDrivers.topContributor?.name.substring(0, 15)}{returnDrivers.topContributor?.name.length > 15 ? '...' : ''}: +{(returnDrivers.topContributor?.portfolioContribution || 0).toFixed(2)}%
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Zero-centered Horizontal Bar Chart */}
-                        <div className="return-drivers-chart">
-                            {returnDrivers.unifiedList.map((item, index) => {
-                                const contribution = item.portfolioContribution;
-                                const isPositive = contribution >= 0;
-                                // Scale bar to max 50% (half the container width)
-                                const barWidthPercent = returnDrivers.maxAbsContribution > 0
-                                    ? (Math.abs(contribution) / returnDrivers.maxAbsContribution) * 48
-                                    : 0;
-
-                                return (
-                                    <div key={index} className={`driver-row ${item.isOthers ? 'others-row' : ''}`}>
-                                        {/* Left: Rank + Name */}
-                                        <div className="driver-info">
-                                            {!item.isOthers && <span className="driver-rank">{item.rank}</span>}
-                                            <span className={`driver-name ${item.isOthers ? 'muted' : ''}`}>{item.name}</span>
-                                        </div>
-
-                                        {/* Middle: Bar Zone with centered zero line */}
-                                        <div className="driver-bar-zone">
-                                            <div className="driver-zero-line" />
-                                            {isPositive ? (
-                                                <div
-                                                    className={`driver-bar positive ${item.isOthers ? 'muted' : ''}`}
-                                                    style={{
-                                                        left: '50%',
-                                                        width: `${barWidthPercent}%`,
-                                                    }}
-                                                />
-                                            ) : (
-                                                <div
-                                                    className={`driver-bar negative ${item.isOthers ? 'muted' : ''}`}
-                                                    style={{
-                                                        right: '50%',
-                                                        width: `${barWidthPercent}%`,
-                                                    }}
-                                                />
-                                            )}
-                                        </div>
-
-                                        {/* Right: Value */}
-                                        <div className={`driver-value ${isPositive ? 'positive' : 'negative'}`}>
-                                            {isPositive ? '+' : ''}{contribution.toFixed(2)}%
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </>
-                )}
             </section>
 
             {/* Portfolio Positioning */}
@@ -1867,50 +1809,14 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 </div>
             </section>
 
-            {/* Technical Status Table */}
-            <section className="dashboard-section">
-                <h2 className="section-title">Technical Status</h2>
-                <div className="technical-table-container">
-                    <table className="technical-table">
-                        <thead>
-                            <tr>
-                                <th>Stock</th>
-                                <th>Price</th>
-                                <th>vs 50 DMA</th>
-                                <th>vs 200 DMA</th>
-                                <th>From 52W High</th>
-                                <th>From 52W Low</th>
-                                <th>RSI</th>
-                                <th>1D Return</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {technicalStatusData.slice(0, 20).map((item, index) => (
-                                <tr key={index}>
-                                    <td className="stock-name-cell">{item.name}</td>
-                                    <td>₹{item.price?.toFixed(2) || 'N/A'}</td>
-                                    <td className={item.vs50DMA !== null ? (item.vs50DMA >= 0 ? 'positive' : 'negative') : ''}>
-                                        {item.vs50DMA !== null ? formatPercent(item.vs50DMA) : 'N/A'}
-                                    </td>
-                                    <td className={item.vs200DMA !== null ? (item.vs200DMA >= 0 ? 'positive' : 'negative') : ''}>
-                                        {item.vs200DMA !== null ? formatPercent(item.vs200DMA) : 'N/A'}
-                                    </td>
-                                    <td className="negative">
-                                        {item.downFrom52WH !== null ? `-${item.downFrom52WH.toFixed(1)}%` : 'N/A'}
-                                    </td>
-                                    <td className="positive">
-                                        {item.upFrom52WL !== null ? `+${item.upFrom52WL.toFixed(1)}%` : 'N/A'}
-                                    </td>
-                                    <td>{item.rsi !== null ? item.rsi.toFixed(1) : 'N/A'}</td>
-                                    <td className={item.return1D !== null ? (item.return1D >= 0 ? 'positive' : 'negative') : ''}>
-                                        {item.return1D !== null ? formatPercent(item.return1D) : 'N/A'}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+            {niftySmallcap?.lastUpdated && (
+                <footer className="dashboard-footer">
+                    Priced · {new Date(niftySmallcap.lastUpdated).toLocaleString('en-IN', {
+                        day: '2-digit', month: 'short', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit', hour12: true,
+                    })}
+                </footer>
+            )}
         </div>
     );
 };

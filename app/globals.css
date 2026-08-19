@@ -1,46 +1,76 @@
 :root {
-  /* Light Theme — remapped onto the DESIGN.md one-hue (264) oklch palette.
-     Legacy token names are kept so existing rules stay valid, but every
-     value now resolves to a DESIGN.md token defined just below. */
-  --background-color: #ffffff;                 /* surface (cards, table, bars) */
-  --surface-color: oklch(0.975 0.003 264);     /* --surface-faint */
-  --primary-text-color: oklch(0.24 0.012 264); /* --ink */
-  --secondary-text-color: oklch(0.55 0.01 264);/* --ink-muted */
-  --border-color: oklch(0.92 0.005 264);       /* --border */
-  --accent-color: oklch(0.5 0.13 264);         /* --accent */
-  --accent-hover-color: oklch(0.42 0.14 264);  /* --accent-hover */
-  --pill-bg-color: oklch(0.975 0.003 264);     /* --surface-faint */
-  --pill-text-color: oklch(0.45 0.01 264);     /* --ink-2 */
-  --success-color: oklch(0.5 0.13 150);        /* --positive */
-  --error-color: oklch(0.55 0.16 27);          /* --negative */
+  /* ── Sagun Capital design language (DESIGN.md) ──
+     Neutrals are TRUE greys (hue 0). Brand is crimson — chrome only, never data.
+     Canonical tokens are defined first; legacy names below alias onto them so
+     the whole app recolors at once. */
 
+  /* fonts — two families, no monospace. Numerals via .n (tabular-nums). */
+  --font-sans: 'Archivo', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-mono: 'Archivo', system-ui, sans-serif; /* legacy alias — no techy mono face */
 
-  /* ── Design language tokens (DESIGN.md) — used by the Dashboard ── */
-  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-  /* neutrals — hue 264 */
-  --bg-page: oklch(0.97 0.004 260);
-  --surface: #ffffff;
-  --surface-faint: oklch(0.975 0.003 264);
-  --dl-border: oklch(0.92 0.005 264);
-  --dl-border-inner: oklch(0.94 0.004 264);
-  --ink: oklch(0.24 0.012 264);
-  --ink-2: oklch(0.45 0.01 264);
-  --ink-muted: oklch(0.55 0.01 264);
-  --ink-label: oklch(0.58 0.01 264);
-  /* interactive */
-  --dl-accent: oklch(0.5 0.13 264);
-  --dl-accent-hover: oklch(0.42 0.14 264);
-  --accent-bar: oklch(0.55 0.11 264);
-  /* semantic */
-  --dl-positive: oklch(0.5 0.13 150);
-  --dl-negative: oklch(0.55 0.16 27);
-  --dl-warning: oklch(0.7 0.15 60);
-  /* geometry */
-  --radius-card: 12px;
-  --radius-control: 8px;
-  --radius-chip: 5px;
-  --radius-pill: 20px;
+  /* surface & neutrals (true grey) */
+  --page:          oklch(1 0 0);
+  --surface-sunk:  oklch(0.988 0.001 0);
+  --row-hover:     oklch(0.975 0.002 0);
+  --ink:           oklch(0.26 0.003 0);
+  --ink-2:         oklch(0.42 0.003 0);
+  --ink-muted:     oklch(0.5 0.003 0);
+  --ink-faint:     oklch(0.58 0.003 0);
+
+  /* rules — four deliberate weights */
+  --rule-section:  oklch(0.24 0.003 0);
+  --rule-strong:   oklch(0.87 0.003 0);
+  --rule:          oklch(0.91 0.003 0);
+  --rule-soft:     oklch(0.945 0.003 0);
+
+  /* brand — crimson, chrome only */
+  --crimson:       oklch(0.52 0.19 27);
+  --crimson-link:  oklch(0.5 0.19 27);
+  --crimson-hover: oklch(0.42 0.17 27);
+  --crimson-wash:  oklch(0.94 0.008 27);
+  --crimson-ink:   oklch(0.45 0.18 27);
+
+  /* semantic — data only */
+  --positive:      oklch(0.45 0.11 155);
+  --negative:      oklch(0.44 0.16 22);
+  --caution:       oklch(0.7 0.14 70);
+
+  /* geometry — 4px controls / 3px chips, no rounded cards */
+  --radius-card: 4px;
+  --radius-control: 4px;
+  --radius-chip: 3px;
+  --radius-pill: 4px;
+
+  /* ── Legacy aliases (keep older rules valid; all resolve to the above) ── */
+  --background-color: var(--page);
+  --surface-color: var(--surface-sunk);
+  --primary-text-color: var(--ink);
+  --secondary-text-color: var(--ink-muted);
+  --border-color: var(--rule);
+  --accent-color: var(--crimson);
+  --accent-hover-color: var(--crimson-hover);
+  --pill-bg-color: var(--surface-sunk);
+  --pill-text-color: var(--ink-2);
+  --success-color: var(--positive);
+  --error-color: var(--negative);
+  --bg-page: var(--page);
+  --surface: var(--page);
+  --surface-faint: var(--surface-sunk);
+  --dl-border: var(--rule);
+  --dl-border-inner: var(--rule-soft);
+  --ink-label: var(--ink-faint);
+  --dl-accent: var(--crimson);
+  --dl-accent-hover: var(--crimson-hover);
+  --accent-bar: oklch(0.62 0.05 27); /* desaturated crimson — ranked/weight bars */
+  --dl-positive: var(--positive);
+  --dl-negative: var(--negative);
+  --dl-warning: var(--caution);
+  --warning: var(--caution);
+  --accent: var(--crimson);
+  --accent-hover: var(--crimson-hover);
+  --border: var(--rule);
+  --border-inner: var(--rule-soft);
 
   /* Heatmap Palette */
   --positive-color-strong: #A5D6A7;
@@ -65,172 +95,158 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Numeric / mono utility — every figure (money, %, qty, ratio, ticker) uses it. */
+/* Serif — page titles, section headings, headline figures. */
+.serif { font-family: var(--font-serif); }
+
+/* Tabular numerals — column alignment without a monospace face. */
+.n { font-variant-numeric: tabular-nums lining-nums; }
+
+/* Legacy numeric utility — no longer a mono face, just tabular Archivo. */
 .num, .mono {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
-#root {
+/* ============================================================================
+   App shell — horizontal brand bar + underline nav row (DESIGN.md Part II).
+   A left sidebar is banned. Both bars use min-height + flex:0 0 auto so they
+   never cramp; nav items are nowrap + flex:0 0 auto.
+   ============================================================================ */
+.app-root {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  padding: 1rem;
+  height: 100vh;
+  overflow: hidden;
 }
 
-main {
-  flex-grow: 1;
+/* ── Top nav — one bar: logo · tabs · stats · user ── */
+.topnav {
+  flex: 0 0 auto;
+  min-height: 56px;
   display: flex;
-  flex-direction: column;
+  align-items: stretch;
+  gap: 24px;
+  padding: 0 24px;
+  background: var(--page);
+  border-bottom: 1px solid var(--rule);
 }
-
-.main-nav {
+.topnav-brand { display: flex; align-items: center; flex: 0 0 auto; }
+.topnav-logo { height: 30px; width: auto; display: block; }
+.topnav-links {
   display: flex;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+}
+.topnav-right { display: flex; align-items: center; flex: 0 0 auto; }
+
+/* nav tab links (underline active) */
+.navrow-link {
+  flex: 0 0 auto;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border-color);
-  position: relative;
-}
-
-.main-nav-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  flex: 1;
-}
-
-.main-nav-right {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-
-.main-nav button,
-.main-nav-links button,
-.main-nav-logout {
+  padding: 0 15px;
   background: none;
   border: none;
-  padding: 0.5rem 1rem;
-  font-size: 1rem;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
   font-family: inherit;
+  font-size: 14px;
   font-weight: 500;
-  color: var(--secondary-text-color);
+  color: oklch(0.46 0.003 0);
   cursor: pointer;
-  border-radius: 6px;
-  transition: background-color 0.2s, color 0.2s;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.navrow-link:hover { color: var(--ink); }
+.navrow-link.active {
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom-color: var(--crimson);
 }
 
-.main-nav-links button:hover,
-.main-nav-logout:hover {
-  background-color: var(--surface-color);
-  color: var(--primary-text-color);
+/* right-side stats + user block */
+.brandbar-stat { display: flex; flex-direction: column; white-space: nowrap; text-align: right; }
+.brandbar-stat-label { font-size: 11px; color: var(--ink-muted); }
+.brandbar-stat-num {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  line-height: 1.15;
 }
-
-.main-nav-links button.active {
-  background-color: var(--accent-color);
-  color: #fff;
+.brandbar-stat-sep {
+  margin-left: 20px;
+  padding-left: 20px;
+  border-left: 1px solid var(--rule);
 }
-
-.main-nav-logout {
-  border: 1px solid var(--border-color) !important;
-}
-
-/* Burger button — hidden on desktop */
-.main-nav-burger {
-  display: none;
-  flex-direction: column;
+.brandbar-user { display: flex; align-items: center; gap: 10px; }
+.brandbar-avatar {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  gap: 5px;
-  background: none;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 0.4rem 0.5rem;
-  cursor: pointer;
-  width: 38px;
-  height: 38px;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 4px;
+  background: var(--crimson-wash);
+  color: var(--crimson-ink);
+  font-weight: 600;
+  font-size: 13px;
 }
-
-.main-nav-burger span {
-  display: block;
-  height: 2px;
-  width: 100%;
-  background-color: var(--primary-text-color);
-  border-radius: 2px;
+.brandbar-user-info { display: flex; flex-direction: column; min-width: 0; }
+.brandbar-user-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
 }
-
-/* Mobile dropdown */
-.main-nav-mobile {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  z-index: 500;
-  background-color: var(--background-color);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-  display: flex;
-  flex-direction: column;
-  padding: 0.5rem;
-  min-width: 200px;
-  margin-top: 0.5rem;
-}
-
-.main-nav-mobile button {
+.brandbar-logout {
   background: none;
   border: none;
-  padding: 0.65rem 1rem;
-  font-size: 0.95rem;
-  font-family: inherit;
-  font-weight: 500;
-  color: var(--primary-text-color);
+  color: var(--ink-muted);
   cursor: pointer;
-  border-radius: 6px;
+  font-size: 11px;
+  font-family: inherit;
+  padding: 0;
   text-align: left;
-  transition: background-color 0.15s;
 }
+.brandbar-logout:hover { color: var(--crimson-link); text-decoration: underline; }
 
-.main-nav-mobile button:hover {
-  background-color: var(--surface-color);
+/* ── Content ── */
+.app-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 22px 30px 40px;
 }
-
-.main-nav-mobile button.active {
-  background-color: var(--accent-color);
-  color: #fff;
+/* Table pages fill the viewport so the sticky totals row pins to the window
+   bottom with no gap below it. */
+.app-content.is-table-page {
+  padding-top: 12px;
+  padding-bottom: 0;
+  overflow: hidden;
 }
-
-.main-nav-mobile-logout {
-  margin-top: 0.25rem;
-  border-top: 1px solid var(--border-color) !important;
-  padding-top: 0.65rem !important;
-  color: var(--secondary-text-color) !important;
+/* Grid (card) view on the table page scrolls internally instead of being clipped. */
+.app-content.is-table-page .stock-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+  padding-bottom: 24px;
 }
 
 @media (max-width: 768px) {
-  .main-nav-links {
-    display: none;
-  }
-  .main-nav-logout {
-    display: none;
-  }
-  .main-nav-burger {
-    display: flex;
-  }
-  .main-nav {
-    padding-bottom: 0.5rem;
-    margin-bottom: 1rem;
-    position: relative;
-  }
-  .main-nav-mobile {
-    position: fixed;
-    top: auto;
-    right: 1rem;
-    left: 1rem;
-    min-width: unset;
-  }
+  .topnav { padding: 0 14px; gap: 14px; }
+  .brandbar-stat-sep { margin-left: 14px; padding-left: 14px; }
+  .app-content { padding: 16px; }
 }
 
 
@@ -399,11 +415,12 @@ a:hover {
     justify-content: space-between;
     align-items: center;
     gap: 1rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.5rem;
 }
 
 .search-bar {
-    flex-grow: 1;
+    flex: 0 1 260px;
+    max-width: 260px;
 }
 
 .search-bar input,
@@ -413,8 +430,8 @@ a:hover {
   color: var(--primary-text-color);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-control);
-  padding: 0.75rem;
-  font-size: 0.9rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
   font-family: inherit;
 }
 
@@ -443,16 +460,18 @@ a:hover {
     align-items: center;
 }
 
+/* Neutral secondary (Part II: no high-saturation primary buttons on a data
+   screen — the loudest element on the page must be the data). */
 .export-btn {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    background-color: var(--success-color);
-    color: #fff;
-    border: none;
+    background-color: var(--background-color);
+    color: var(--primary-text-color);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-control);
-    padding: 0.75rem 1rem;
-    font-size: 0.9rem;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
     font-family: inherit;
     font-weight: 500;
     cursor: pointer;
@@ -461,7 +480,7 @@ a:hover {
 }
 
 .export-btn:hover {
-    background-color: oklch(0.44 0.11 150);
+    background-color: var(--surface-color);
 }
 
 /* ── View mode toggle (table / grid) ── */
@@ -3362,7 +3381,7 @@ a:hover {
   font-size: 0.775rem;
   font-weight: 400;
   color: var(--secondary-text-color);
-  font-family: monospace;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 /* Portfolio Overview Cards */
@@ -3532,14 +3551,8 @@ a:hover {
 /* 4-Column Alerts Grid */
 .alerts-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 0.75rem;
-}
-
-@media (max-width: 1200px) {
-  .alerts-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 
 @media (max-width: 600px) {
@@ -3755,14 +3768,16 @@ a:hover {
 
 /* Portfolio Return Drivers */
 .return-drivers-section {
-  background-color: var(--surface-color);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 1.5rem;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
 }
 
 .return-drivers-header {
-  margin-bottom: 1rem;
+  margin-bottom: 0.85rem;
+  padding-bottom: 7px;
+  border-bottom: 2px solid var(--rule-section);
 }
 
 .return-drivers-title-row {
@@ -3774,8 +3789,19 @@ a:hover {
   margin-bottom: 0.25rem;
 }
 
-.return-drivers-header .section-title {
-  margin-bottom: 0.25rem;
+/* header carries the full-width rule; the h2 itself doesn't underline */
+.dashboard-page .return-drivers-header .section-title {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+/* portfolio return figure sits inline with the heading, same size as it */
+.dashboard-page .rd-return {
+  margin-left: 8px;
+  font-size: 1em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .return-drivers-title-row .section-title {
@@ -3793,10 +3819,10 @@ a:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  background-color: var(--background-color);
-  border-radius: 8px;
-  margin-bottom: 1.25rem;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  margin-bottom: 1rem;
 }
 
 .summary-item {
@@ -3880,15 +3906,13 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0;
+  padding: 4px 0;
   margin: 0;
+  border-bottom: 1px solid var(--rule-soft);
 }
 
 .driver-row.others-row {
-  margin-top: 0.25rem;
-  padding-top: 0.5rem;
-  border-top: 1px dashed var(--border-color);
-  opacity: 0.75;
+  font-style: italic;
 }
 
 .driver-info {
@@ -3929,41 +3953,41 @@ a:hover {
   min-width: 200px;
 }
 
-/* Vertical zero line at center */
+/* Vertical baseline (offset left; position set inline) */
 .driver-zero-line {
   position: absolute;
-  left: 50%;
+  left: 40%;
   top: 0;
   bottom: 0;
-  width: 2px;
-  background-color: var(--secondary-text-color);
+  width: 1px;
+  background-color: var(--rule-strong);
   transform: translateX(-50%);
   z-index: 1;
 }
 
-/* Horizontal bars - absolutely positioned */
+/* Horizontal bars - absolutely positioned (thin) */
 .driver-bar {
   position: absolute;
-  top: 2px;
-  bottom: 2px;
-  height: auto;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 8px;
   transition: width 0.3s ease;
-  min-width: 4px;
+  min-width: 3px;
 }
 
 .driver-bar.positive {
-  background-color: var(--success-color);
-  border-radius: 0 4px 4px 0;
+  background-color: var(--positive);
+  border-radius: 0 2px 2px 0;
 }
 
 .driver-bar.negative {
-  background-color: var(--error-color);
-  border-radius: 4px 0 0 4px;
+  background-color: var(--negative);
+  border-radius: 2px 0 0 2px;
 }
 
-.driver-bar.muted {
-  opacity: 0.5;
-}
+/* "Other contributors / detractors" — pale fill, not translucent */
+.driver-bar.positive.muted { background-color: oklch(0.85 0.06 155); }
+.driver-bar.negative.muted { background-color: oklch(0.88 0.05 22); }
 
 /* Value column on the right */
 .driver-value {
@@ -4293,12 +4317,13 @@ a:hover {
 }
 
 .period-toggle {
-  display: flex;
-  gap: 0.25rem;
-  background-color: var(--surface-color);
-  padding: 0.25rem;
+  display: inline-flex;
+  gap: 0;
+  background-color: var(--page);
+  padding: 0;
   border-radius: 6px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--rule-strong);
+  overflow: hidden;
 }
 
 .toggle-btn {
@@ -4489,7 +4514,7 @@ a:hover {
   font-weight: 700;
   letter-spacing: 0.05em;
   color: #666;
-  font-family: monospace;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .sticky-note-label {
@@ -4512,7 +4537,7 @@ a:hover {
   font-family: var(--font-sans);
   color: var(--ink);
   background: var(--bg-page);
-  padding: 1.5rem 1.5rem 3rem;
+  padding: 0;
   -webkit-font-smoothing: antialiased;
   letter-spacing: -0.002em;
 }
@@ -4541,73 +4566,81 @@ a:hover {
   font-feature-settings: "tnum" 1;
 }
 
-/* ── Section headings — quiet hairline, not a heavy rule ── */
-.dashboard-page .dashboard-section { margin-bottom: 1.75rem; }
+/* ── Section headings — serif, 2px section rule (Part IV) ── */
+.dashboard-page .dashboard-section { margin-bottom: 26px; }
 .dashboard-page .section-title,
 .dashboard-page .section-header-with-toggle .section-title {
-  font-size: 14px;
+  font-family: var(--font-serif);
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: 0;
   color: var(--ink);
-  margin-bottom: 0.85rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--dl-border);
+  margin-bottom: 14px;
+  padding-bottom: 7px;
+  border-bottom: 2px solid var(--rule-section);
 }
-.dashboard-page .section-title .alert-count { color: var(--ink-muted); font-weight: 500; }
-.dashboard-page .alerts-refresh-timer { color: var(--ink-muted); font-size: 11px; }
-.dashboard-page .section-subtitle { color: var(--ink-muted); font-size: 12px; }
+.dashboard-page .section-title .alert-count { color: var(--ink-muted); font-weight: 500; font-size: 11.5px; }
+.dashboard-page .alerts-refresh-timer { color: var(--ink-muted); font-size: 11.5px; }
+.dashboard-page .section-subtitle { color: var(--ink-muted); font-size: 11.5px; }
 
-/* ── Performance strip: seamless cells joined by a 1px bg-gap grid,
-     inside one rounded, clipped container (gap = bg bleed-through). ── */
+/* ── Performance rail: flat row bounded top & bottom by --rule-strong,
+     cells divided by 1px right borders. No card, no fill (Part IV). ── */
 .dashboard-page .overview-cards {
-  gap: 1px;
-  background: var(--dl-border);
-  border: 1px solid var(--dl-border);
-  border-radius: var(--radius-card);
-  overflow: hidden;
+  gap: 0;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--rule-strong);
+  border-bottom: 1px solid var(--rule-strong);
+  border-radius: 0;
+  overflow: visible;
 }
 .dashboard-page .overview-card {
-  background: var(--surface);
+  background: none;
   border: 0;
+  border-right: 1px solid oklch(0.93 0.003 0);
   border-radius: 0;
-  padding: 16px 18px;
-  gap: 6px;
+  padding: 13px 18px;
+  gap: 4px;
 }
+.dashboard-page .overview-card:last-child { border-right: 0; }
 .dashboard-page .overview-card .card-label,
 .dashboard-page .metric-card .metric-label {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-label);
+  font-size: 11.5px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-muted);
 }
 .dashboard-page .overview-card .card-value {
-  font-size: 24px;
+  font-family: var(--font-serif);
+  font-size: 27px;
   font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--ink);
   line-height: 1.15;
 }
 .dashboard-page .overview-card .card-subtext { font-size: 11.5px; color: var(--ink-muted); }
-.dashboard-page .overview-card .card-subtext.benchmark { font-size: 11px; letter-spacing: 0.01em; }
+.dashboard-page .overview-card .card-subtext.benchmark { font-size: 11.5px; letter-spacing: 0; }
 
-/* ── Metric cells: label → large mono value → caption, left-aligned ── */
+/* ── Metric grid: three columns, each cell rule-soft bottom border,
+     no card container. label → 17px value → caption (Part IV). ── */
 .dashboard-page .metrics-grid {
-  gap: 1px;
-  background: var(--dl-border);
-  border: 1px solid var(--dl-border);
-  border-radius: var(--radius-card);
-  overflow: hidden;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-}
-.dashboard-page .metric-card {
-  background: var(--surface);
+  gap: 0 28px;
+  background: none;
   border: 0;
   border-radius: 0;
-  text-align: left;
-  padding: 15px 16px;
+  overflow: visible;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
-.dashboard-page .metric-card .metric-label { margin-bottom: 7px; }
+.dashboard-page .metric-card {
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--rule-soft);
+  border-radius: 0;
+  text-align: left;
+  padding: 13px 18px 13px 0;
+}
+.dashboard-page .metric-card .metric-label { margin-bottom: 6px; }
 .dashboard-page .metric-card .metric-value {
   font-size: 17px;
   font-weight: 600;
@@ -4615,7 +4648,25 @@ a:hover {
 }
 .dashboard-page .metric-card .metric-value-small { font-size: 14px; font-weight: 600; color: var(--ink); }
 .dashboard-page .metric-card .metric-subvalue,
-.dashboard-page .metric-card .metric-subtext { color: var(--ink-muted); font-size: 11.5px; }
+.dashboard-page .metric-card .metric-subtext { color: var(--ink-muted); font-size: 11px; }
+
+@media (max-width: 640px) {
+  .dashboard-page .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ── Two-column row: Portfolio Quality (left) | Return Drivers (right) ── */
+.dashboard-page .dashboard-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 34px;
+  align-items: start;
+  margin-bottom: 26px;
+}
+.dashboard-page .dashboard-two-col > .dashboard-section { margin-bottom: 0; }
+@media (max-width: 900px) {
+  .dashboard-page .dashboard-two-col { grid-template-columns: 1fr; gap: 0; }
+  .dashboard-page .dashboard-two-col > .dashboard-section { margin-bottom: 26px; }
+}
 
 /* ── Semantic color: ONLY on signed numbers / status ── */
 .dashboard-page .positive,
@@ -4641,16 +4692,99 @@ a:hover {
 .dashboard-page .sector-list-card,
 .dashboard-page .leaderboard-card,
 .dashboard-page .positioning-allocation-card,
-.dashboard-page .return-drivers-chart,
 .dashboard-page .technical-table-container {
   background: var(--surface);
   border: 1px solid var(--dl-border);
   border-radius: var(--radius-card);
   padding: 18px 20px;
 }
-.dashboard-page .alerts-grid,
+/* Priced-at footer */
+.dashboard-page .dashboard-footer {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  text-align: right;
+}
+
+/* Return Drivers chart is boxless — no bordered card around the section. */
+.dashboard-page .return-drivers-chart {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
 .dashboard-page .sector-performance-grid,
 .dashboard-page .leaderboard-grid { gap: 16px; }
+
+/* Weakening / Strengthening panels sit side by side, boxless. */
+.dashboard-page .alerts-grid { grid-template-columns: 1fr 1fr; gap: 24px; }
+.dashboard-page .alert-column {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+
+/* ── "Weakening" / "Strengthening" panels ── */
+.dashboard-page .weak-panel-title,
+.dashboard-page .good-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+}
+.dashboard-page .weak-panel-title::before,
+.dashboard-page .good-panel-title::before {
+  content: "";
+  width: 4px;
+  height: 17px;
+  border-radius: 1px;
+  flex: 0 0 auto;
+}
+.dashboard-page .weak-panel-title::before { background: var(--caution); }
+.dashboard-page .good-panel-title::before { background: var(--positive); }
+.dashboard-page .weak-panel-count { font-weight: 400; font-size: 12.5px; color: var(--ink-muted); }
+.weak-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.weak-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 15px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.weak-chips { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.weak-chip {
+  font-size: 11px;
+  color: var(--ink-muted);
+  background: oklch(0.955 0.002 0);
+  border-radius: 4px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.weak-value {
+  flex: 0 0 auto;
+  min-width: 62px;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.weak-value.positive { color: var(--positive); }
+.weak-value.negative { color: var(--negative); }
 
 .dashboard-page .alert-column-title,
 .dashboard-page .sector-list-title,
@@ -4730,18 +4864,327 @@ a:hover {
 .dashboard-page .technical-table tbody tr:hover { background: var(--surface-faint); }
 .dashboard-page .technical-table tbody tr:last-child td { border-bottom: 0; }
 
-/* ── Toggle pills (period switch) ── */
+/* ── Period switch (segmented control) ── */
 .dashboard-page .period-toggle button {
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--dl-border);
-  background: var(--surface);
+  border: none;
+  border-radius: 0;
+  background: var(--page);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 9px;
+}
+.dashboard-page .period-toggle button + button { border-left: 1px solid var(--rule); }
+.dashboard-page .period-toggle button:hover { background: var(--surface-sunk); color: var(--ink); }
+.dashboard-page .period-toggle button.active {
+  background: var(--crimson-wash);
+  color: var(--crimson-ink);
+  font-weight: 600;
+}
+
+/* ============================================================================
+   Part II — Dense Data Table (Public Portfolio)
+   Fixed ~9-column read-only grid. See DESIGN.md Part II.
+   ============================================================================ */
+
+.pp-table-wrap {
+  --row-pad-y: 7px;
+  --spine-h: 26px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-card);
+  background: var(--page);
+}
+
+.pp-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--page);
+  font-family: var(--font-sans);
+}
+
+/* ── Header chrome (sentence case — no uppercase micro-labels) ── */
+.pp-table thead th.pp-th {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: var(--page);
+  color: oklch(0.48 0.003 0);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 9px 12px;
+  border-bottom: 2px solid var(--rule-section);
+  cursor: pointer;
+  user-select: none;
+}
+.pp-th-left   { text-align: left; }
+.pp-th-right  { text-align: right; }
+.pp-th-center { text-align: center; }
+.pp-th-rank {
+  text-align: right;
+  width: 40px;
+  padding-left: 16px !important;
+  cursor: default;
+}
+.pp-th-chevron { width: 34px; cursor: default; }
+.pp-th .pp-th-label { display: inline-block; }
+.pp-th.pp-sorted { color: var(--ink); }
+.pp-sort-arrow { font-weight: 600; }
+
+/* holding header stays sticky in both axes */
+.pp-table thead th.pp-th-id {
+  position: sticky;
+  left: 0;
+  z-index: 7;
+  background: var(--page);
+  border-right: 1px solid var(--rule-strong);
+}
+
+/* ── Body rows (no zebra striping) ── */
+.pp-table td {
+  padding: var(--row-pad-y) 12px;
+  border-bottom: 1px solid var(--rule-soft);
+  font-size: 13px;
+  color: var(--ink);
+  vertical-align: middle;
+}
+.pp-row { cursor: pointer; }
+.pp-table tbody tr.pp-row:hover td { background: var(--row-hover); }
+.pp-table tbody tr.pp-row:hover .pp-id-col { background: var(--row-hover); }
+
+/* rank */
+.pp-rank {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: 11.5px;
+  color: oklch(0.62 0.003 0);
+  text-align: right;
+  padding-left: 16px !important;
+  width: 40px;
+}
+
+/* numeric cells */
+.pp-num {
+  font-variant-numeric: tabular-nums lining-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ── Holding cell (sticky left) ── */
+.pp-id-col {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--page);
+  border-right: 1px solid var(--rule-strong);
+  padding-left: 18px !important;
+  max-width: 240px;
+}
+.pp-spine {
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: var(--spine-h);
+  border-radius: 2px;
+  background: oklch(0.88 0.003 0); /* Low / default — greyscale, hue reserved for meaning */
+}
+.pp-spine[data-conviction="high"]   { background: oklch(0.45 0.003 0); }
+.pp-spine[data-conviction="medium"] { background: oklch(0.72 0.003 0); }
+.pp-spine[data-conviction="low"]    { background: oklch(0.88 0.003 0); }
+.pp-id-inner { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pp-id-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 210px;
+}
+.pp-id-sub { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pp-ticker {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: 11px;
+  color: oklch(0.55 0.003 0);
+  white-space: nowrap;
+}
+/* Strategy → plain text beside the ticker, not a chip */
+.pp-strategy {
+  font-size: 11px;
   color: var(--ink-muted);
+  white-space: nowrap;
+}
+.pp-pledged {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: oklch(0.95 0.03 75);
+  color: oklch(0.45 0.1 60);
+  white-space: nowrap;
+}
+
+/* ── Paired numeric cells ── */
+.pp-paired { line-height: 1.25; }
+.pp-paired-top { color: var(--ink); }
+.pp-paired-top.pp-strong { font-weight: 600; }
+.pp-paired-sub { color: var(--ink-faint); font-size: 11px; }
+.pp-note { color: oklch(0.7 0.003 0); font-size: 11px; font-family: var(--font-sans); }
+
+/* missing data em dash */
+.pp-dash { color: oklch(0.7 0.003 0); }
+
+/* optional (opt-in) text columns — left aligned, clipped */
+.pp-opt-text {
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 170px;
+}
+
+/* ── Gain: signed percentage, semantic colour (no bar) ── */
+.pp-gain-label {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ── Weight: percentage (no bar) ── */
+.pp-weight-label {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+/* ── Action chip ── */
+.pp-action-col { text-align: center; white-space: nowrap; }
+.pp-action {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+.pp-action-add  { background: oklch(0.95 0.035 155); color: oklch(0.38 0.1 155); }
+.pp-action-hold { background: oklch(0.96 0.002 0);   color: oklch(0.45 0.003 0); }
+.pp-action-trim { background: oklch(0.955 0.03 75);  color: oklch(0.44 0.1 60); }
+.pp-action-exit { background: oklch(0.955 0.025 22); color: oklch(0.44 0.16 22); }
+
+/* ── Row-open chevron ── */
+.pp-chevron {
+  width: 34px;
+  text-align: center;
+  color: oklch(0.72 0.003 0);
+  font-size: 16px;
+  font-weight: 600;
+}
+.pp-row:hover .pp-chevron { color: var(--crimson); }
+
+/* ── Totals row (sticky bottom) ── */
+.pp-table tfoot .pp-total-row td {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  background: var(--page);
+  border-top: 2px solid var(--rule-section);
+  border-bottom: none;
+}
+.pp-table tfoot .pp-total-row td.pp-id-col {
+  z-index: 5;
+  background: var(--page);
+}
+.pp-total-label {
   font-size: 12px;
   font-weight: 600;
-  padding: 5px 14px;
+  color: var(--ink-2);
+  padding-left: 18px !important;
 }
-.dashboard-page .period-toggle button.active {
-  background: var(--dl-accent);
-  border-color: var(--dl-accent);
-  color: #fff;
+.pp-total-num { font-weight: 600; }
+
+/* ── Edit-columns button + Choose-columns panel ── */
+.pp-editcols-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--page);
+  color: var(--crimson-link);
+  border: 1px solid var(--crimson-link);
+  border-radius: var(--radius-control);
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s;
 }
+.pp-editcols-btn:hover,
+.pp-editcols-btn.active { background: var(--crimson-wash); }
+
+.pp-colpanel {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-card);
+  background: var(--page);
+  padding: 18px 20px 8px;
+  margin-bottom: 12px;
+}
+.pp-colpanel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.pp-colpanel-head h3 {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.pp-colpanel-meta { display: flex; align-items: baseline; gap: 18px; font-size: 12.5px; color: var(--ink-muted); }
+.pp-colpanel-reset {
+  background: none;
+  border: none;
+  color: var(--crimson-link);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  padding: 0;
+}
+.pp-colpanel-reset:hover { text-decoration: underline; }
+
+.pp-colgroup { margin-bottom: 16px; }
+.pp-colgroup-label { font-size: 12.5px; color: var(--ink-muted); margin-bottom: 8px; }
+.pp-colgroup-chips { display: flex; flex-wrap: wrap; gap: 10px; }
+.pp-colchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--page);
+  color: var(--ink);
+  border: 1px solid var(--rule-strong);
+  border-radius: 7px;
+  padding: 7px 15px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.12s, border-color 0.12s, color 0.12s;
+}
+.pp-colchip:hover { border-color: var(--ink-muted); }
+.pp-colchip.on {
+  color: var(--crimson-ink);
+  border-color: var(--crimson-link);
+  background: var(--crimson-wash);
+  font-weight: 600;
+}
+.pp-colchip-check { font-size: 12px; line-height: 1; }

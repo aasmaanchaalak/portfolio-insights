@@ -164,30 +164,38 @@
 
 /* Table */
 .pe-table-container {
-  background-color: var(--surface-color);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  overflow: hidden;
+  background-color: var(--page);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-card);
+  overflow: auto;
+  max-height: calc(100vh - 340px);
 }
 
 .pe-table {
   width: 100%;
-  border-collapse: collapse;
-  font-size: 0.875rem;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
 }
 
+/* Part III chrome — sentence-case 11px header, 2px section rule, sticky. */
 .pe-table th {
-  padding: 0.875rem 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  padding: 9px 12px;
   text-align: left;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--secondary-text-color);
-  background-color: var(--background-color);
-  border-bottom: 1px solid var(--border-color);
+  color: oklch(0.48 0.003 0);
+  background-color: var(--page);
+  border-bottom: 2px solid var(--rule-section);
+  white-space: nowrap;
 }
 
 .pe-table td {
-  padding: 0.875rem 1rem;
-  border-bottom: 1px solid var(--border-color);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--rule-soft);
 }
 
 .pe-th-sortable {
@@ -197,7 +205,7 @@
 }
 
 .pe-th-sortable:hover {
-  color: var(--primary-text-color);
+  color: var(--ink);
 }
 
 .pe-table-row {
@@ -206,7 +214,7 @@
 }
 
 .pe-table-row:hover {
-  background-color: var(--pill-bg-color);
+  background-color: var(--row-hover);
 }
 
 .pe-col-right {
@@ -224,14 +232,14 @@
 }
 
 .pe-company-name {
-  font-weight: 500;
-  color: var(--primary-text-color);
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .pe-company-code {
-  font-size: 0.75rem;
-  color: var(--secondary-text-color);
-  font-family: monospace;
+  font-size: 11px;
+  color: oklch(0.55 0.003 0);
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .pe-sector {
@@ -612,7 +620,7 @@
 .pe-drawer-code {
   font-size: 0.8rem;
   color: var(--secondary-text-color);
-  font-family: monospace;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .pe-drawer-close {

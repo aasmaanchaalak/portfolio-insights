@@ -78,6 +78,135 @@ const fmtSignedCur = (value: number | null | undefined) => {
     return `${value < 0 ? '−' : ''}₹${Math.abs(value).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 };
 
+// Compact Indian notation for summary/value cells (Part II): ≥1cr → ₹X.XX Cr,
+// ≥1L → ₹X.XX L, else full grouped. Returns null for missing so callers render a dash.
+const fmtIndianCompact = (value: number | null | undefined): string | null => {
+    if (value === null || value === undefined || isNaN(value)) return null;
+    const sign = value < 0 ? '−' : '';
+    const abs = Math.abs(value);
+    if (abs >= 1e7) return `${sign}₹${(abs / 1e7).toFixed(2)} Cr`;
+    if (abs >= 1e5) return `${sign}₹${(abs / 1e5).toFixed(2)} L`;
+    return `${sign}₹${abs.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+};
+
+// Full-precision Indian-grouped unit price (avg cost / current price).
+const fmtUnitPrice = (value: number | null | undefined): string | null => {
+    if (value === null || value === undefined || isNaN(value)) return null;
+    return `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+};
+
+// Muted em dash for missing data (Part II: never a loud N/A).
+const PPDash: React.FC = () => <span className="pp-dash">—</span>;
+
+// Gain: signed percentage, semantic colour. Plain number, no bar.
+const GainBar: React.FC<{ pct: number | null | undefined }> = ({ pct }) => {
+    if (pct === null || pct === undefined || isNaN(pct)) {
+        return <span className="pp-gain-label"><PPDash /></span>;
+    }
+    const color = pct >= 0 ? 'var(--positive)' : 'var(--negative)';
+    return <span className="pp-gain-label" style={{ color }}>{fmtSignedPct(pct)}</span>;
+};
+
+// Weight: percentage of portfolio. Plain number, no bar.
+const WeightBar: React.FC<{ pct: number | null | undefined }> = ({ pct }) => {
+    if (pct === null || pct === undefined || isNaN(pct)) {
+        return <span className="pp-weight-label"><PPDash /></span>;
+    }
+    return <span className="pp-weight-label">{pct.toFixed(2)}%</span>;
+};
+
+// Action → tinted chip in its own centered column.
+const ActionChip: React.FC<{ action: string | null | undefined }> = ({ action }) => {
+    if (!action) return <PPDash />;
+    return <span className={`pp-action pp-action-${action.toLowerCase()}`}>{action}</span>;
+};
+
+// ── Optional analytical columns (opt-in via the Columns picker) ──
+const fmtMarketCapCr = (v: number | null | undefined): string | null =>
+    v == null || isNaN(v) ? null : (v >= 1000 ? `₹${(v / 1000).toFixed(1)}K Cr` : `₹${v.toFixed(0)} Cr`);
+
+// Signed percentage, semantic colour.
+const PctColored: React.FC<{ v: number | null | undefined }> = ({ v }) => {
+    if (v == null || isNaN(v)) return <PPDash />;
+    return <span style={{ color: v >= 0 ? 'var(--positive)' : 'var(--negative)' }}>{fmtSignedPct(v)}</span>;
+};
+// Distance percentage with an explicit direction glyph — off-high is always a
+// decline (−), off-low always a gain (+), so the sign reads unambiguously even
+// though the raw value is a magnitude.
+const OffPct: React.FC<{ v: number | null | undefined; dir: 'down' | 'up' }> = ({ v, dir }) => {
+    if (v == null || isNaN(v)) return <PPDash />;
+    const glyph = dir === 'down' ? '−' : '+';
+    return <>{`${glyph}${Math.abs(v).toFixed(2)}%`}</>;
+};
+// Plain number.
+const PlainNum: React.FC<{ v: number | null | undefined; digits?: number }> = ({ v, digits = 2 }) =>
+    v == null || isNaN(v) ? <PPDash /> : <>{v.toFixed(digits)}</>;
+
+interface PPCol {
+    key: string;
+    label: string;      // full label for the picker chip
+    short?: string;     // compact header label (defaults to label)
+    group: string;
+    align: 'left' | 'right' | 'center';
+    cell: (it: any) => React.ReactNode;
+    foot?: (s: any) => React.ReactNode;
+}
+
+const qtyStr = (v: number | null | undefined, d = 2) =>
+    v == null || isNaN(v) ? null : v.toLocaleString('en-IN', { maximumFractionDigits: d });
+
+// Unified column registry. Identity (rank + holding) is always shown and is not
+// listed here; every column below is toggleable via the Edit-columns panel.
+const PP_COLUMNS: PPCol[] = [
+    // Position
+    { key: 'quantity', label: 'Quantity', group: 'Position', align: 'right', cell: it => qtyStr(it.quantity) ?? <PPDash />, foot: s => qtyStr(s.quantity, 0) },
+    { key: 'averageBuyPrice', label: 'Avg buy', group: 'Position', align: 'right', cell: it => (it.averageBuyPrice && it.averageBuyPrice > 0) ? fmtUnitPrice(it.averageBuyPrice) : <span className="pp-note">no cost basis</span> },
+    { key: 'investedAmount', label: 'Invested', group: 'Position', align: 'right', cell: it => fmtIndianCompact(it.investedAmount) ?? <PPDash />, foot: s => fmtIndianCompact(s.investedAmount) ?? null },
+    { key: 'currentPrice', label: 'Price', group: 'Position', align: 'right', cell: it => fmtUnitPrice(it.currentPrice) ?? <PPDash /> },
+    { key: 'calculatedAmount', label: 'Value', group: 'Position', align: 'right', cell: it => <span className="pp-strong">{fmtIndianCompact(it.calculatedAmount) ?? <PPDash />}</span>, foot: s => <span className="pp-strong">{fmtIndianCompact(s.calculatedAmount) ?? <PPDash />}</span> },
+    { key: 'absoluteGain', label: 'Abs gain', group: 'Position', align: 'right', cell: it => (it.absoluteGain == null ? <PPDash /> : <span style={{ color: it.absoluteGain >= 0 ? 'var(--positive)' : 'var(--negative)' }}>{fmtSignedCur(it.absoluteGain)}</span>), foot: s => (s.absoluteGain == null ? null : <span style={{ color: s.absoluteGain >= 0 ? 'var(--positive)' : 'var(--negative)' }}>{fmtSignedCur(s.absoluteGain)}</span>) },
+    { key: 'gainPercentage', label: 'Gain %', group: 'Position', align: 'right', cell: it => <GainBar pct={it.gainPercentage} />, foot: s => (s.gainPercentage == null ? null : <span style={{ color: s.gainPercentage >= 0 ? 'var(--positive)' : 'var(--negative)' }}>{fmtSignedPct(s.gainPercentage)}</span>) },
+    { key: 'weightage', label: 'Weight %', group: 'Position', align: 'right', cell: it => <WeightBar pct={it.weightage} />, foot: s => (s.weightage == null ? null : `${s.weightage.toFixed(2)}%`) },
+    { key: 'portfolioContribution', label: 'Contribution %', group: 'Position', align: 'right', cell: it => <PctColored v={it.portfolioContribution} />, foot: s => <PctColored v={s.portfolioContribution} /> },
+    // Performance
+    { key: 'return1D', label: '1D %', group: 'Performance', align: 'right', cell: it => <PctColored v={it.return1D} />, foot: s => <PctColored v={s.return1D} /> },
+    { key: 'return1W', label: '1W %', group: 'Performance', align: 'right', cell: it => <PctColored v={it.return1W} />, foot: s => <PctColored v={s.return1W} /> },
+    { key: 'return1M', label: '1M %', group: 'Performance', align: 'right', cell: it => <PctColored v={it.return1M} />, foot: s => <PctColored v={s.return1M} /> },
+    { key: 'return3M', label: '3M %', group: 'Performance', align: 'right', cell: it => <PctColored v={it.return3M} />, foot: s => <PctColored v={s.return3M} /> },
+    { key: 'return6M', label: '6M %', group: 'Performance', align: 'right', cell: it => <PctColored v={it.return6M} />, foot: s => <PctColored v={s.return6M} /> },
+    { key: 'return1Y', label: '1Y %', group: 'Performance', align: 'right', cell: it => <PctColored v={it.return1Y} />, foot: s => <PctColored v={s.return1Y} /> },
+    // Fundamentals
+    { key: 'priceToEarning', label: 'P/E', group: 'Fundamentals', align: 'right', cell: it => <PlainNum v={it.priceToEarning} />, foot: s => <PlainNum v={s.priceToEarning} /> },
+    { key: 'marketCap', label: 'Market cap', short: 'Mkt cap', group: 'Fundamentals', align: 'right', cell: it => fmtMarketCapCr(it.marketCap) ?? <PPDash />, foot: s => fmtMarketCapCr(s.marketCap) ?? null },
+    { key: 'roce', label: 'ROCE %', group: 'Fundamentals', align: 'right', cell: it => <PctColored v={it.roce} />, foot: s => <PctColored v={s.roce} /> },
+    { key: 'yoyQuarterlyProfitGrowth', label: 'Profit growth %', short: 'Profit gr %', group: 'Fundamentals', align: 'right', cell: it => <PctColored v={it.yoyQuarterlyProfitGrowth} />, foot: s => <PctColored v={s.yoyQuarterlyProfitGrowth} /> },
+    { key: 'yoyQuarterlySalesGrowth', label: 'Sales growth %', short: 'Sales gr %', group: 'Fundamentals', align: 'right', cell: it => <PctColored v={it.yoyQuarterlySalesGrowth} />, foot: s => <PctColored v={s.yoyQuarterlySalesGrowth} /> },
+    // Technicals
+    { key: 'rsi', label: 'RSI', group: 'Technicals', align: 'right', cell: it => (it.rsi == null || isNaN(it.rsi)) ? <PPDash /> : <span style={{ color: it.rsi > 70 ? 'var(--negative)' : it.rsi < 30 ? 'var(--positive)' : undefined }}>{it.rsi.toFixed(1)}</span>, foot: s => <PlainNum v={s.rsi} digits={1} /> },
+    { key: 'dma50ChangePercent', label: 'vs 50 DMA', group: 'Technicals', align: 'right', cell: it => <PctColored v={it.dma50ChangePercent} />, foot: s => <PctColored v={s.dma50ChangePercent} /> },
+    { key: 'dma200ChangePercent', label: 'vs 200 DMA', group: 'Technicals', align: 'right', cell: it => <PctColored v={it.dma200ChangePercent} />, foot: s => <PctColored v={s.dma200ChangePercent} /> },
+    { key: 'downFrom52WeekHigh', label: 'From 52w high', short: 'Off 52w hi', group: 'Technicals', align: 'right', cell: it => <OffPct v={it.downFrom52WeekHigh} dir="down" />, foot: s => <OffPct v={s.downFrom52WeekHigh} dir="down" /> },
+    { key: 'upFrom52WeekLow', label: 'From 52w low', short: 'Off 52w lo', group: 'Technicals', align: 'right', cell: it => <OffPct v={it.upFrom52WeekLow} dir="up" />, foot: s => <OffPct v={s.upFrom52WeekLow} dir="up" /> },
+    { key: 'trend', label: 'Trend', group: 'Technicals', align: 'left', cell: it => it.trend ? <span className={`trend-badge trend-${String(it.trend).toLowerCase().replace(/\s+/g, '-')}`}>{it.trend}</span> : <PPDash /> },
+    // Classification
+    { key: 'industry', label: 'Industry', group: 'Classification', align: 'left', cell: it => it.industry || <PPDash /> },
+    { key: 'industryGroup', label: 'Industry group', group: 'Classification', align: 'left', cell: it => it.industryGroup || <PPDash /> },
+    { key: 'positioning', label: 'Positioning', group: 'Classification', align: 'center', cell: it => <ActionChip action={it.positioning?.actionIntent} /> },
+    { key: 'bucket', label: 'Bucket', group: 'Classification', align: 'left', cell: it => it.bucket || <PPDash /> },
+    // Ownership
+    { key: 'pledgedQty', label: 'Pledged qty', group: 'Ownership', align: 'right', cell: it => qtyStr(it.pledgedQty) ?? <PPDash /> },
+    { key: 'freeQty', label: 'Free qty', group: 'Ownership', align: 'right', cell: it => qtyStr(it.freeQty) ?? <PPDash /> },
+    { key: 'pledgedWhere', label: 'Pledged where', group: 'Ownership', align: 'left', cell: it => it.pledgedWhere || <PPDash /> },
+    // Workflow
+    { key: 'assignedTo', label: 'Assigned to', group: 'Workflow', align: 'left', cell: it => it.assignedTo || <PPDash /> },
+    { key: 'remarks', label: 'Remarks', group: 'Workflow', align: 'left', cell: it => it.remarks || <PPDash /> },
+];
+
+const PP_GROUP_ORDER = ['Position', 'Performance', 'Fundamentals', 'Technicals', 'Classification', 'Ownership', 'Workflow'];
+
+// The default "lens" — shown until the user customises.
+const PP_DEFAULT_COLUMNS = ['quantity', 'averageBuyPrice', 'investedAmount', 'currentPrice', 'calculatedAmount', 'gainPercentage', 'weightage'];
+
 const perfColumns: { key: keyof Stock; label: string }[] = [
     { key: 'return1D', label: '1D %' },
     { key: 'return1W', label: '1W %' },
@@ -635,8 +764,6 @@ const NUMERIC_FILTER_DEFS: { key: string; label: string }[] = [
     { key: 'return1Y', label: '1Y %' },
 ];
 
-const NUMERIC_FILTER_KEYS = new Set(NUMERIC_FILTER_DEFS.map(d => d.key));
-
 const INITIAL_RANGE_FILTERS: Record<string, string> = NUMERIC_FILTER_DEFS.reduce((acc, def) => {
     acc[`${def.key}Min`] = '';
     acc[`${def.key}Max`] = '';
@@ -656,74 +783,40 @@ const normalizeFilters = (f: any): FilterState => ({
 });
 
 const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void; isAnalyst?: boolean; teamMembers?: string[] }> = ({ gridKeyData, stocks, onStocksUpdate, isAnalyst = false, teamMembers = [] }) => {
+    // Default sort = portfolio weight descending (Part II: never alphabetical —
+    // alphabetical buries an 18% position beneath a 0.06% one).
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' }>({
-        key: 'scripName',
-        direction: 'ascending',
+        key: 'weightage',
+        direction: 'descending',
     });
     const [remarkValue, setRemarkValue] = useState<string>('');
     const [filters, setFilters] = useState<FilterState>(() => ({ ...INITIAL_FILTERS }));
     const [positioningFilters, setPositioningFilters] = useState<PositioningFilterState>(INITIAL_POSITIONING_FILTERS);
     const [rangeFilters, setRangeFilters] = useState<Record<string, string>>(() => ({ ...INITIAL_RANGE_FILTERS }));
     const [showFilterPopover, setShowFilterPopover] = useState(false);
+    const [showColumnPanel, setShowColumnPanel] = useState(false);
     const [remarksModalData, setRemarksModalData] = useState<any>(null);
-    const [columnFilterOpen, setColumnFilterOpen] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
     // Stock detail drawer state
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [selectedStock, setSelectedStock] = useState<{ code: string; name: string; positioning?: any } | null>(null);
 
-    const allInsightsColumns = [
-        { key: 'quantity', label: 'Quantity' },
-        { key: 'pledgedQty', label: 'Pledged Qty' },
-        { key: 'pledgedWhere', label: 'Pledged Where' },
-        { key: 'freeQty', label: 'Free Qty' },
-        { key: 'averageBuyPrice', label: 'Avg Buy Price' },
-        { key: 'investedAmount', label: 'Invested Amount' },
-        { key: 'currentPrice', label: 'Current Price' },
-        { key: 'calculatedAmount', label: 'Current Amount' },
-        { key: 'absoluteGain', label: 'Absolute Gain' },
-        { key: 'gainPercentage', label: 'Gain %' },
-        { key: 'weightage', label: 'Weightage %' },
-        { key: 'portfolioContribution', label: 'Portfolio Contribution %' },
-        { key: 'sparkline', label: 'Trend Chart' },
-        { key: 'industryGroup', label: 'Industry Group' },
-        { key: 'industry', label: 'Industry' },
-        { key: 'priceToEarning', label: 'P/E' },
-        { key: 'marketCap', label: 'Market Cap' },
-        { key: 'rsi', label: 'RSI' },
-        { key: 'roce', label: 'ROCE %' },
-        { key: 'yoyQuarterlyProfitGrowth', label: 'Profit Growth %' },
-        { key: 'yoyQuarterlySalesGrowth', label: 'Sales Growth %' },
-        { key: 'dma50ChangePercent', label: 'Change% from DMA 50' },
-        { key: 'dma200ChangePercent', label: 'Change% from DMA 200' },
-        { key: 'downFrom52WeekHigh', label: 'Down from 52w High' },
-        { key: 'upFrom52WeekLow', label: 'Up from 52w Low' },
-        { key: 'trend', label: 'Trend' },
-        { key: 'return1D', label: '1D %' },
-        { key: 'return1W', label: '1W %' },
-        { key: 'return1M', label: '1M %' },
-        { key: 'return3M', label: '3M %' },
-        { key: 'return6M', label: '6M %' },
-        { key: 'return1Y', label: '1Y %' },
-        { key: 'remarks', label: 'Remarks' },
-        { key: 'assignedTo', label: 'Assigned To' },
-        { key: 'bucket', label: 'Bucket' },
-        { key: 'positioning', label: 'Positioning' },
-    ];
-
-    const initialVisibleColumns = allInsightsColumns.reduce((acc, col) => {
-        acc[col.key] = true;
+    // Column visibility. Identity (rank + holding) is always shown; every other
+    // column is toggleable via the Edit-columns panel. Default = the lens below.
+    const COLUMN_PREFS_KEY = 'ppColumns_v3';
+    const buildDefaultColumns = () => PP_COLUMNS.reduce((acc, col) => {
+        acc[col.key] = PP_DEFAULT_COLUMNS.includes(col.key);
         return acc;
     }, {} as Record<string, boolean>);
+    const initialVisibleColumns = buildDefaultColumns();
 
-    // Load column preferences from localStorage
     const loadColumnPreferences = () => {
         if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('portfolioInsightsColumns');
+            const saved = localStorage.getItem(COLUMN_PREFS_KEY);
             if (saved) {
                 try {
-                    return JSON.parse(saved);
+                    return { ...initialVisibleColumns, ...JSON.parse(saved) };
                 } catch (e) {
                     return initialVisibleColumns;
                 }
@@ -734,29 +827,12 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
 
     const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(loadColumnPreferences);
 
-    // Helper to check if a column should be visible (considering analyst restrictions)
-    const isColumnVisible = (key: string) => {
-        if (isAnalyst && ANALYST_RESTRICTED_COLUMNS.includes(key)) {
-            return false;
-        }
-        return !!visibleColumns[key];
+    const persistColumns = (next: Record<string, boolean>) => {
+        setVisibleColumns(next);
+        if (typeof window !== 'undefined') localStorage.setItem(COLUMN_PREFS_KEY, JSON.stringify(next));
     };
-
-    // Filter columns for column toggle UI (hide restricted columns for analysts)
-    const availableColumns = isAnalyst
-        ? allInsightsColumns.filter(col => !ANALYST_RESTRICTED_COLUMNS.includes(col.key))
-        : allInsightsColumns;
-
-    const toggleColumn = (key: string) => {
-        setVisibleColumns(prev => {
-            const updated = { ...prev, [key]: !prev[key] };
-            // Save to localStorage
-            if (typeof window !== 'undefined') {
-                localStorage.setItem('portfolioInsightsColumns', JSON.stringify(updated));
-            }
-            return updated;
-        });
-    };
+    const toggleColumn = (key: string) => persistColumns({ ...visibleColumns, [key]: !visibleColumns[key] });
+    const resetColumns = () => persistColumns(buildDefaultColumns());
 
     const requestSort = (key: string) => {
         let direction: 'ascending' | 'descending' = 'ascending';
@@ -1026,33 +1102,6 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     };
 
 
-    const toggleColumnFilter = (columnKey: string) => {
-        setColumnFilterOpen(prev => prev === columnKey ? null : columnKey);
-    };
-
-    const clearColumnFilter = (columnKey: string) => {
-        const minKey = `${columnKey}Min` as keyof typeof rangeFilters;
-        const maxKey = `${columnKey}Max` as keyof typeof rangeFilters;
-        setRangeFilters(prev => ({
-            ...prev,
-            [minKey]: '',
-            [maxKey]: ''
-        }));
-    };
-
-    const hasColumnFilter = (columnKey: string): boolean => {
-        const minKey = `${columnKey}Min` as keyof typeof rangeFilters;
-        const maxKey = `${columnKey}Max` as keyof typeof rangeFilters;
-        return rangeFilters[minKey] !== '' || rangeFilters[maxKey] !== '';
-    };
-
-    // Range-filter keys follow a regular `${columnKey}Min/Max` convention.
-    const getFilterKeys = (columnKey: string): { min: string; max: string } | null => {
-        return NUMERIC_FILTER_KEYS.has(columnKey)
-            ? { min: `${columnKey}Min`, max: `${columnKey}Max` }
-            : null;
-    };
-
     // Toggle a value in one of the multi-select categorical filters.
     const toggleMultiFilter = (name: 'trend' | 'assignedTo' | 'bucket' | 'industryGroup' | 'industry', value: string) => {
         setFilters(prev => {
@@ -1274,47 +1323,28 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         };
     }, [filteredAndSortedData]);
 
-    const SortIndicator: React.FC<{ columnKey: string }> = ({ columnKey }) => {
-        if (sortConfig.key !== columnKey) return null;
-        return <span className="sort-indicator">{sortConfig.direction === 'ascending' ? '▲' : '▼'}</span>;
-    };
-
-    const ColumnFilterPopup: React.FC<{ columnKey: string }> = ({ columnKey }) => {
-        const filterKeys = getFilterKeys(columnKey);
-        if (!filterKeys) return null;
-
+    // Sortable header cell for the dense grid. Active column is inked with a
+    // directional arrow; all others stay muted (Part II table chrome).
+    const PPTh: React.FC<{ k?: string; label: React.ReactNode; align?: 'left' | 'right' | 'center'; sticky?: boolean }> = ({ k, label, align = 'right', sticky }) => {
+        const active = !!k && sortConfig.key === k;
         return (
-            <div className="column-filter-popup" onClick={(e) => e.stopPropagation()}>
-                <div className="column-filter-content">
-                    <div className="column-filter-header">
-                        <span>Filter Range</span>
-                        <button className="close-filter-btn" onClick={() => setColumnFilterOpen(null)}>×</button>
-                    </div>
-                    <div className="column-filter-inputs">
-                        <input
-                            type="number"
-                            placeholder="Min"
-                            name={filterKeys.min}
-                            value={rangeFilters[filterKeys.min]}
-                            onChange={handleRangeFilterChange}
-                        />
-                        <span>to</span>
-                        <input
-                            type="number"
-                            placeholder="Max"
-                            name={filterKeys.max}
-                            value={rangeFilters[filterKeys.max]}
-                            onChange={handleRangeFilterChange}
-                        />
-                    </div>
-                    <div className="column-filter-actions">
-                        <button className="clear-filter-btn" onClick={() => clearColumnFilter(columnKey)}>Clear</button>
-                        <button className="apply-filter-btn" onClick={() => setColumnFilterOpen(null)}>Apply</button>
-                    </div>
-                </div>
-            </div>
+            <th
+                className={`pp-th pp-th-${align} ${sticky ? 'pp-th-id' : ''} ${active ? 'pp-sorted' : ''}`}
+                onClick={k ? () => requestSort(k) : undefined}
+                style={k ? { cursor: 'pointer' } : undefined}
+            >
+                <span className="pp-th-label">
+                    {label}
+                    {active && <span className="pp-sort-arrow">{sortConfig.direction === 'descending' ? ' ↓' : ' ↑'}</span>}
+                </span>
+            </th>
         );
     };
+
+    // Columns the user has switched on, in registry order (analyst-restricted filtered out).
+    const columnPickable = PP_COLUMNS.filter(c => !(isAnalyst && ANALYST_RESTRICTED_COLUMNS.includes(c.key)));
+    const visibleOptional = columnPickable.filter(c => visibleColumns[c.key]);
+    const shownColumnCount = visibleOptional.length;
 
     const handleStockNameClick = (item: any) => {
         const stockCode = item.nseCode || item.bseCode;
@@ -1655,13 +1685,52 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                 </svg>
                                 Filters
                             </button>
+                            <button
+                                className={`pp-editcols-btn ${showColumnPanel ? 'active' : ''}`}
+                                onClick={() => setShowColumnPanel(v => !v)}
+                                aria-expanded={showColumnPanel}
+                            >
+                                Edit columns ({shownColumnCount})
+                            </button>
                         </div>
                     </div>
 
-                    <PositioningFilters
-                        filters={positioningFilters}
-                        onChange={setPositioningFilters}
-                    />
+                    {showColumnPanel && (
+                        <div className="pp-colpanel">
+                            <div className="pp-colpanel-head">
+                                <h3>Choose columns</h3>
+                                <div className="pp-colpanel-meta">
+                                    <span>{shownColumnCount} shown · identity columns always visible</span>
+                                    <button type="button" className="pp-colpanel-reset" onClick={resetColumns}>Reset to lens</button>
+                                </div>
+                            </div>
+                            {PP_GROUP_ORDER.map(group => {
+                                const cols = columnPickable.filter(c => c.group === group);
+                                if (cols.length === 0) return null;
+                                return (
+                                    <div className="pp-colgroup" key={group}>
+                                        <div className="pp-colgroup-label">{group}</div>
+                                        <div className="pp-colgroup-chips">
+                                            {cols.map(c => {
+                                                const on = !!visibleColumns[c.key];
+                                                return (
+                                                    <button
+                                                        key={c.key}
+                                                        type="button"
+                                                        className={`pp-colchip ${on ? 'on' : ''}`}
+                                                        onClick={() => toggleColumn(c.key)}
+                                                        aria-pressed={on}
+                                                    >
+                                                        {on && <span className="pp-colchip-check">✓</span>}{c.label}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
 
                     {showFilterPopover && (
                         <div className="popover-backdrop" onClick={() => setShowFilterPopover(false)}>
@@ -1676,6 +1745,10 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                     </div>
                                 </div>
                                 <div className="popover-body">
+                                    <PositioningFilters
+                                        filters={positioningFilters}
+                                        onChange={setPositioningFilters}
+                                    />
                                     <div className="filter-grid">
                                         {renderCheckGroup('trend', 'Trend', TREND_OPTIONS)}
                                         {renderCheckGroup('bucket', 'Bucket', [UNASSIGNED, ...BUCKETS])}
@@ -1732,464 +1805,65 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         </div>
                                     </div>
 
-                                    <div className="column-toggles-container">
-                                        <label>Show/Hide Columns</label>
-                                        <div className="column-toggles">
-                                            {availableColumns.map(col => (
-                                                <div key={col.key} className="toggle-group">
-                                                    <input
-                                                        type="checkbox"
-                                                        id={`toggle-${col.key}`}
-                                                        checked={!!visibleColumns[col.key]}
-                                                        onChange={() => toggleColumn(col.key)}
-                                                    />
-                                                    <label htmlFor={`toggle-${col.key}`}>{col.label}</label>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         </div>
                     )}
 
                     {viewMode === 'table' ? (
-                    <div className="stock-table-container">
-                    <table className="stock-table">
+                    <>
+                    <div className="pp-table-wrap">
+                    <table className="pp-table">
                         <thead>
                             <tr>
-                                <th className="sticky-col" onClick={() => requestSort('scripName')}>
-                                    <div className="th-content">
-                                        <span>Stock Name <SortIndicator columnKey="scripName" /></span>
-                                    </div>
-                                </th>
-                                {isColumnVisible('quantity') && <th className="text-right" onClick={() => requestSort('quantity')}>
-                                    <div className="th-content">
-                                        <span>Quantity <SortIndicator columnKey="quantity" /></span>
-                                    </div>
-                                </th>}
-                                {isColumnVisible('pledgedQty') && <th className="text-right" onClick={() => requestSort('pledgedQty')}>
-                                    <div className="th-content">
-                                        <span>Pledged Qty <SortIndicator columnKey="pledgedQty" /></span>
-                                    </div>
-                                </th>}
-                                {isColumnVisible('pledgedWhere') && <th onClick={() => requestSort('pledgedWhere')}>
-                                    <div className="th-content">
-                                        <span>Pledged Where <SortIndicator columnKey="pledgedWhere" /></span>
-                                    </div>
-                                </th>}
-                                {isColumnVisible('freeQty') && <th className="text-right" onClick={() => requestSort('freeQty')}>
-                                    <div className="th-content">
-                                        <span>Free Qty <SortIndicator columnKey="freeQty" /></span>
-                                    </div>
-                                </th>}
-                                {isColumnVisible('averageBuyPrice') && <th className="text-right avg-buy-price-col" onClick={() => requestSort('averageBuyPrice')}>
-                                    <div className="th-content">
-                                        <span>Avg Buy Price <SortIndicator columnKey="averageBuyPrice" /></span>
-                                    </div>
-                                </th>}
-                                {isColumnVisible('investedAmount') && <th className="text-right" onClick={() => requestSort('investedAmount')}>
-                                    <div className="th-content">
-                                        <span>Invested Amount <SortIndicator columnKey="investedAmount" /></span>
-                                    </div>
-                                </th>}
-                                {isColumnVisible('currentPrice') && <th className="text-right" onClick={() => requestSort('currentPrice')}>
-                                    <div className="th-content">
-                                        <span>Current Price <SortIndicator columnKey="currentPrice" /></span>
-                                    </div>
-                                </th>}
-                                {isColumnVisible('calculatedAmount') && <th className="text-right" onClick={() => requestSort('calculatedAmount')}>
-                                    <div className="th-content">
-                                        <span>Current Amount <SortIndicator columnKey="calculatedAmount" /></span>
-                                    </div>
-                                </th>}
-                                {isColumnVisible('absoluteGain') && <th className="text-right" onClick={() => requestSort('absoluteGain')}>
-                                    <div className="th-content">
-                                        <span>Absolute Gain <SortIndicator columnKey="absoluteGain" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['gainPercentage'] && <th className="text-right filterable-column">
-                                    <div className="th-content">
-                                        <span onClick={() => requestSort('gainPercentage')}>Gain % <SortIndicator columnKey="gainPercentage" /></span>
-                                        <div className="filter-icon-wrapper">
-                                            <button
-                                                className={`filter-icon-btn ${hasColumnFilter('gainPercentage') ? 'active' : ''}`}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    toggleColumnFilter('gainPercentage');
-                                                }}
-                                            >
-                                                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
-                                                    <path d="M6 10.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z"/>
-                                                </svg>
-                                            </button>
-                                            {columnFilterOpen === 'gainPercentage' && <ColumnFilterPopup columnKey="gainPercentage" />}
-                                        </div>
-                                    </div>
-                                </th>}
-                                    {visibleColumns['weightage'] && <th className="text-right filterable-column">
-                                    <div className="th-content">
-                                        <span onClick={() => requestSort('weightage')}>Weightage % <SortIndicator columnKey="weightage" /></span>
-                                        <div className="filter-icon-wrapper">
-                                            <button
-                                                className={`filter-icon-btn ${hasColumnFilter('weightage') ? 'active' : ''}`}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    toggleColumnFilter('weightage');
-                                                }}
-                                            >
-                                                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
-                                                    <path d="M6 10.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z"/>
-                                                </svg>
-                                            </button>
-                                            {columnFilterOpen === 'weightage' && <ColumnFilterPopup columnKey="weightage" />}
-                                        </div>
-                                    </div>
-                                </th>}
-                                {visibleColumns['portfolioContribution'] && <th className="text-right" onClick={() => requestSort('portfolioContribution')}>
-                                    <div className="th-content">
-                                        <span>Portfolio Contribution % <SortIndicator columnKey="portfolioContribution" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['sparkline'] && <th>
-                                    <div className="th-content">
-                                        <span>Trend Chart</span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['industryGroup'] && <th onClick={() => requestSort('industryGroup')}>
-                                    <div className="th-content">
-                                        <span>Industry Group <SortIndicator columnKey="industryGroup" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['industry'] && <th onClick={() => requestSort('industry')}>
-                                    <div className="th-content">
-                                        <span>Industry <SortIndicator columnKey="industry" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['priceToEarning'] && <th className="text-right filterable-column">
-                                    <div className="th-content">
-                                        <span onClick={() => requestSort('priceToEarning')}>P/E <SortIndicator columnKey="priceToEarning" /></span>
-                                        <div className="filter-icon-wrapper">
-                                            <button
-                                                className={`filter-icon-btn ${hasColumnFilter('priceToEarning') ? 'active' : ''}`}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    toggleColumnFilter('priceToEarning');
-                                                }}
-                                            >
-                                                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
-                                                    <path d="M6 10.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z"/>
-                                                </svg>
-                                            </button>
-                                            {columnFilterOpen === 'priceToEarning' && <ColumnFilterPopup columnKey="priceToEarning" />}
-                                        </div>
-                                    </div>
-                                </th>}
-                                {visibleColumns['marketCap'] && <th className="text-right" onClick={() => requestSort('marketCap')}>
-                                    <div className="th-content">
-                                        <span>Market Cap <SortIndicator columnKey="marketCap" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['rsi'] && <th className="text-right" onClick={() => requestSort('rsi')}>
-                                    <div className="th-content">
-                                        <span>RSI <SortIndicator columnKey="rsi" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['roce'] && <th className="text-right" onClick={() => requestSort('roce')}>
-                                    <div className="th-content">
-                                        <span>ROCE % <SortIndicator columnKey="roce" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['yoyQuarterlyProfitGrowth'] && <th className="text-right filterable-column">
-                                    <div className="th-content">
-                                        <span onClick={() => requestSort('yoyQuarterlyProfitGrowth')}>Profit Growth % <SortIndicator columnKey="yoyQuarterlyProfitGrowth" /></span>
-                                        <div className="filter-icon-wrapper">
-                                            <button
-                                                className={`filter-icon-btn ${hasColumnFilter('yoyQuarterlyProfitGrowth') ? 'active' : ''}`}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    toggleColumnFilter('yoyQuarterlyProfitGrowth');
-                                                }}
-                                            >
-                                                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
-                                                    <path d="M6 10.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z"/>
-                                                </svg>
-                                            </button>
-                                            {columnFilterOpen === 'yoyQuarterlyProfitGrowth' && <ColumnFilterPopup columnKey="yoyQuarterlyProfitGrowth" />}
-                                        </div>
-                                    </div>
-                                </th>}
-                                {visibleColumns['yoyQuarterlySalesGrowth'] && <th className="text-right filterable-column">
-                                    <div className="th-content">
-                                        <span onClick={() => requestSort('yoyQuarterlySalesGrowth')}>Sales Growth % <SortIndicator columnKey="yoyQuarterlySalesGrowth" /></span>
-                                        <div className="filter-icon-wrapper">
-                                            <button
-                                                className={`filter-icon-btn ${hasColumnFilter('yoyQuarterlySalesGrowth') ? 'active' : ''}`}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    toggleColumnFilter('yoyQuarterlySalesGrowth');
-                                                }}
-                                            >
-                                                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
-                                                    <path d="M6 10.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z"/>
-                                                </svg>
-                                            </button>
-                                            {columnFilterOpen === 'yoyQuarterlySalesGrowth' && <ColumnFilterPopup columnKey="yoyQuarterlySalesGrowth" />}
-                                        </div>
-                                    </div>
-                                </th>}
-                                {visibleColumns['dma50ChangePercent'] && <th className="text-right" onClick={() => requestSort('dma50ChangePercent')}>
-                                    <div className="th-content">
-                                        <span>Change% from DMA 50 <SortIndicator columnKey="dma50ChangePercent" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['dma200ChangePercent'] && <th className="text-right" onClick={() => requestSort('dma200ChangePercent')}>
-                                    <div className="th-content">
-                                        <span>Change% from DMA 200 <SortIndicator columnKey="dma200ChangePercent" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['downFrom52WeekHigh'] && <th className="text-right" onClick={() => requestSort('downFrom52WeekHigh')}>
-                                    <div className="th-content">
-                                        <span>Down from 52w High <SortIndicator columnKey="downFrom52WeekHigh" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['upFrom52WeekLow'] && <th className="text-right" onClick={() => requestSort('upFrom52WeekLow')}>
-                                    <div className="th-content">
-                                        <span>Up from 52w Low <SortIndicator columnKey="upFrom52WeekLow" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['trend'] && <th onClick={() => requestSort('trend')}>
-                                    <div className="th-content">
-                                        <span>Trend <SortIndicator columnKey="trend" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['return1D'] && <th className="text-right" onClick={() => requestSort('return1D')}>
-                                    <div className="th-content">
-                                        <span>1D % <SortIndicator columnKey="return1D" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['return1W'] && <th className="text-right" onClick={() => requestSort('return1W')}>
-                                    <div className="th-content">
-                                        <span>1W % <SortIndicator columnKey="return1W" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['return1M'] && <th className="text-right" onClick={() => requestSort('return1M')}>
-                                    <div className="th-content">
-                                        <span>1M % <SortIndicator columnKey="return1M" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['return3M'] && <th className="text-right" onClick={() => requestSort('return3M')}>
-                                    <div className="th-content">
-                                        <span>3M % <SortIndicator columnKey="return3M" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['return6M'] && <th className="text-right" onClick={() => requestSort('return6M')}>
-                                    <div className="th-content">
-                                        <span>6M % <SortIndicator columnKey="return6M" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['return1Y'] && <th className="text-right" onClick={() => requestSort('return1Y')}>
-                                    <div className="th-content">
-                                        <span>1Y % <SortIndicator columnKey="return1Y" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['remarks'] && <th onClick={() => requestSort('remarks')}>
-                                    <div className="th-content">
-                                        <span>Remarks <SortIndicator columnKey="remarks" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['assignedTo'] && <th onClick={() => requestSort('assignedTo')}>
-                                    <div className="th-content">
-                                        <span>Assigned To <SortIndicator columnKey="assignedTo" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['bucket'] && <th onClick={() => requestSort('bucket')}>
-                                    <div className="th-content">
-                                        <span>Bucket <SortIndicator columnKey="bucket" /></span>
-                                    </div>
-                                </th>}
-                                {visibleColumns['positioning'] && <th className="positioning-col">
-                                    <div className="th-content">
-                                        <span>Positioning</span>
-                                    </div>
-                                </th>}
+                                <th className="pp-th pp-th-rank">#</th>
+                                <PPTh k="scripName" label="Holding" align="left" sticky />
+                                {visibleOptional.map(c => <PPTh key={c.key} k={c.key} label={c.short || c.label} align={c.align} />)}
+                                <th className="pp-th pp-th-chevron" aria-hidden="true"></th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredAndSortedData.map((item, index) => (
-                                <tr key={`${item.scripName}-${index}`}>
-                                    <td className="stock-name-col sticky-col" title={item.scripName}>
-                                        <span
-                                            className="stock-name-clickable"
-                                            onClick={() => handleStockNameClick(item)}
-                                            title="Click to view/edit remarks"
-                                        >
-                                            {item.scripName}
-                                        </span>
-                                    </td>
-                                    {isColumnVisible('quantity') && <td className="text-right">{item.quantity !== null && item.quantity !== undefined ? item.quantity.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : 'N/A'}</td>}
-                                    {isColumnVisible('pledgedQty') && <td className="text-right pledge-cell">
-                                        <input
-                                            key={`pledge-${item.nseCode || item.bseCode}-${(item as any).pledgedQty ?? ''}`}
-                                            type="number"
-                                            className="pledge-qty-input"
-                                            min="0"
-                                            defaultValue={(item as any).pledgedQty ?? ''}
-                                            placeholder="—"
-                                            onBlur={(e) => {
-                                                const raw = e.target.value.trim();
-                                                const next = raw === '' ? null : Number(raw);
-                                                const current = (item as any).pledgedQty ?? null;
-                                                if (next !== current) handlePledgeChange(item, { pledgedQty: next });
-                                            }}
-                                        />
-                                    </td>}
-                                    {isColumnVisible('pledgedWhere') && <td className="assignment-cell">
-                                        <select
-                                            value={(item as any).pledgedWhere || ''}
-                                            onChange={(e) => handlePledgeChange(item, { pledgedWhere: e.target.value || null })}
-                                            className="assignment-select"
-                                        >
-                                            <option value="">—</option>
-                                            <option value="LAS">LAS</option>
-                                            <option value="F&O">F&amp;O</option>
-                                        </select>
-                                    </td>}
-                                    {isColumnVisible('freeQty') && <td className="text-right">{(item as any).freeQty !== null && (item as any).freeQty !== undefined ? (item as any).freeQty.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : 'N/A'}</td>}
-                                    {isColumnVisible('averageBuyPrice') && <td className="text-right avg-buy-price-col">{item.averageBuyPrice !== null && item.averageBuyPrice !== undefined ? `₹${item.averageBuyPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
-                                    {isColumnVisible('investedAmount') && <td className="text-right">{(item as any).investedAmount !== null && (item as any).investedAmount !== undefined ? `₹${(item as any).investedAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
-                                    {isColumnVisible('currentPrice') && <td className="text-right">{(item as any).currentPrice !== null && (item as any).currentPrice !== undefined ? `₹${(item as any).currentPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
-                                    {isColumnVisible('calculatedAmount') && <td className="text-right current-amount-cell">{(item as any).calculatedAmount !== null && (item as any).calculatedAmount !== undefined ? `₹${(item as any).calculatedAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'N/A'}</td>}
-                                    {isColumnVisible('absoluteGain') && <td className="text-right" style={{ color: (item as any).absoluteGain !== null ? ((item as any).absoluteGain >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>
-                                        {fmtSignedCur((item as any).absoluteGain)}
-                                    </td>}
-                                    {visibleColumns['gainPercentage'] && <td className="text-right" style={{ color: (item as any).gainPercentage !== null ? ((item as any).gainPercentage >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit', fontWeight: 500 }}>
-                                        {fmtSignedPct((item as any).gainPercentage)}
-                                    </td>}
-                                    {visibleColumns['weightage'] && <td className="text-right weightage-cell">{(item as any).weightage !== null ? `${((item as any).weightage).toFixed(2)}%` : 'N/A'}</td>}
-                                    {visibleColumns['portfolioContribution'] && <td className="text-right" style={{ color: (item as any).portfolioContribution !== null ? ((item as any).portfolioContribution >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit', fontWeight: 500 }}>
-                                        {fmtSignedPct((item as any).portfolioContribution)}
-                                    </td>}
-                                    {visibleColumns['sparkline'] && <td className="sparkline-td">
-                                        <Sparkline data={(item as any).sparklineData || []} />
-                                    </td>}
-                                    {visibleColumns['industryGroup'] && <td>{(item as any).industryGroup || 'N/A'}</td>}
-                                    {visibleColumns['industry'] && <td>{(item as any).industry || 'N/A'}</td>}
-                                    {visibleColumns['priceToEarning'] && <td className="text-right">{(item as any).priceToEarning !== null && (item as any).priceToEarning !== undefined ? (item as any).priceToEarning.toFixed(2) : 'N/A'}</td>}
-                                    {visibleColumns['marketCap'] && <td className="text-right">{(item as any).marketCap !== null && (item as any).marketCap !== undefined ? ((item as any).marketCap >= 1000 ? `₹${((item as any).marketCap / 1000).toFixed(1)}K Cr` : `₹${(item as any).marketCap.toFixed(0)} Cr`) : 'N/A'}</td>}
-                                    {visibleColumns['rsi'] && <td className="text-right" style={{ color: (item as any).rsi !== null ? ((item as any).rsi > 70 ? 'var(--error-color)' : (item as any).rsi < 30 ? 'var(--success-color)' : 'inherit') : 'inherit' }}>{(item as any).rsi !== null && (item as any).rsi !== undefined ? (item as any).rsi.toFixed(1) : 'N/A'}</td>}
-                                    {visibleColumns['roce'] && <td className="text-right" style={{ color: (item as any).roce !== null ? ((item as any).roce >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct((item as any).roce)}</td>}
-                                    {visibleColumns['yoyQuarterlyProfitGrowth'] && <td className="text-right" style={{ color: (item as any).yoyQuarterlyProfitGrowth !== null ? ((item as any).yoyQuarterlyProfitGrowth >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>
-                                        {fmtSignedPct((item as any).yoyQuarterlyProfitGrowth)}
-                                    </td>}
-                                    {visibleColumns['yoyQuarterlySalesGrowth'] && <td className="text-right" style={{ color: (item as any).yoyQuarterlySalesGrowth !== null ? ((item as any).yoyQuarterlySalesGrowth >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>
-                                        {fmtSignedPct((item as any).yoyQuarterlySalesGrowth)}
-                                    </td>}
-                                    {visibleColumns['dma50ChangePercent'] && <td className="text-right" style={{ color: (item as any).dma50ChangePercent !== null ? ((item as any).dma50ChangePercent >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>
-                                        {fmtSignedPct((item as any).dma50ChangePercent)}
-                                    </td>}
-                                    {visibleColumns['dma200ChangePercent'] && <td className="text-right" style={{ color: (item as any).dma200ChangePercent !== null ? ((item as any).dma200ChangePercent >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>
-                                        {fmtSignedPct((item as any).dma200ChangePercent)}
-                                    </td>}
-                                    {visibleColumns['downFrom52WeekHigh'] && <td className="text-right">
-                                        {(item as any).downFrom52WeekHigh !== null && (item as any).downFrom52WeekHigh !== undefined ? `${(item as any).downFrom52WeekHigh.toFixed(2)}%` : 'N/A'}
-                                    </td>}
-                                    {visibleColumns['upFrom52WeekLow'] && <td className="text-right">
-                                        {(item as any).upFrom52WeekLow !== null && (item as any).upFrom52WeekLow !== undefined ? `${(item as any).upFrom52WeekLow.toFixed(2)}%` : 'N/A'}
-                                    </td>}
-                                    {visibleColumns['trend'] && <td className="trend-cell">
-                                        {(item as any).trend ? (
-                                            <span className={`trend-badge trend-${(item as any).trend.toLowerCase().replace(/\s+/g, '-')}`}>
-                                                {(item as any).trend}
-                                            </span>
-                                        ) : 'N/A'}
-                                    </td>}
-                                    {visibleColumns['return1D'] && <td className="heatmap-td"><HeatmapCell value={(item as any).return1D} /></td>}
-                                    {visibleColumns['return1W'] && <td className="heatmap-td"><HeatmapCell value={(item as any).return1W} /></td>}
-                                    {visibleColumns['return1M'] && <td className="heatmap-td"><HeatmapCell value={(item as any).return1M} /></td>}
-                                    {visibleColumns['return3M'] && <td className="heatmap-td"><HeatmapCell value={(item as any).return3M} /></td>}
-                                    {visibleColumns['return6M'] && <td className="heatmap-td"><HeatmapCell value={(item as any).return6M} /></td>}
-                                    {visibleColumns['return1Y'] && <td className="heatmap-td"><HeatmapCell value={(item as any).return1Y} /></td>}
-                                    {visibleColumns['remarks'] && <td className="remarks-cell">
-                                        {(item as any).remarks || '-'}
-                                    </td>}
-                                    {visibleColumns['assignedTo'] && <td className="assignment-cell">
-                                        <select
-                                            value={(item as any).assignedTo || ''}
-                                            onChange={(e) => handleAssignmentChange(item, e.target.value)}
-                                            className="assignment-select"
-                                        >
-                                            <option value="">Unassigned</option>
-                                            {teamMembers.map(member => (
-                                                <option key={member} value={member}>{member}</option>
-                                            ))}
-                                        </select>
-                                    </td>}
-                                    {visibleColumns['bucket'] && <td className="assignment-cell">
-                                        <select
-                                            value={(item as any).bucket || ''}
-                                            onChange={(e) => handleBucketChange(item, e.target.value)}
-                                            className="assignment-select"
-                                        >
-                                            <option value="">Unassigned</option>
-                                            {BUCKETS.map(bucket => (
-                                                <option key={bucket} value={bucket}>{bucket}</option>
-                                            ))}
-                                        </select>
-                                    </td>}
-                                    {visibleColumns['positioning'] && <td className="positioning-cell">
-                                        <PositioningChips
-                                            conviction={(item as any).positioning?.conviction}
-                                            strategyType={(item as any).positioning?.strategyType}
-                                            actionIntent={(item as any).positioning?.actionIntent}
-                                        />
-                                    </td>}
-                                </tr>
-                            ))}
+                            {filteredAndSortedData.map((item, index) => {
+                                const it = item as any;
+                                const pos = it.positioning || {};
+                                const conviction = (pos.conviction || '').toLowerCase();
+                                const ticker = it.nseCode || it.bseCode || '';
+                                const pledged = !isAnalyst && it.pledgedQty != null && it.pledgedQty > 0;
+                                return (
+                                    <tr key={`${item.scripName}-${index}`} className="pp-row" onClick={() => handleStockNameClick(item)}>
+                                        <td className="pp-rank">{index + 1}</td>
+                                        <td className="pp-id-col" title={item.scripName}>
+                                            <span className="pp-spine" data-conviction={conviction} />
+                                            <div className="pp-id-inner">
+                                                <div className="pp-id-name">{item.scripName}</div>
+                                                <div className="pp-id-sub">
+                                                    {ticker && <span className="pp-ticker">{ticker}</span>}
+                                                    {pos.strategyType && <span className="pp-strategy">{pos.strategyType}</span>}
+                                                    {pledged && <span className="pp-pledged" title={`Pledged ${it.pledgedQty.toLocaleString('en-IN')}${it.pledgedWhere ? ' · ' + it.pledgedWhere : ''}`}>PLEDGED</span>}
+                                                </div>
+                                            </div>
+                                        </td>
+                                        {visibleOptional.map(c => (
+                                            <td key={c.key} className={c.align === 'left' ? 'pp-opt-text' : c.align === 'center' ? 'pp-action-col' : 'pp-num'}>{c.cell(it)}</td>
+                                        ))}
+                                        <td className="pp-chevron" aria-hidden="true">›</td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                         <tfoot>
-                            <tr className="summary-row">
-                                <td className="sticky-col">Total / Wtd Avg ({summary.count})</td>
-                                {isColumnVisible('quantity') && <td className="text-right">{summary.quantity.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>}
-                                {isColumnVisible('pledgedQty') && <td className="text-right">{summary.pledgedQty.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>}
-                                {isColumnVisible('pledgedWhere') && <td></td>}
-                                {isColumnVisible('freeQty') && <td className="text-right">{summary.freeQty.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>}
-                                {isColumnVisible('averageBuyPrice') && <td></td>}
-                                {isColumnVisible('investedAmount') && <td className="text-right">{`₹${summary.investedAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}</td>}
-                                {isColumnVisible('currentPrice') && <td></td>}
-                                {isColumnVisible('calculatedAmount') && <td className="text-right">{`₹${summary.calculatedAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}</td>}
-                                {isColumnVisible('absoluteGain') && <td className="text-right" style={{ color: summary.absoluteGain >= 0 ? 'var(--success-color)' : 'var(--error-color)' }}>{fmtSignedCur(summary.absoluteGain)}</td>}
-                                {visibleColumns['gainPercentage'] && <td className="text-right" style={{ color: summary.gainPercentage !== null ? (summary.gainPercentage >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit', fontWeight: 500 }}>{fmtSignedPct(summary.gainPercentage)}</td>}
-                                {visibleColumns['weightage'] && <td className="text-right">{`${summary.weightage.toFixed(2)}%`}</td>}
-                                {visibleColumns['portfolioContribution'] && <td className="text-right" style={{ color: summary.portfolioContribution !== null ? (summary.portfolioContribution >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit', fontWeight: 500 }}>{fmtSignedPct(summary.portfolioContribution)}</td>}
-                                {visibleColumns['sparkline'] && <td></td>}
-                                {visibleColumns['industryGroup'] && <td></td>}
-                                {visibleColumns['industry'] && <td></td>}
-                                {visibleColumns['priceToEarning'] && <td className="text-right">{summary.priceToEarning !== null ? summary.priceToEarning.toFixed(2) : 'N/A'}</td>}
-                                {visibleColumns['marketCap'] && <td className="text-right">{summary.marketCap !== null ? (summary.marketCap >= 1000 ? `₹${(summary.marketCap / 1000).toFixed(1)}K Cr` : `₹${summary.marketCap.toFixed(0)} Cr`) : 'N/A'}</td>}
-                                {visibleColumns['rsi'] && <td className="text-right">{summary.rsi !== null ? summary.rsi.toFixed(1) : 'N/A'}</td>}
-                                {visibleColumns['roce'] && <td className="text-right" style={{ color: summary.roce !== null ? (summary.roce >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.roce)}</td>}
-                                {visibleColumns['yoyQuarterlyProfitGrowth'] && <td className="text-right" style={{ color: summary.yoyQuarterlyProfitGrowth !== null ? (summary.yoyQuarterlyProfitGrowth >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.yoyQuarterlyProfitGrowth)}</td>}
-                                {visibleColumns['yoyQuarterlySalesGrowth'] && <td className="text-right" style={{ color: summary.yoyQuarterlySalesGrowth !== null ? (summary.yoyQuarterlySalesGrowth >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.yoyQuarterlySalesGrowth)}</td>}
-                                {visibleColumns['dma50ChangePercent'] && <td className="text-right" style={{ color: summary.dma50ChangePercent !== null ? (summary.dma50ChangePercent >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.dma50ChangePercent)}</td>}
-                                {visibleColumns['dma200ChangePercent'] && <td className="text-right" style={{ color: summary.dma200ChangePercent !== null ? (summary.dma200ChangePercent >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.dma200ChangePercent)}</td>}
-                                {visibleColumns['downFrom52WeekHigh'] && <td className="text-right">{summary.downFrom52WeekHigh !== null ? `${summary.downFrom52WeekHigh.toFixed(2)}%` : 'N/A'}</td>}
-                                {visibleColumns['upFrom52WeekLow'] && <td className="text-right">{summary.upFrom52WeekLow !== null ? `${summary.upFrom52WeekLow.toFixed(2)}%` : 'N/A'}</td>}
-                                {visibleColumns['trend'] && <td></td>}
-                                {visibleColumns['return1D'] && <td className="text-right" style={{ color: summary.return1D !== null ? (summary.return1D >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.return1D)}</td>}
-                                {visibleColumns['return1W'] && <td className="text-right" style={{ color: summary.return1W !== null ? (summary.return1W >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.return1W)}</td>}
-                                {visibleColumns['return1M'] && <td className="text-right" style={{ color: summary.return1M !== null ? (summary.return1M >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.return1M)}</td>}
-                                {visibleColumns['return3M'] && <td className="text-right" style={{ color: summary.return3M !== null ? (summary.return3M >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.return3M)}</td>}
-                                {visibleColumns['return6M'] && <td className="text-right" style={{ color: summary.return6M !== null ? (summary.return6M >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.return6M)}</td>}
-                                {visibleColumns['return1Y'] && <td className="text-right" style={{ color: summary.return1Y !== null ? (summary.return1Y >= 0 ? 'var(--success-color)' : 'var(--error-color)') : 'inherit' }}>{fmtSignedPct(summary.return1Y)}</td>}
-                                {visibleColumns['remarks'] && <td></td>}
-                                {visibleColumns['assignedTo'] && <td></td>}
-                                {visibleColumns['bucket'] && <td></td>}
-                                {visibleColumns['positioning'] && <td></td>}
+                            <tr className="pp-total-row">
+                                <td className="pp-rank"></td>
+                                <td className="pp-id-col pp-total-label">Total · {summary.count} holdings</td>
+                                {visibleOptional.map(c => (
+                                    <td key={c.key} className={c.align === 'left' ? 'pp-opt-text' : c.align === 'center' ? 'pp-action-col' : 'pp-num pp-total-num'}>{c.foot ? c.foot(summary) : ''}</td>
+                                ))}
+                                <td className="pp-chevron"></td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
+                </>
                 ) : (
                     <div className="stock-grid">
                         {filteredAndSortedData.map((item, index) => {
@@ -4402,13 +4076,51 @@ interface PrivateInvestments {
 const App: React.FC = () => {
     const { user, loading: authLoading, logout, isAdmin, isAnalyst, isManager } = useAuth();
     const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'entrydata' | 'pe' | 'pipeline' | 'admin'>('pipeline');
-    const [menuOpen, setMenuOpen] = useState(false);
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [privateInvestments, setPrivateInvestments] = useState<PrivateInvestments>({ totalInvested: 0, count: 0 });
     const [portfolioHistory, setPortfolioHistory] = useState<{ date: string; value: number }[]>([]);
     const [loading, setLoading] = useState(true);
     const [teamMembers, setTeamMembers] = useState<string[]>([]);
+    const [smallcapDaily, setSmallcapDaily] = useState<number | null>(null);
+
+    // Nifty Smallcap 100 daily change — the brand-bar benchmark next to today's gain.
+    useEffect(() => {
+        if (!user) return;
+        fetch('/api/nifty-smallcap')
+            .then(r => (r.ok ? r.json() : null))
+            .then((d: { dailyChange?: number } | null) => {
+                if (d && typeof d.dailyChange === 'number') setSmallcapDaily(d.dailyChange);
+            })
+            .catch(() => {});
+    }, [user]);
+
+    // Today's portfolio gain for the brand bar — value-weighted 1-day P&L
+    // (value × return1D / (100 + return1D)), mirroring the Dashboard's pnlMetrics.
+    const portfolioTotals = useMemo(() => {
+        const byCode = new Map<string, { price: number; r1d: number | null }>();
+        for (const s of stocks) {
+            if (s.currentPrice != null) {
+                const entry = { price: s.currentPrice, r1d: s.return1D ?? null };
+                if (s.nseCode) byCode.set(s.nseCode.toLowerCase(), entry);
+                if (s.bseCode) byCode.set(s.bseCode.toLowerCase(), entry);
+            }
+        }
+        let value = 0, todayGain = 0, hasHoldings = false;
+        for (const g of gridKeyData) {
+            const e = (g.nseCode ? byCode.get(g.nseCode.toLowerCase()) : undefined)
+                ?? (g.bseCode ? byCode.get(g.bseCode.toLowerCase()) : undefined);
+            if (g.quantity && e) {
+                hasHoldings = true;
+                const v = g.quantity * e.price;
+                value += v;
+                if (e.r1d != null) todayGain += (v * e.r1d) / (100 + e.r1d);
+            }
+        }
+        const prevValue = value - todayGain;
+        const todayPercent = prevValue > 0 ? (todayGain / prevValue) * 100 : 0;
+        return { todayGain, todayPercent, hasHoldings };
+    }, [stocks, gridKeyData]);
 
     useEffect(() => {
         if (user) {
@@ -4615,63 +4327,68 @@ const App: React.FC = () => {
         );
     }
 
+    // Horizontal nav (DESIGN.md Part II — a left sidebar is banned). Admin is
+    // appended neutrally, never tinted (an amber Admin tab reads as an error).
+    const navItems = [
+        { id: 'dashboard', label: 'Dashboard' },
+        { id: 'insights', label: 'Public Portfolio' },
+        { id: 'analysis', label: 'Analysis' },
+        ...(isManager ? [
+            { id: 'upload', label: 'Screener Data' },
+            { id: 'gridkey', label: 'GridKey Data' },
+            { id: 'entrydata', label: 'Entry Data' },
+        ] : []),
+        { id: 'pe', label: 'PE Tracker' },
+        { id: 'pipeline', label: 'Pipeline' },
+        ...(isAdmin ? [{ id: 'admin', label: 'Admin' }] : []),
+    ];
+    const { todayPercent, hasHoldings } = portfolioTotals;
+
     return (
-        <>
-            <nav className="main-nav">
-                {/* Desktop nav links */}
-                <div className="main-nav-links">
-                    <button className={page === 'dashboard' ? 'active' : ''} onClick={() => setPage('dashboard')}>Dashboard</button>
-                    <button className={page === 'insights' ? 'active' : ''} onClick={() => setPage('insights')}>Public Portfolio</button>
-                    <button className={page === 'analysis' ? 'active' : ''} onClick={() => setPage('analysis')}>Analysis</button>
-                    {isManager && <button className={page === 'upload' ? 'active' : ''} onClick={() => setPage('upload')}>Screener Data</button>}
-                    {isManager && <button className={page === 'gridkey' ? 'active' : ''} onClick={() => setPage('gridkey')}>GridKey Data</button>}
-                    {isManager && <button className={page === 'entrydata' ? 'active' : ''} onClick={() => setPage('entrydata')}>Entry Data</button>}
-                    <button className={page === 'pe' ? 'active' : ''} onClick={() => setPage('pe')}>PE Tracker</button>
-                    <button className={page === 'pipeline' ? 'active' : ''} onClick={() => setPage('pipeline')}>Pipeline</button>
-                    {isAdmin && (
-                        <button className={page === 'admin' ? 'active' : ''} onClick={() => setPage('admin')} style={{ background: page === 'admin' ? 'var(--accent-color)' : 'rgba(234, 179, 8, 0.15)', color: page === 'admin' ? 'white' : '#eab308' }}>Admin</button>
-                    )}
+        <div className="app-root">
+            <header className="topnav">
+                <div className="topnav-brand">
+                    <img className="topnav-logo" src="/assets/sagun-capital-logo.png" alt="Sagun Capital" />
                 </div>
-                <div className="main-nav-right">
-                    <button className="main-nav-logout" onClick={logout}>
-                        Logout ({user.name})
-                    </button>
-                    {/* Burger button — mobile only */}
-                    <button className="main-nav-burger" onClick={() => setMenuOpen(o => !o)} aria-label="Menu">
-                        <span /><span /><span />
-                    </button>
-                </div>
-            </nav>
-            {/* Mobile dropdown */}
-            {menuOpen && (
-                <div className="main-nav-mobile" onClick={() => setMenuOpen(false)}>
-                    {[
-                        { id: 'dashboard', label: 'Dashboard' },
-                        { id: 'insights', label: 'Public Portfolio' },
-                        { id: 'analysis', label: 'Analysis' },
-                        ...(isManager ? [
-                            { id: 'upload', label: 'Screener Data' },
-                            { id: 'gridkey', label: 'GridKey Data' },
-                            { id: 'entrydata', label: 'Entry Data' },
-                        ] : []),
-                        { id: 'pe', label: 'PE Tracker' },
-                        { id: 'pipeline', label: 'Pipeline' },
-                        ...(isAdmin ? [{ id: 'admin', label: 'Admin' }] : []),
-                    ].map(item => (
+                <nav className="topnav-links">
+                    {navItems.map(item => (
                         <button
                             key={item.id}
-                            className={page === item.id ? 'active' : ''}
+                            className={`navrow-link ${page === item.id ? 'active' : ''}`}
                             onClick={() => setPage(item.id as any)}
                         >
                             {item.label}
                         </button>
                     ))}
-                    <button className="main-nav-mobile-logout" onClick={logout}>
-                        Logout ({user.name})
-                    </button>
+                </nav>
+                <div className="topnav-right">
+                    {hasHoldings && (
+                        <div className="brandbar-stat">
+                            <span className="brandbar-stat-label">Today's gain</span>
+                            <span className="brandbar-stat-num serif n" style={{ color: todayPercent >= 0 ? 'var(--positive)' : 'var(--negative)' }}>
+                                {fmtSignedPct(todayPercent)}
+                            </span>
+                        </div>
+                    )}
+                    {smallcapDaily !== null && (
+                        <div className="brandbar-stat brandbar-stat-sep">
+                            <span className="brandbar-stat-label">Smallcap 100 today</span>
+                            <span className="brandbar-stat-num serif n" style={{ color: smallcapDaily >= 0 ? 'var(--positive)' : 'var(--negative)' }}>
+                                {fmtSignedPct(smallcapDaily)}
+                            </span>
+                        </div>
+                    )}
+                    <div className="brandbar-user brandbar-stat-sep">
+                        <span className="brandbar-avatar">{(user.name || '?').charAt(0).toUpperCase()}</span>
+                        <div className="brandbar-user-info">
+                            <span className="brandbar-user-name">{user.name}</span>
+                            <button className="brandbar-logout" onClick={logout}>Sign out</button>
+                        </div>
+                    </div>
                 </div>
-            )}
-            <main>
+            </header>
+
+            <main className={`app-content ${page === 'insights' ? 'is-table-page' : ''}`}>
                 {page === 'dashboard' && <Dashboard gridKeyData={gridKeyData} stocks={stocks} privateInvestments={privateInvestments} isAnalyst={isAnalyst} portfolioHistory={portfolioHistory} />}
                 {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={stocks} onStocksUpdate={setStocks} isAnalyst={isAnalyst} teamMembers={teamMembers} />}
                 {page === 'analysis' && <AnalysisPage gridKeyData={gridKeyData} stocks={stocks} isAnalyst={isAnalyst} />}
@@ -4682,7 +4399,7 @@ const App: React.FC = () => {
                 {page === 'pipeline' && <PipelinePage />}
                 {page === 'admin' && <AdminPanel />}
             </main>
-        </>
+        </div>
     );
 }
 
