@@ -179,7 +179,9 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
     // Compute current technical states
     const currentStates = useMemo((): TechnicalState[] => {
         return enrichedData
-            .filter(item => item.currentPrice !== null)
+            // Only actively-held stocks — exited holdings (quantity 0/null) must
+            // not generate technical alerts.
+            .filter(item => item.currentPrice !== null && item.quantity != null && item.quantity > 0)
             .map(item => {
                 const stockCode = item.nseCode || item.bseCode || '';
                 const currentPrice = item.currentPrice!;
@@ -826,16 +828,23 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             return true;
         };
 
+        // Only currently-held stocks — a stored alert for a since-exited holding
+        // must not linger for the 24h window.
+        const heldCodes = new Set(currentStates.map(s => s.stockCode));
+        const isHeld = (a: Alert) => heldCodes.has(a.stockCode);
+
         const weakTechnicals = transitionAlerts
             .filter(a => ['DEATH_CROSS', 'CROSSED_BELOW_200DMA', 'CROSSED_BELOW_50DMA', 'NEAR_52W_LOW', 'CROSSED_BELOW_COST'].includes(a.alertType))
             .filter(passesThreshold)
             .filter(crossConsistent)
+            .filter(isHeld)
             .sort((a, b) => (technicalOrder[a.alertType] || 99) - (technicalOrder[b.alertType] || 99));
 
         const goodTechnicals = transitionAlerts
             .filter(a => ['GOLDEN_CROSS', 'CROSSED_ABOVE_200DMA', 'CROSSED_ABOVE_50DMA', 'NEAR_52W_HIGH'].includes(a.alertType))
             .filter(passesThreshold)
             .filter(crossConsistent)
+            .filter(isHeld)
             .sort((a, b) => (technicalOrder[a.alertType] || 99) - (technicalOrder[b.alertType] || 99));
 
         // Group weak signals by stock → one row with condition chips + a value.
