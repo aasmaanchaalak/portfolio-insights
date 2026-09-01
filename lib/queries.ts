@@ -14,11 +14,15 @@ export interface User {
   role: UserRole;
   createdAt: string;
   lastLoginAt: string | null;
+  deviceIdHash: string | null;
+  deviceLabel: string | null;
+  deviceBoundAt: string | null;
 }
 
 export async function getUserByEmail(email: string): Promise<User | null> {
   const row = await queryOne<any>(`
-    SELECT id, email, password_hash, name, role, created_at, last_login_at
+    SELECT id, email, password_hash, name, role, created_at, last_login_at,
+           device_id_hash, device_label, device_bound_at
     FROM users WHERE email = $1
   `, [email]);
 
@@ -32,14 +36,36 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     role: row.role || 'analyst',
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at,
+    deviceIdHash: row.device_id_hash ?? null,
+    deviceLabel: row.device_label ?? null,
+    deviceBoundAt: row.device_bound_at ?? null,
   };
+}
+
+// Bind an account to a device: store the token hash and a human-readable label.
+export async function bindUserDevice(email: string, deviceIdHash: string, deviceLabel: string | null): Promise<void> {
+  await query(`
+    UPDATE users
+    SET device_id_hash = $1, device_label = $2, device_bound_at = NOW()
+    WHERE email = $3
+  `, [deviceIdHash, deviceLabel, email]);
+}
+
+// Clear an account's device lock so it can re-bind on next login (admin action).
+export async function clearUserDevice(email: string): Promise<void> {
+  await query(`
+    UPDATE users
+    SET device_id_hash = NULL, device_label = NULL, device_bound_at = NULL
+    WHERE email = $1
+  `, [email]);
 }
 
 export async function createUser(email: string, passwordHash: string, name?: string, role: UserRole = 'analyst'): Promise<User> {
   const rows = await query<any>(`
     INSERT INTO users (email, password_hash, name, role)
     VALUES ($1, $2, $3, $4)
-    RETURNING id, email, password_hash, name, role, created_at, last_login_at
+    RETURNING id, email, password_hash, name, role, created_at, last_login_at,
+              device_id_hash, device_label, device_bound_at
   `, [email, passwordHash, name || null, role]);
 
   const row = rows[0];
@@ -51,6 +77,9 @@ export async function createUser(email: string, passwordHash: string, name?: str
     role: row.role || 'analyst',
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at,
+    deviceIdHash: row.device_id_hash ?? null,
+    deviceLabel: row.device_label ?? null,
+    deviceBoundAt: row.device_bound_at ?? null,
   };
 }
 
@@ -75,11 +104,15 @@ export interface UserSummary {
   role: UserRole;
   createdAt: string;
   lastLoginAt: string | null;
+  deviceBound: boolean;
+  deviceLabel: string | null;
+  deviceBoundAt: string | null;
 }
 
 export async function getAllUsers(): Promise<UserSummary[]> {
   const rows = await query<any>(`
-    SELECT id, email, name, role, created_at, last_login_at
+    SELECT id, email, name, role, created_at, last_login_at,
+           device_id_hash, device_label, device_bound_at
     FROM users
     ORDER BY created_at DESC
   `);
@@ -91,6 +124,9 @@ export async function getAllUsers(): Promise<UserSummary[]> {
     role: row.role || 'analyst',
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at,
+    deviceBound: !!row.device_id_hash,
+    deviceLabel: row.device_label ?? null,
+    deviceBoundAt: row.device_bound_at ?? null,
   }));
 }
 

@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { withAuth } from '../../../lib/authMiddleware';
-import { getAllUsers, updateUserRole, getUserByEmail, deleteUser, deleteUserSessions, UserRole } from '../../../lib/queries';
+import { getAllUsers, updateUserRole, getUserByEmail, deleteUser, deleteUserSessions, clearUserDevice, UserRole } from '../../../lib/queries';
 
 const ADMIN_EMAIL = 'aditya@saguncapital.com';
 
@@ -28,7 +28,22 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       }
     } else if (req.method === 'PUT') {
       try {
-        const { email, role } = req.body;
+        const { email, role, action } = req.body;
+
+        // Reset device lock: clears the bound device and logs the user out so
+        // they can re-bind on their next login (e.g. new laptop / cleared cookies).
+        if (action === 'reset-device') {
+          if (!email) {
+            return res.status(400).json({ error: 'Email is required' });
+          }
+          const target = await getUserByEmail(email);
+          if (!target) {
+            return res.status(404).json({ error: 'User not found' });
+          }
+          await clearUserDevice(email);
+          await deleteUserSessions(email);
+          return res.status(200).json({ success: true, message: 'Device lock reset' });
+        }
 
         if (!email || !role) {
           return res.status(400).json({ error: 'Email and role are required' });

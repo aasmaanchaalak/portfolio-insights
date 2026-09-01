@@ -10,6 +10,9 @@ interface UserSummary {
   role: 'portfolio' | 'analyst' | 'manager';
   createdAt: string;
   lastLoginAt: string | null;
+  deviceBound: boolean;
+  deviceLabel: string | null;
+  deviceBoundAt: string | null;
 }
 
 interface AllowedEmail {
@@ -280,6 +283,32 @@ export default function AdminPanel() {
     }
   };
 
+  const resetDevice = async (email: string) => {
+    if (!confirm(`Reset device lock for ${email}? They'll be logged out and the next device they log in from becomes their new locked device.`)) return;
+
+    try {
+      setUpdating(email);
+      const res = await fetch('/api/admin/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, action: 'reset-device' }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to reset device');
+      }
+
+      setUsers(prev => prev.map(user =>
+        user.email === email ? { ...user, deviceBound: false, deviceLabel: null, deviceBoundAt: null } : user
+      ));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reset device');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   const updateRole = async (email: string, newRole: 'portfolio' | 'analyst' | 'manager') => {
     try {
       setUpdating(email);
@@ -510,6 +539,7 @@ export default function AdminPanel() {
                 <th>Name</th>
                 <th>Email</th>
                 <th>Role</th>
+                <th>Device</th>
                 <th>Registered</th>
                 <th>Last Login</th>
                 <th>Actions</th>
@@ -530,6 +560,22 @@ export default function AdminPanel() {
                       {user.role}
                     </span>
                   </td>
+                  <td>
+                    {user.email === 'aditya@saguncapital.com' ? (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--secondary-text-color)' }}>Not locked</span>
+                    ) : user.deviceBound ? (
+                      <span
+                        title={user.deviceBoundAt ? `Locked ${formatDate(user.deviceBoundAt)}` : 'Locked'}
+                        style={{ fontSize: '0.8rem' }}
+                      >
+                        🔒 {user.deviceLabel || 'Locked'}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--secondary-text-color)' }}>
+                        Not yet locked
+                      </span>
+                    )}
+                  </td>
                   <td>{formatDate(user.createdAt)}</td>
                   <td>{formatDate(user.lastLoginAt)}</td>
                   <td>
@@ -547,6 +593,16 @@ export default function AdminPanel() {
                           <option value="portfolio">Portfolio</option>
                           <option value="manager">Manager</option>
                         </select>
+                        {user.deviceBound && (
+                          <button
+                            onClick={() => resetDevice(user.email)}
+                            disabled={updating === user.email}
+                            className="reset-device-btn"
+                            title="Unlock this account so it can bind to a new device"
+                          >
+                            Reset device
+                          </button>
+                        )}
                         <button
                           onClick={() => deleteUser(user.email)}
                           disabled={updating === user.email}
@@ -860,6 +916,26 @@ export default function AdminPanel() {
 
         .remove-btn:hover {
           background: rgba(239, 68, 68, 0.2);
+        }
+
+        .reset-device-btn {
+          padding: 0.3rem 0.75rem;
+          background: rgba(234, 179, 8, 0.1);
+          color: #b45309;
+          border: 1px solid rgba(234, 179, 8, 0.5);
+          border-radius: 6px;
+          font-size: 0.8rem;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+
+        .reset-device-btn:hover:not(:disabled) {
+          background: rgba(234, 179, 8, 0.2);
+        }
+
+        .reset-device-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
         }
       `}</style>
     </div>

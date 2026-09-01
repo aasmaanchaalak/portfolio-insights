@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { createHash, randomBytes } from 'crypto';
 import { SignJWT, jwtVerify } from 'jose';
 import { JWTPayload } from '../types/auth';
 
@@ -78,3 +79,22 @@ export const REFRESH_COOKIE_OPTIONS = {
   ...COOKIE_OPTIONS,
   maxAge: 7 * 24 * 60 * 60, // 7 days
 };
+
+// ============ Device binding ============
+// Each non-admin account is locked to one browser via a persistent device token.
+// The raw token lives only in a long-lived httpOnly cookie; the DB stores its hash.
+
+export const DEVICE_COOKIE_NAME = 'deviceId';
+
+export const DEVICE_COOKIE_OPTIONS = {
+  ...COOKIE_OPTIONS,
+  maxAge: 400 * 24 * 60 * 60, // ~400 days (browser cap for persistent cookies)
+};
+
+export function generateDeviceToken(): string {
+  return randomBytes(32).toString('hex');
+}
+
+export function hashDeviceToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
