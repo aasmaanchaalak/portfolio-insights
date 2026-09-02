@@ -637,14 +637,23 @@ export interface StockEntryData {
   entryPrice: number | null;
 }
 
+// Format a pg DATE value to YYYY-MM-DD without a timezone shift. node-pg parses
+// a DATE column into a JS Date at local midnight, so toISOString() (UTC) can roll
+// the calendar day back one on servers behind UTC; read the local components instead.
+function formatDateOnly(d: Date | string | null): string | null {
+  if (!d) return null;
+  if (typeof d === 'string') return d.split('T')[0];
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export async function getAllEntryData(): Promise<Record<string, StockEntryData>> {
   const rows = await query<any>(`SELECT stock_code, entry_date, entry_price FROM stock_entry_data`);
 
   const result: Record<string, StockEntryData> = {};
   rows.forEach(row => {
     result[row.stock_code] = {
-      entryDate: row.entry_date ? row.entry_date.toISOString().split('T')[0] : null,
-      entryPrice: row.entry_price ? Number(row.entry_price) : null,
+      entryDate: formatDateOnly(row.entry_date),
+      entryPrice: row.entry_price != null ? Number(row.entry_price) : null,
     };
   });
   return result;

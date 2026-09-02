@@ -155,6 +155,25 @@ interface PPCol {
 const qtyStr = (v: number | null | undefined, d = 2) =>
     v == null || isNaN(v) ? null : v.toLocaleString('en-IN', { maximumFractionDigits: d });
 
+// Per-holding IRR from the entry date to today, using average buy price as the
+// cost basis (single lump-sum approximation — we don't track individual tranches).
+// Held >= 1 year → annualized (CAGR). Held < 1 year → simple return since entry,
+// because annualizing a few weeks' move extrapolates to meaningless numbers.
+// Returns null when we lack an entry date, a valid cost basis, or a price.
+const computeIRR = (
+    entryDate: string | null | undefined,
+    costBasis: number | null | undefined,
+    currentPrice: number | null | undefined,
+): number | null => {
+    if (!entryDate || !costBasis || costBasis <= 0 || currentPrice == null || currentPrice <= 0) return null;
+    const start = new Date(entryDate).getTime();
+    if (isNaN(start)) return null;
+    const years = (Date.now() - start) / (365.25 * 24 * 60 * 60 * 1000);
+    if (years <= 0) return null;
+    const multiple = currentPrice / costBasis;
+    return years < 1 ? (multiple - 1) * 100 : (Math.pow(multiple, 1 / years) - 1) * 100;
+};
+
 // Unified column registry. Identity (rank + holding) is always shown and is not
 // listed here; every column below is toggleable via the Edit-columns panel.
 const PP_COLUMNS: PPCol[] = [
@@ -175,6 +194,7 @@ const PP_COLUMNS: PPCol[] = [
     { key: 'return3M', label: '3M %', group: 'Performance', align: 'right', cell: it => <PctColored v={it.return3M} />, foot: s => <PctColored v={s.return3M} /> },
     { key: 'return6M', label: '6M %', group: 'Performance', align: 'right', cell: it => <PctColored v={it.return6M} />, foot: s => <PctColored v={s.return6M} /> },
     { key: 'return1Y', label: '1Y %', group: 'Performance', align: 'right', cell: it => <PctColored v={it.return1Y} />, foot: s => <PctColored v={s.return1Y} /> },
+    { key: 'irr', label: 'IRR %', group: 'Performance', align: 'right', cell: it => (it.irr == null ? <span className="pp-note" title="No entry date recorded — set it on the Entry Data page">no entry date</span> : <span title="Annualized return (CAGR) from entry date using avg cost. Held < 1yr shows simple return since entry."><PctColored v={it.irr} /></span>), foot: s => <PctColored v={s.irr} /> },
     // Fundamentals
     { key: 'priceToEarning', label: 'P/E', group: 'Fundamentals', align: 'right', cell: it => <PlainNum v={it.priceToEarning} />, foot: s => <PlainNum v={s.priceToEarning} /> },
     { key: 'marketCap', label: 'Market cap', short: 'Mkt cap', group: 'Fundamentals', align: 'right', cell: it => fmtMarketCapCr(it.marketCap) ?? <PPDash />, foot: s => fmtMarketCapCr(s.marketCap) ?? null },
@@ -1045,6 +1065,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                 bucket: matchedStock?.bucket || null,
                 entryDate: matchedStock?.entryDate || null,
                 entryPrice: matchedStock?.entryPrice || null,
+                irr: computeIRR(matchedStock?.entryDate, item.averageBuyPrice, currentPrice),
                 positioning: matchedStock?.positioning || null,
                 pledgedQty,
                 pledgedWhere,
@@ -1320,6 +1341,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             return3M: wavg('return3M'),
             return6M: wavg('return6M'),
             return1Y: wavg('return1Y'),
+            irr: wavg('irr'),
         };
     }, [filteredAndSortedData]);
 

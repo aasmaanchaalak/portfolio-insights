@@ -95,15 +95,15 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             }
           }
 
-          // Record entry data for new stocks
+          // Record entry data for new stocks. Always capture the date the stock
+          // first appears in a GridKey upload — even if we can't find a price yet
+          // (price can be filled in later on the Entry Data page).
           const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
           for (const code of newStockCodes) {
-            // Use current price from portfolio, fallback to average buy price from GridKey
-            const entryPrice = priceMap[code] || avgBuyPriceMap[code];
-            if (entryPrice) {
-              await setEntryData(code, today, entryPrice);
-              console.log(`Recorded entry data for new stock ${code}: date=${today}, price=${entryPrice}`);
-            }
+            // Use current price from portfolio, fallback to average buy price from GridKey.
+            const entryPrice = priceMap[code] ?? avgBuyPriceMap[code] ?? null;
+            await setEntryData(code, today, entryPrice);
+            console.log(`Recorded entry data for new stock ${code}: date=${today}, price=${entryPrice ?? 'unknown'}`);
           }
         }
 
