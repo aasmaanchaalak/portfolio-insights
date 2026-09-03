@@ -59,7 +59,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       const qty = item.quantity != null ? Number(item.quantity) : null;
       const currentAmount = qty != null && currentPrice != null ? qty * currentPrice : 0;
       const name = item.scripName || lookup(item, nameByCode) || item.nseCode || item.bseCode || 'Unknown';
-      return { name, currentAmount };
+      return { name, nseCode: item.nseCode || null, bseCode: item.bseCode || null, currentAmount };
     });
 
     const totalValue = valued.reduce((sum, h) => sum + h.currentAmount, 0);
@@ -68,6 +68,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       .filter(h => h.currentAmount > 0)
       .map(h => ({
         name: h.name,
+        nseCode: h.nseCode,
+        bseCode: h.bseCode,
         weightage: totalValue > 0 ? Number(((h.currentAmount / totalValue) * 100).toFixed(2)) : 0,
       }))
       .sort((a, b) => b.weightage - a.weightage);
