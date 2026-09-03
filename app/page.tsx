@@ -198,6 +198,7 @@ const PP_COLUMNS: PPCol[] = [
     // Fundamentals
     { key: 'priceToEarning', label: 'P/E', group: 'Fundamentals', align: 'right', cell: it => <PlainNum v={it.priceToEarning} />, foot: s => <PlainNum v={s.priceToEarning} /> },
     { key: 'marketCap', label: 'Market cap', short: 'Mkt cap', group: 'Fundamentals', align: 'right', cell: it => fmtMarketCapCr(it.marketCap) ?? <PPDash />, foot: s => fmtMarketCapCr(s.marketCap) ?? null },
+    { key: 'positionPctOfMarketCap', label: '% of mcap', group: 'Fundamentals', align: 'right', cell: it => (it.positionPctOfMarketCap == null ? <PPDash /> : <span title="Position value as a percentage of the company's market cap">{it.positionPctOfMarketCap < 0.01 ? it.positionPctOfMarketCap.toFixed(4) : it.positionPctOfMarketCap.toFixed(2)}%</span>) },
     { key: 'roce', label: 'ROCE %', group: 'Fundamentals', align: 'right', cell: it => <PctColored v={it.roce} />, foot: s => <PctColored v={s.roce} /> },
     { key: 'yoyQuarterlyProfitGrowth', label: 'Profit growth %', short: 'Profit gr %', group: 'Fundamentals', align: 'right', cell: it => <PctColored v={it.yoyQuarterlyProfitGrowth} />, foot: s => <PctColored v={s.yoyQuarterlyProfitGrowth} /> },
     { key: 'yoyQuarterlySalesGrowth', label: 'Sales growth %', short: 'Sales gr %', group: 'Fundamentals', align: 'right', cell: it => <PctColored v={it.yoyQuarterlySalesGrowth} />, foot: s => <PctColored v={s.yoyQuarterlySalesGrowth} /> },
@@ -1044,6 +1045,11 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                 industry: matchedStock?.industry || null,
                 priceToEarning: matchedStock?.priceToEarning ?? null,
                 marketCap: matchedStock?.marketCap ?? null,
+                // Position value as % of market cap. marketCap is in ₹ crore and
+                // calculatedAmount is in ₹, so scale crore → ₹ (×1e7) before dividing.
+                positionPctOfMarketCap: (calculatedAmount != null && matchedStock?.marketCap)
+                    ? (calculatedAmount / (matchedStock.marketCap * 1e7)) * 100
+                    : null,
                 rsi: matchedStock?.rsi ?? null,
                 roce: matchedStock?.roce ?? null,
                 yoyQuarterlyProfitGrowth: matchedStock?.yoyQuarterlyProfitGrowth ?? null,
