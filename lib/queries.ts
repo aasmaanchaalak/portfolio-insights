@@ -518,6 +518,142 @@ export async function removeBulkDealPerson(listType: 'include' | 'exclude', clie
   await query(`DELETE FROM bulk_deal_people WHERE list_type = $1 AND client_name = $2`, [listType, clientName]);
 }
 
+// ============ FY-Start (1 April) Reference Prices ============
+// Ticker → price on the first day of the financial year. Used as an EXACT
+// baseline for FY-to-date returns instead of approximating with screener window
+// returns. Keyed by ticker (NSE or BSE); whatever is uploaded is stored, even
+// tickers that aren't currently in the portfolio.
+
+let fyStartPricesTableReady = false;
+async function ensureFYStartPricesTable(): Promise<void> {
+  if (fyStartPricesTableReady) return;
+  await query(`
+    CREATE TABLE IF NOT EXISTS fy_start_prices (
+      ticker     VARCHAR(30) PRIMARY KEY,
+      price      DECIMAL(14,4) NOT NULL,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `);
+  fyStartPricesTableReady = true;
+}
+
+export async function getFYStartPrices(): Promise<Record<string, number>> {
+  await ensureFYStartPricesTable();
+  const rows = await query<any>(`SELECT ticker, price FROM fy_start_prices`);
+  const result: Record<string, number> = {};
+  rows.forEach(r => { result[String(r.ticker).toUpperCase()] = Number(r.price); });
+  return result;
+}
+
+export async function saveFYStartPrices(entries: { ticker: string; price: number }[]): Promise<number> {
+  await ensureFYStartPricesTable();
+  const valid = entries.filter(e => e.ticker && typeof e.price === 'number' && !isNaN(e.price));
+  if (valid.length === 0) return 0;
+  const CHUNK = 500;
+  for (let i = 0; i < valid.length; i += CHUNK) {
+    const chunk = valid.slice(i, i + CHUNK);
+    const values: any[] = [];
+    const placeholders = chunk.map((e, idx) => {
+      values.push(e.ticker.toUpperCase(), e.price);
+      return `($${idx * 2 + 1}, $${idx * 2 + 2}, NOW())`;
+    }).join(',');
+    await query(`
+      INSERT INTO fy_start_prices (ticker, price, updated_at)
+      VALUES ${placeholders}
+      ON CONFLICT (ticker) DO UPDATE SET price = EXCLUDED.price, updated_at = NOW()
+    `, values);
+  }
+  return valid.length;
+}
+
+// ============ Realized Exits ============
+// When a holding is fully sold (detected on GridKey upload — it vanishes from the
+// snapshot) we snapshot the realized P&L inputs here so exits still contribute to
+// period returns. Exit price is the last-known market price at detection time.
+
+export interface RealizedExit {
+  id: string;
+  ticker: string;
+  companyName: string;
+  quantity: number | null;
+  avgBuyPrice: number | null;
+  exitPrice: number | null;
+  exitDate: string | null;
+  entryDate: string | null;
+  entryPrice: number | null;
+  fyStartPrice: number | null;
+  createdAt: string;
+}
+
+let realizedExitsTableReady = false;
+async function ensureRealizedExitsTable(): Promise<void> {
+  if (realizedExitsTableReady) return;
+  await query(`
+    CREATE TABLE IF NOT EXISTS realized_exits (
+      id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      ticker         VARCHAR(30) NOT NULL,
+      company_name   VARCHAR(255),
+      quantity       DECIMAL(18,4),
+      avg_buy_price  DECIMAL(14,4),
+      exit_price     DECIMAL(14,4),
+      exit_date      DATE NOT NULL DEFAULT CURRENT_DATE,
+      entry_date     DATE,
+      entry_price    DECIMAL(14,4),
+      fy_start_price DECIMAL(14,4),
+      created_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `);
+  realizedExitsTableReady = true;
+}
+
+export async function recordRealizedExit(e: {
+  ticker: string;
+  companyName: string;
+  quantity: number | null;
+  avgBuyPrice: number | null;
+  exitPrice: number | null;
+  exitDate: string;
+  entryDate: string | null;
+  entryPrice: number | null;
+  fyStartPrice: number | null;
+}): Promise<void> {
+  await ensureRealizedExitsTable();
+  await query(`
+    INSERT INTO realized_exits
+      (ticker, company_name, quantity, avg_buy_price, exit_price, exit_date, entry_date, entry_price, fy_start_price)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+  `, [
+    e.ticker.toUpperCase(), e.companyName, e.quantity, e.avgBuyPrice, e.exitPrice,
+    e.exitDate, e.entryDate, e.entryPrice, e.fyStartPrice,
+  ]);
+}
+
+export async function getRealizedExits(): Promise<RealizedExit[]> {
+  await ensureRealizedExitsTable();
+  const rows = await query<any>(`
+    SELECT id, ticker, company_name,
+           quantity, avg_buy_price, exit_price,
+           TO_CHAR(exit_date, 'YYYY-MM-DD')  AS exit_date,
+           TO_CHAR(entry_date, 'YYYY-MM-DD') AS entry_date,
+           entry_price, fy_start_price, created_at
+    FROM realized_exits
+    ORDER BY exit_date DESC
+  `);
+  return rows.map(r => ({
+    id: r.id,
+    ticker: r.ticker,
+    companyName: r.company_name,
+    quantity: r.quantity != null ? Number(r.quantity) : null,
+    avgBuyPrice: r.avg_buy_price != null ? Number(r.avg_buy_price) : null,
+    exitPrice: r.exit_price != null ? Number(r.exit_price) : null,
+    exitDate: r.exit_date,
+    entryDate: r.entry_date,
+    entryPrice: r.entry_price != null ? Number(r.entry_price) : null,
+    fyStartPrice: r.fy_start_price != null ? Number(r.fy_start_price) : null,
+    createdAt: r.created_at,
+  }));
+}
+
 // ============ Stock Assignments ============
 
 export async function getAllAssignments(): Promise<Record<string, string>> {

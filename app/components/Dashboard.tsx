@@ -102,7 +102,8 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
     const [niftySmallcap, setNiftySmallcap] = useState<NiftySmallcapData | null>(null);
     const [peSummary, setPeSummary] = useState<PEFactsheetSummary | null>(null);
     const [positioningData, setPositioningData] = useState<Record<string, { conviction: string; strategyType: string; actionIntent: string }>>({});
-    const [ytdReturn, setYtdReturn] = useState<{ pct: number; startValue: number; latestValue: number; startDate: string } | null>(null);
+    const [fyStartPrices, setFyStartPrices] = useState<Record<string, number>>({});
+    const [realizedExits, setRealizedExits] = useState<any[]>([]);
     const [alertsRefreshIn, setAlertsRefreshIn] = useState<string>('');
     const hasProcessedStates = useRef(false);
     const scrollPositionRef = useRef(0);
@@ -282,19 +283,21 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         loadPositioning();
     }, []);
 
-    // YTD return computed directly from portfolioHistory prop (no extra fetch)
+    // Load FY-start (1 April) reference prices — exact YTD baseline per ticker.
     useEffect(() => {
-        if (portfolioHistory.length < 2) return;
-        const now = new Date();
-        const fyStartYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-        const fyStartStr = `${fyStartYear}-04-01`;
-        const sorted = [...portfolioHistory].sort((a, b) => a.date.localeCompare(b.date));
-        const startEntry = sorted.find(h => h.date >= fyStartStr) || sorted[0];
-        const latestEntry = sorted[sorted.length - 1];
-        if (!startEntry || !latestEntry || startEntry.date === latestEntry.date) return;
-        const pct = ((latestEntry.value - startEntry.value) / startEntry.value) * 100;
-        setYtdReturn({ pct, startValue: startEntry.value, latestValue: latestEntry.value, startDate: startEntry.date });
-    }, [portfolioHistory]);
+        fetch('/api/fy-start-prices')
+            .then(r => (r.ok ? r.json() : null))
+            .then(d => d?.prices && setFyStartPrices(d.prices))
+            .catch(err => console.error('Error loading FY-start prices:', err));
+    }, []);
+
+    // Load realized exits — sold positions still contribute to FY returns.
+    useEffect(() => {
+        fetch('/api/realized-exits')
+            .then(r => (r.ok ? r.json() : null))
+            .then(d => d?.exits && setRealizedExits(d.exits))
+            .catch(err => console.error('Error loading realized exits:', err));
+    }, []);
 
     // Generate transition alerts and save current states (runs only once)
     useEffect(() => {
@@ -643,6 +646,94 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             yearlyPercent,
         };
     }, [enrichedData, totalCurrentAmount]);
+
+    // Financial-year-to-date return — holdings-based (same method as yearly P&L),
+    // NOT a portfolio-value-history diff. This makes it immune to fund infusions /
+    // withdrawals, which otherwise show up as fake "return" in a value comparison.
+    // Per stock, in priority order: (1) actual return since our entry for positions
+    // opened this FY, (2) exact 1-April uploaded price when available, (3) the
+    // screener window closest to the elapsed FY period as a fallback.
+    const ytdReturn = useMemo(() => {
+        if (enrichedData.length === 0 || totalCurrentAmount <= 0) return null;
+
+        const now = new Date();
+        const fyStartYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+        const fyStart = new Date(fyStartYear, 3, 1); // Apr 1
+        const fyStartStr = `${fyStartYear}-04-01`;
+        const monthsElapsed = (now.getTime() - fyStart.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+
+        // Nearest fixed screener window to the FY-to-date span (fallback only).
+        const screenerYTD = (item: any): number | null => {
+            if (monthsElapsed <= 2) return item.return1M;
+            if (monthsElapsed <= 4.5) return item.return3M;
+            if (monthsElapsed <= 9) return item.return6M;
+            return item.return1Y;
+        };
+
+        const fyStartPriceOf = (item: any): number | null => {
+            const nse = item.nseCode ? fyStartPrices[String(item.nseCode).toUpperCase()] : undefined;
+            const bse = item.bseCode ? fyStartPrices[String(item.bseCode).toUpperCase()] : undefined;
+            return (nse ?? bse) ?? null;
+        };
+
+        const effectiveYTD = (item: any): number | null => {
+            const { entryDate, entryPrice, currentPrice } = item;
+            // 1) Positions opened this FY: actual return since our entry price.
+            if (entryDate && entryPrice && currentPrice && new Date(entryDate) >= fyStart) {
+                return ((currentPrice - entryPrice) / entryPrice) * 100;
+            }
+            // 2) Exact 1-April price when we have it.
+            const aprPrice = fyStartPriceOf(item);
+            if (aprPrice && aprPrice > 0 && currentPrice) {
+                return ((currentPrice - aprPrice) / aprPrice) * 100;
+            }
+            // 3) Fallback: nearest screener window.
+            return screenerYTD(item);
+        };
+
+        // Unrealized leg — currently-held positions. ytdPnL_i = currentValue_i −
+        // startValue_i, so the running startValue below is the FY-start value of
+        // everything still held.
+        let ytdPnL = 0;
+        enrichedData.forEach(item => {
+            const value = item.calculatedAmount || 0;
+            const ret = effectiveYTD(item);
+            if (ret !== null && ret !== undefined) {
+                ytdPnL += value * ret / (100 + ret);
+            }
+        });
+        let startValue = totalCurrentAmount - ytdPnL;
+
+        // Realized leg — positions sold during THIS FY. We treat each as if held
+        // from its FY-start value (Apr-1 price, or entry price if bought this FY,
+        // else cost) to its exit value, and add both the gain and that FY-start
+        // capital so the % ratio stays consistent with the unrealized leg.
+        realizedExits.forEach((ex: any) => {
+            if (!ex.exitDate || ex.exitDate < fyStartStr) return; // only this FY
+            const qty = Number(ex.quantity);
+            const exitPrice = Number(ex.exitPrice);
+            if (!qty || !exitPrice || isNaN(qty) || isNaN(exitPrice)) return;
+
+            // Prefer the stored Apr-1 price, else the live map (in case prices were
+            // uploaded after this exit was recorded).
+            const aprPrice = ex.fyStartPrice ?? (ex.ticker ? fyStartPrices[String(ex.ticker).toUpperCase()] : undefined);
+            let baseline: number | null = null;
+            if (ex.entryDate && ex.entryDate >= fyStartStr && ex.entryPrice) {
+                baseline = qty * Number(ex.entryPrice);        // opened this FY
+            } else if (aprPrice) {
+                baseline = qty * Number(aprPrice);             // exact Apr-1 price
+            } else if (ex.avgBuyPrice) {
+                baseline = qty * Number(ex.avgBuyPrice);       // fallback: cost
+            }
+            if (baseline === null || baseline <= 0) return;
+
+            ytdPnL += qty * exitPrice - baseline;
+            startValue += baseline;
+        });
+
+        const pct = startValue > 0 ? (ytdPnL / startValue) * 100 : 0;
+        return { pct, startValue, latestValue: totalCurrentAmount, startDate: fyStartStr };
+    }, [enrichedData, totalCurrentAmount, fyStartPrices, realizedExits]);
 
     // Count stocks excluding single-share holdings (quantity > 1)
     const stockCount = useMemo(() => {

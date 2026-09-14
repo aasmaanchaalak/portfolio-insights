@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Stock, GridKeyData } from '../types';
 import { computePortfolioMetricsSnapshot, PORTFOLIO_METRIC_DEFS, formatMetricValue, PortfolioMetricsSnapshot } from '../lib/portfolioMetrics';
 import Dashboard from './components/Dashboard';
@@ -326,6 +326,8 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
     const [file, setFile] = useState<File | null>(null);
     const [status, setStatus] = useState('');
     const [error, setError] = useState('');
+    const [fyStatus, setFyStatus] = useState('');
+    const fyInputRef = useRef<HTMLInputElement>(null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -333,6 +335,52 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
             setStatus('');
             setError('');
         }
+    };
+
+    // Upload the "1 April" (financial-year-start) reference prices. The CSV has
+    // just a ticker (NSE or BSE) and a price per row. We store every row — extra
+    // tickers not in the portfolio are saved too.
+    const handleFYPricesFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const fyFile = e.target.files?.[0];
+        if (!fyFile) return;
+        setFyStatus('Reading…');
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = (event.target?.result as string) || '';
+                const lines = text.trim().split(/\r?\n/);
+                const prices: { ticker: string; price: number }[] = [];
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    const idx = line.indexOf(',');
+                    if (idx === -1) continue;
+                    // First field = ticker (no commas); everything after = price
+                    // (may carry thousands separators / quotes).
+                    const ticker = line.slice(0, idx).trim().replace(/^"|"$/g, '');
+                    const price = parseFloat(line.slice(idx + 1).replace(/["\s,]/g, ''));
+                    if (!ticker || isNaN(price)) continue; // skips header row too
+                    prices.push({ ticker, price });
+                }
+                if (prices.length === 0) {
+                    setFyStatus('No valid ticker,price rows found.');
+                    return;
+                }
+                const res = await fetch('/api/fy-start-prices', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prices }),
+                });
+                if (!res.ok) throw new Error('save failed');
+                const data = await res.json();
+                setFyStatus(`Saved ${data.saved} April-1 prices.`);
+            } catch {
+                setFyStatus('Failed to save April-1 prices.');
+            } finally {
+                if (fyInputRef.current) fyInputRef.current.value = '';
+            }
+        };
+        reader.onerror = () => setFyStatus('Failed to read file.');
+        reader.readAsText(fyFile);
     };
 
 
@@ -506,7 +554,26 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
     };
 
     return (
-        <div className="upload-container">
+        <div className="upload-container" style={{ position: 'relative' }}>
+            <div style={{ position: 'absolute', top: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
+                <button
+                    type="button"
+                    className="process-btn"
+                    style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
+                    onClick={() => fyInputRef.current?.click()}
+                    title="Upload a CSV of ticker,price for 1 April (financial-year start). Used as the exact YTD baseline."
+                >
+                    ↑ Upload 1 April prices
+                </button>
+                {fyStatus && <span style={{ fontSize: '0.7rem', color: 'var(--secondary-text-color)' }}>{fyStatus}</span>}
+                <input
+                    ref={fyInputRef}
+                    type="file"
+                    accept=".csv"
+                    onChange={handleFYPricesFile}
+                    style={{ display: 'none' }}
+                />
+            </div>
             <header className="main-header">
                 <h1>Screener Data</h1>
                 <p>Upload CSV file from Screener to update stock data.</p>
@@ -4318,6 +4385,12 @@ const App: React.FC = () => {
             if (newStocks.length > 0) {
                 const list = newStocks.map(s => `• ${s.name} (${s.code})`).join('\n');
                 alert(`${newStocks.length} new ${newStocks.length === 1 ? 'company' : 'companies'} added since last upload:\n\n${list}`);
+            }
+
+            const exitedStocks: { ticker: string; companyName: string }[] = result.exitedStocks || [];
+            if (exitedStocks.length > 0) {
+                const list = exitedStocks.map(s => `• ${s.companyName} (${s.ticker})`).join('\n');
+                alert(`${exitedStocks.length} exited ${exitedStocks.length === 1 ? 'company' : 'companies'} moved to Pipeline → Exited-Watch:\n\n${list}`);
             }
 
             setGridKeyData(data);

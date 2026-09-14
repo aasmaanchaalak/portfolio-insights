@@ -102,6 +102,50 @@ export async function getIdeaById(ideaId: string): Promise<PipelineIdea | null> 
   return row ? toIdea(row) : null;
 }
 
+export async function getIdeaByTicker(ticker: string): Promise<PipelineIdea | null> {
+  const row = await queryOne(`SELECT * FROM pipeline_ideas WHERE UPPER(ticker) = UPPER($1) LIMIT 1`, [ticker]);
+  return row ? toIdea(row) : null;
+}
+
+/**
+ * Move a company into the Exited-Watch stage when its portfolio holding is fully
+ * sold. If an idea already exists for the ticker it is moved to exited_watch
+ * (unless already there); otherwise a fresh exited_watch idea is created. Never
+ * removes or reverts an idea — reversal is handled manually.
+ */
+export async function upsertExitedWatchIdea(params: {
+  ticker: string;
+  companyName: string;
+  addedBy: string;
+  priceAtAdd?: number | null;
+}): Promise<{ idea: PipelineIdea; action: 'created' | 'moved' | 'skipped' }> {
+  const existing = await getIdeaByTicker(params.ticker);
+  if (existing) {
+    if (existing.status === 'exited_watch') {
+      return { idea: existing, action: 'skipped' };
+    }
+    const rows = await query(`
+      UPDATE pipeline_ideas
+      SET status = 'exited_watch',
+          status_changed_date = CURRENT_DATE,
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `, [existing.id]);
+    return { idea: toIdea(rows[0]), action: 'moved' };
+  }
+  const created = await createIdea({
+    ticker: params.ticker,
+    companyName: params.companyName,
+    addedBy: params.addedBy,
+    source: 'Auto — exited from portfolio',
+    priceAtAdd: params.priceAtAdd ?? null,
+    status: 'exited_watch',
+    priority: 'low',
+  });
+  return { idea: created, action: 'created' };
+}
+
 export async function createIdea(data: CreateIdeaRequest): Promise<PipelineIdea> {
   const rows = await query(`
     INSERT INTO pipeline_ideas (
