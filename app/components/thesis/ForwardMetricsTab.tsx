@@ -6,6 +6,7 @@ import { computeCurrentFY, fyLabel } from '../../../lib/fiscalYear';
 
 interface ForwardMetricsTabProps {
   stockCode: string;
+  stockName?: string;
 }
 
 const EPS_LABEL = 'EPS';
@@ -73,7 +74,7 @@ function normalize(data: ValuationTableData): { data: ValuationTableData; added:
 
 type SaveStatus = 'idle' | 'saving' | 'saved';
 
-export function ForwardMetricsTab({ stockCode }: ForwardMetricsTabProps) {
+export function ForwardMetricsTab({ stockCode, stockName }: ForwardMetricsTabProps) {
   const [tableData, setTableData] = useState<ValuationTableData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
@@ -87,7 +88,7 @@ export function ForwardMetricsTab({ stockCode }: ForwardMetricsTabProps) {
       const res = await fetch(`/api/thesis/${encodeURIComponent(stockCode)}/forward-metrics`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tableData: data }),
+        body: JSON.stringify({ tableData: data, stockName }),
       });
       if (!res.ok) throw new Error('Failed to save');
       setSaveStatus('saved');
@@ -97,7 +98,7 @@ export function ForwardMetricsTab({ stockCode }: ForwardMetricsTabProps) {
       console.error('Forward metrics save error:', err);
       setSaveStatus('idle');
     }
-  }, [stockCode]);
+  }, [stockCode, stockName]);
 
   const markDirty = useCallback((newData: ValuationTableData) => {
     setTableData(newData);

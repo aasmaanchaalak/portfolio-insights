@@ -17,11 +17,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     if (req.method === 'PUT') {
-      const { tableData } = req.body as { tableData: ValuationTableData };
+      const { tableData, stockName } = req.body as { tableData: ValuationTableData; stockName?: string };
       if (!tableData || typeof tableData !== 'object') {
         return res.status(400).json({ error: 'tableData is required' });
       }
-      const saved = await upsertForwardMetrics(stockCode, tableData);
+      const saved = await upsertForwardMetrics(stockCode, tableData, stockName);
       return res.status(200).json({ tableData: saved });
     }
 

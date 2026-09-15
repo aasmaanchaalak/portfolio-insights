@@ -210,15 +210,24 @@ export async function getHistory(
 // Create a new thesis
 export async function createThesis(data: CreateThesisRequest, userEmail?: string): Promise<Thesis> {
   return transaction(async (client: PoolClient) => {
-    const thesisId = generateUUID();
     const changeGroupId = generateUUID();
 
-    // Insert main thesis
-    await client.query(
+    // Insert main thesis. A placeholder row may already exist (e.g. forward
+    // metrics were saved before a full thesis was created), so upsert and adopt
+    // the existing row's id for the child inserts below rather than 500-ing on
+    // the UNIQUE(stock_code) constraint.
+    const inserted = await client.query(
       `INSERT INTO theses (id, stock_code, stock_name, status, original_thesis, latest_note)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (stock_code) DO UPDATE
+         SET stock_name = EXCLUDED.stock_name,
+             status = EXCLUDED.status,
+             original_thesis = EXCLUDED.original_thesis,
+             latest_note = EXCLUDED.latest_note,
+             updated_at = NOW()
+       RETURNING id`,
       [
-        thesisId,
+        generateUUID(),
         data.stockCode,
         data.stockName,
         data.status || 'intact',
@@ -226,6 +235,7 @@ export async function createThesis(data: CreateThesisRequest, userEmail?: string
         data.latestNote || null,
       ]
     );
+    const thesisId = inserted.rows[0].id as string;
 
     // Insert KPIs
     if (data.kpis && data.kpis.length > 0) {
@@ -549,11 +559,21 @@ export async function getAllForwardMetrics(): Promise<{ stockCode: string; data:
     .map(r => ({ stockCode: r.stock_code, data: r.forward_metrics as ValuationTableData }));
 }
 
-export async function upsertForwardMetrics(stockCode: string, data: ValuationTableData): Promise<ValuationTableData> {
+export async function upsertForwardMetrics(
+  stockCode: string,
+  data: ValuationTableData,
+  stockName?: string,
+): Promise<ValuationTableData> {
+  // Real upsert: forward metrics can be edited for a stock that has no full
+  // thesis yet, so create a minimal thesis row on first save (stock_name is
+  // NOT NULL — fall back to the code). A later full createThesis updates it.
   const row = await queryOne<{ forward_metrics: ValuationTableData }>(
-    `UPDATE theses SET forward_metrics = $1::jsonb, updated_at = NOW()
-     WHERE stock_code = $2 RETURNING forward_metrics`,
-    [JSON.stringify(data), stockCode]
+    `INSERT INTO theses (stock_code, stock_name, forward_metrics)
+     VALUES ($2, $3, $1::jsonb)
+     ON CONFLICT (stock_code) DO UPDATE
+       SET forward_metrics = EXCLUDED.forward_metrics, updated_at = NOW()
+     RETURNING forward_metrics`,
+    [JSON.stringify(data), stockCode, stockName || stockCode]
   );
   return row!.forward_metrics;
 }

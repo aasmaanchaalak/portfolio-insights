@@ -209,7 +209,7 @@ export function StockDetailDrawer({
       );
     }
     if (activeTab === 'forward-metrics' && stockCode) {
-      return <ForwardMetricsTab stockCode={stockCode} />;
+      return <ForwardMetricsTab stockCode={stockCode} stockName={stockName} />;
     }
     return null;
   };
