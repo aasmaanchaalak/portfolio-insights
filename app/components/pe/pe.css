@@ -1600,6 +1600,14 @@
   outline-offset: -2px;
 }
 
+/* Locked (required) row labels — EPS / P/E. Static text, visually distinct. */
+.pe-valuation-label-locked {
+  display: block;
+  cursor: default;
+  font-weight: 600;
+  color: var(--secondary-text-color);
+}
+
 .pe-valuation-delete-btn {
   background: none;
   border: none;

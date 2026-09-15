@@ -116,6 +116,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -244,9 +245,47 @@ body {
 }
 
 @media (max-width: 768px) {
-  .topnav { padding: 0 14px; gap: 14px; }
-  .brandbar-stat-sep { margin-left: 14px; padding-left: 14px; }
+  /* Two-row nav: logo + user on row 1, scrollable tab strip on row 2 so the
+     tabs are always reachable instead of being squeezed to nothing. */
+  .topnav {
+    flex-wrap: wrap;
+    align-items: center;
+    min-height: 0;
+    gap: 8px 12px;
+    padding: 8px 12px 0;
+  }
+  .topnav-brand { flex: 1 1 auto; order: 1; }
+  .topnav-right { order: 2; flex: 0 0 auto; gap: 8px; }
+  /* On-the-go stats crowd a phone header — the dashboard shows them in full. */
+  .brandbar-stat { display: none; }
+  .brandbar-user-name { max-width: 90px; }
+  .brandbar-stat-sep { margin-left: 0; padding-left: 0; border-left: none; }
+
+  .topnav-links {
+    order: 3;
+    flex: 1 1 100%;
+    width: 100%;
+    margin-top: 4px;
+    border-top: 1px solid var(--rule);
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .topnav-links::-webkit-scrollbar { display: none; }
+  .navrow-link { padding: 12px 12px; font-size: 13px; }
+
   .app-content { padding: 16px; }
+  /* On phones the fixed-height / internal-scroll table layout collapses once the
+     stacked controls consume the viewport. Fall back to normal page scrolling;
+     the table itself still scrolls horizontally inside .pp-table-wrap. */
+  .app-content.is-table-page {
+    padding-top: 10px;
+    padding-bottom: 24px;
+    overflow-y: auto;
+  }
+  .app-content.is-table-page .pp-table-wrap {
+    flex: 0 0 auto;
+    max-height: 75vh;
+  }
 }
 
 
@@ -1387,6 +1426,23 @@ a:hover {
       flex-direction: column;
       align-items: stretch;
   }
+
+  /* Let the toolbar controls wrap instead of overflowing the screen edge. */
+  .search-bar {
+    flex: 1 1 auto;
+    max-width: none;
+  }
+  .action-buttons {
+    flex-wrap: wrap;
+  }
+  .saved-views-inline {
+    flex-wrap: wrap;
+  }
+
+  /* Public Portfolio table: tighter cells + smaller text so more fits, and it
+     still scrolls horizontally inside .pp-table-wrap for the rest. */
+  .pp-table td { padding: 7px 9px; font-size: 12px; }
+  .pp-table thead th.pp-th { padding: 8px 9px; }
 
   .stock-table .remarks-cell {
     min-width: 150px;
@@ -2966,6 +3022,7 @@ a:hover {
 
 .valuation-heatmap {
   margin-top: 1rem;
+  overflow-x: auto;
 }
 
 .heatmap-info {

@@ -538,6 +538,17 @@ export async function getForwardMetrics(stockCode: string): Promise<ValuationTab
   return row?.forward_metrics ?? null;
 }
 
+// All stocks that have a Forward Metrics grid saved, for bulk target-price
+// derivation (e.g. the Public Portfolio forward-IRR columns).
+export async function getAllForwardMetrics(): Promise<{ stockCode: string; data: ValuationTableData }[]> {
+  const rows = await query<{ stock_code: string; forward_metrics: ValuationTableData | null }>(
+    `SELECT stock_code, forward_metrics FROM theses WHERE forward_metrics IS NOT NULL`,
+  );
+  return rows
+    .filter(r => r.forward_metrics)
+    .map(r => ({ stockCode: r.stock_code, data: r.forward_metrics as ValuationTableData }));
+}
+
 export async function upsertForwardMetrics(stockCode: string, data: ValuationTableData): Promise<ValuationTableData> {
   const row = await queryOne<{ forward_metrics: ValuationTableData }>(
     `UPDATE theses SET forward_metrics = $1::jsonb, updated_at = NOW()

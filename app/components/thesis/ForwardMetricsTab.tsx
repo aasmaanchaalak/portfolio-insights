@@ -2,36 +2,73 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ValuationTableData, ValuationRow, ValuationColumn } from '../../../types/pe';
+import { computeCurrentFY, fyLabel } from '../../../lib/fiscalYear';
 
 interface ForwardMetricsTabProps {
   stockCode: string;
 }
 
+const EPS_LABEL = 'EPS';
+const PE_LABEL = 'P/E (target)';
+
 const DEFAULT_ROWS: Omit<ValuationRow, 'id'>[] = [
   { label: 'Revenue', order: 0 },
   { label: 'EBITDA', order: 1 },
   { label: 'PAT', order: 2 },
-  { label: 'EPS', order: 3 },
-  { label: 'P/E', order: 4 },
-];
-
-const DEFAULT_COLUMNS: Omit<ValuationColumn, 'id'>[] = [
-  { year: 'FY24', order: 0 },
-  { year: 'FY25', order: 1 },
-  { year: 'FY26E', order: 2 },
-  { year: 'FY27E', order: 3 },
+  { label: EPS_LABEL, order: 3, metric: 'eps', locked: true },
+  { label: PE_LABEL, order: 4, metric: 'pe', locked: true },
 ];
 
 function newId(): string {
   return crypto.randomUUID();
 }
 
-function buildDefault(): ValuationTableData {
+// Default columns span the forward window around the current FY: two completed
+// years + the current year + the next two estimates (e.g. FY25 · FY26 · FY27E ·
+// FY28E · FY29E). This covers all three forward-IRR years out of the box.
+function buildDefaultColumns(currentFY: number): Omit<ValuationColumn, 'id'>[] {
+  return [-2, -1, 0, 1, 2].map((offset, i) => ({
+    year: fyLabel(currentFY + offset, currentFY),
+    order: i,
+  }));
+}
+
+function buildDefault(currentFY: number): ValuationTableData {
   return {
     rows: DEFAULT_ROWS.map(r => ({ ...r, id: newId() })),
-    columns: DEFAULT_COLUMNS.map(c => ({ ...c, id: newId() })),
+    columns: buildDefaultColumns(currentFY).map(c => ({ ...c, id: newId() })),
     cells: {},
   };
+}
+
+// Ensure a loaded grid has the locked EPS and P/E rows the app derives target
+// prices from. Existing rows named "EPS"/"P/E" are upgraded in place (keeping
+// their id so their cells survive); missing rows are appended. Returns the
+// normalized data plus whether rows had to be added (worth persisting).
+function normalize(data: ValuationTableData): { data: ValuationTableData; added: boolean } {
+  const rows = (data.rows || []).map(r => ({ ...r }));
+  let added = false;
+
+  const tag = (
+    metric: 'eps' | 'pe',
+    label: string,
+    match: (r: ValuationRow) => boolean,
+  ) => {
+    let row = rows.find(r => r.metric === metric) ?? rows.find(match);
+    if (row) {
+      row.metric = metric;
+      row.locked = true;
+      row.label = label;
+    } else {
+      rows.push({ id: newId(), label, order: rows.length, metric, locked: true });
+      added = true;
+    }
+  };
+
+  tag('eps', EPS_LABEL, r => /^\s*eps\s*$/i.test(r.label || ''));
+  tag('pe', PE_LABEL, r => /p\s*\/?\s*e/i.test(r.label || ''));
+
+  return { data: { ...data, rows }, added };
 }
 
 type SaveStatus = 'idle' | 'saving' | 'saved';
@@ -40,6 +77,7 @@ export function ForwardMetricsTab({ stockCode }: ForwardMetricsTabProps) {
   const [tableData, setTableData] = useState<ValuationTableData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [currentFY, setCurrentFY] = useState<number>(() => computeCurrentFY());
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -68,17 +106,38 @@ export function ForwardMetricsTab({ stockCode }: ForwardMetricsTabProps) {
   }, [save]);
 
   useEffect(() => {
+    // Pick up the admin-controlled current FY so new grids default to the right
+    // forward window. Falls back to the date-derived FY if the fetch fails.
+    fetch('/api/settings/fiscal-year')
+      .then(res => (res.ok ? res.json() : null))
+      .then(d => { if (d?.currentFY) setCurrentFY(d.currentFY); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     setIsLoading(true);
     fetch(`/api/thesis/${encodeURIComponent(stockCode)}/forward-metrics`)
       .then(res => res.ok ? res.json() : null)
-      .then(data => setTableData(data?.tableData ?? buildDefault()))
-      .catch(() => setTableData(buildDefault()))
+      .then(data => {
+        const existing: ValuationTableData | null = data?.tableData ?? null;
+        if (existing) {
+          const { data: norm, added } = normalize(existing);
+          setTableData(norm);
+          // Persist once if we had to inject the locked EPS/P/E rows, so the
+          // derivation endpoint sees them too.
+          if (added) save(norm);
+        } else {
+          setTableData(buildDefault(currentFY));
+        }
+      })
+      .catch(() => setTableData(buildDefault(currentFY)))
       .finally(() => setIsLoading(false));
 
     return () => {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
       if (savedTimer.current) clearTimeout(savedTimer.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stockCode]);
 
   if (isLoading || !tableData) {
@@ -111,6 +170,7 @@ export function ForwardMetricsTab({ stockCode }: ForwardMetricsTabProps) {
   };
 
   const deleteRow = (rowId: string) => {
+    if (rows.find(r => r.id === rowId)?.locked) return; // EPS / P/E are required
     const newRows = rows.filter(r => r.id !== rowId).map((r, i) => ({ ...r, order: i }));
     const newCells = Object.fromEntries(Object.entries(cells).filter(([k]) => !k.startsWith(`${rowId}:`)));
     markDirty({ ...tableData, rows: newRows, cells: newCells });
@@ -160,13 +220,24 @@ export function ForwardMetricsTab({ stockCode }: ForwardMetricsTabProps) {
               <tr key={row.id}>
                 <td className="pe-valuation-row-label-cell">
                   <div className="pe-valuation-row-label">
-                    <input
-                      type="text"
-                      className="pe-valuation-label-input"
-                      value={row.label}
-                      onChange={e => updateRowLabel(row.id, e.target.value)}
-                    />
-                    <button type="button" className="pe-valuation-delete-btn" onClick={() => deleteRow(row.id)} title="Delete row">×</button>
+                    {row.locked ? (
+                      <span
+                        className="pe-valuation-label-input pe-valuation-label-locked"
+                        title="Required row — target price is derived from EPS × P/E"
+                      >
+                        {row.label}
+                      </span>
+                    ) : (
+                      <>
+                        <input
+                          type="text"
+                          className="pe-valuation-label-input"
+                          value={row.label}
+                          onChange={e => updateRowLabel(row.id, e.target.value)}
+                        />
+                        <button type="button" className="pe-valuation-delete-btn" onClick={() => deleteRow(row.id)} title="Delete row">×</button>
+                      </>
+                    )}
                   </div>
                 </td>
                 {sortedCols.map(col => (

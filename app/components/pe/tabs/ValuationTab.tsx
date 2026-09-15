@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ValuationTableData, ValuationRow, ValuationColumn } from '../../../../types/pe';
+import { computeCurrentFY, fyLabel } from '../../../../lib/fiscalYear';
 
 interface ValuationTabProps {
   companyId: string;
@@ -14,21 +15,21 @@ const DEFAULT_ROWS: Omit<ValuationRow, 'id'>[] = [
   { label: 'AOV', order: 3 },
 ];
 
-const DEFAULT_COLUMNS: Omit<ValuationColumn, 'id'>[] = [
-  { year: 'FY24', order: 0 },
-  { year: 'FY25', order: 1 },
-  { year: 'FY26E', order: 2 },
-  { year: 'FY27E', order: 3 },
-];
-
 function newId(): string {
   return crypto.randomUUID();
 }
 
+// Default columns are date-aware (two completed years + current + two estimates)
+// so they never go stale the way a hardcoded "FY26E" list would.
 function buildDefault(): ValuationTableData {
+  const currentFY = computeCurrentFY();
+  const columns = [-2, -1, 0, 1, 2].map((offset, i) => ({
+    year: fyLabel(currentFY + offset, currentFY),
+    order: i,
+  }));
   return {
     rows: DEFAULT_ROWS.map(r => ({ ...r, id: newId() })),
-    columns: DEFAULT_COLUMNS.map(c => ({ ...c, id: newId() })),
+    columns: columns.map(c => ({ ...c, id: newId() })),
     cells: {},
   };
 }

@@ -1,6 +1,7 @@
 // PostgreSQL queries for portfolio data (replacing Redis)
 
 import { query, queryOne } from './db';
+import { computeCurrentFY } from './fiscalYear';
 
 // ============ Users ============
 
@@ -564,6 +565,56 @@ export async function saveFYStartPrices(entries: { ticker: string; price: number
     `, values);
   }
   return valid.length;
+}
+
+// ============ App Settings (key/value) ============
+
+let appSettingsTableReady = false;
+async function ensureAppSettingsTable(): Promise<void> {
+  if (appSettingsTableReady) return;
+  await query(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key        VARCHAR(64) PRIMARY KEY,
+      value      TEXT NOT NULL,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `);
+  appSettingsTableReady = true;
+}
+
+export async function getSetting(key: string): Promise<string | null> {
+  await ensureAppSettingsTable();
+  const row = await queryOne<{ value: string }>(
+    `SELECT value FROM app_settings WHERE key = $1`,
+    [key],
+  );
+  return row?.value ?? null;
+}
+
+export async function setSetting(key: string, value: string): Promise<void> {
+  await ensureAppSettingsTable();
+  await query(
+    `INSERT INTO app_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+    [key, value],
+  );
+}
+
+const CURRENT_FY_KEY = 'current_fiscal_year';
+
+// The admin-controlled current fiscal year (ending year, e.g. 2027). Falls back
+// to the date-derived FY the first time before an admin has set it explicitly.
+export async function getCurrentFiscalYear(): Promise<number> {
+  const raw = await getSetting(CURRENT_FY_KEY);
+  const parsed = raw != null ? parseInt(raw, 10) : NaN;
+  return Number.isFinite(parsed) ? parsed : computeCurrentFY();
+}
+
+export async function setCurrentFiscalYear(fy: number): Promise<number> {
+  if (!Number.isFinite(fy)) throw new Error('Invalid fiscal year');
+  await setSetting(CURRENT_FY_KEY, String(Math.trunc(fy)));
+  return Math.trunc(fy);
 }
 
 // ============ Realized Exits ============

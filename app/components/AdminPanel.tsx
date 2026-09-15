@@ -39,6 +39,11 @@ export default function AdminPanel() {
   const [portfolioSaveMsg, setPortfolioSaveMsg] = useState('');
   const [recentHistory, setRecentHistory] = useState<{ date: string; value: number }[]>([]);
 
+  // Fiscal year (admin-controlled current FY that drives forward windows)
+  const [currentFY, setCurrentFY] = useState<number | null>(null);
+  const [fyUpdating, setFyUpdating] = useState(false);
+  const [fyMsg, setFyMsg] = useState('');
+
   // Team members
   const [teamMembers, setTeamMembers] = useState<{ id: string; name: string }[]>([]);
   const [newMemberName, setNewMemberName] = useState('');
@@ -63,8 +68,43 @@ export default function AdminPanel() {
       fetchRecentHistory();
       fetchTeamMembers();
       fetchAnalystVisibility();
+      fetchFiscalYear();
     }
   }, [isAdmin]);
+
+  const fetchFiscalYear = async () => {
+    try {
+      const res = await fetch('/api/settings/fiscal-year');
+      if (!res.ok) return;
+      const data = await res.json();
+      setCurrentFY(data.currentFY ?? null);
+    } catch {}
+  };
+
+  const advanceFiscalYear = async () => {
+    if (currentFY == null) return;
+    const next = currentFY + 1;
+    if (!confirm(`Advance the current fiscal year to FY${next}?\n\nThis shifts the forward window everywhere: Forward Metrics defaults and the Public Portfolio forward-IRR columns will roll forward to FY${next}E / FY${next + 1}E / FY${next + 2}E.`)) {
+      return;
+    }
+    setFyUpdating(true);
+    setFyMsg('');
+    try {
+      const res = await fetch('/api/settings/fiscal-year', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'advance' }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      setCurrentFY(data.currentFY);
+      setFyMsg('Advanced ✓');
+    } catch {
+      setFyMsg('Failed to advance');
+    } finally {
+      setFyUpdating(false);
+    }
+  };
 
   const fetchAnalystVisibility = async () => {
     try {
@@ -367,6 +407,33 @@ export default function AdminPanel() {
       )}
 
       {/* Portfolio Value Entry */}
+      {/* Fiscal Year */}
+      <div className="admin-section" style={{ marginBottom: '2rem', padding: '1.25rem', background: 'var(--surface-color)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+        <h3 style={{ margin: '0 0 0.75rem', fontSize: '1rem', fontWeight: 600 }}>Fiscal Year</h3>
+        <p style={{ margin: '0 0 1rem', fontSize: '0.875rem', color: 'var(--secondary-text-color)' }}>
+          The current fiscal year drives the forward window everywhere — Forward Metrics default columns and the Public Portfolio forward-IRR columns (FYnnE / FYnn+1E / FYnn+2E). Advance it once a year's actuals are in and you're ready to roll estimates forward.
+        </p>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ fontSize: '0.875rem' }}>
+            Current: {currentFY == null ? '…' : (
+              <strong style={{ fontFamily: 'monospace' }}>FY{currentFY} (Apr {currentFY - 1} – Mar {currentFY})</strong>
+            )}
+          </div>
+          <button
+            onClick={advanceFiscalYear}
+            disabled={fyUpdating || currentFY == null}
+            style={{ padding: '0.4375rem 1rem', background: 'var(--accent-color)', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', opacity: (fyUpdating || currentFY == null) ? 0.6 : 1 }}
+          >
+            {fyUpdating ? 'Advancing…' : currentFY == null ? 'Advance to next FY' : `Advance to FY${currentFY + 1}`}
+          </button>
+          {fyMsg && (
+            <span style={{ fontSize: '0.875rem', color: fyMsg.includes('✓') ? 'var(--success-color)' : 'var(--error-color)' }}>
+              {fyMsg}
+            </span>
+          )}
+        </div>
+      </div>
+
       <div className="admin-section" style={{ marginBottom: '2rem', padding: '1.25rem', background: 'var(--surface-color)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
         <h3 style={{ margin: '0 0 0.75rem', fontSize: '1rem', fontWeight: 600 }}>Portfolio Value</h3>
         <p style={{ margin: '0 0 1rem', fontSize: '0.875rem', color: 'var(--secondary-text-color)' }}>

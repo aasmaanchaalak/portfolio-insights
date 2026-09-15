@@ -6,6 +6,12 @@ export const metadata = {
   description: 'Analyze stock performance with advanced sorting and filtering',
 }
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+}
+
 export default function RootLayout({
   children,
 }: {

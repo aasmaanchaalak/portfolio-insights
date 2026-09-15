@@ -7,6 +7,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Stock, GridKeyData } from '../types';
+import { computeCurrentFY, fyLabel, forwardWindow, yearsUntilFYEnd } from '../lib/fiscalYear';
 import { computePortfolioMetricsSnapshot, PORTFOLIO_METRIC_DEFS, formatMetricValue, PortfolioMetricsSnapshot } from '../lib/portfolioMetrics';
 import Dashboard from './components/Dashboard';
 import EntryDataPage from './components/EntryDataPage';
@@ -172,6 +173,23 @@ const computeIRR = (
     if (years <= 0) return null;
     const multiple = currentPrice / costBasis;
     return years < 1 ? (multiple - 1) * 100 : (Math.pow(multiple, 1 / years) - 1) * 100;
+};
+
+// Forward IRR from today's price to a projected target price at a fiscal-year
+// end. target = projected EPS × target P/E (from the stock's Forward Metrics).
+// Annualized (CAGR) when the FY-end is a year or more out; a simple return when
+// it's closer, since annualizing a few months extrapolates to noise.
+const computeForwardIRR = (
+    currentPrice: number | null | undefined,
+    target: number | null | undefined,
+    fy: number,
+    now: Date,
+): number | null => {
+    if (currentPrice == null || currentPrice <= 0 || target == null || target <= 0) return null;
+    const years = yearsUntilFYEnd(fy, now);
+    const multiple = target / currentPrice;
+    if (years <= 1) return (multiple - 1) * 100;
+    return (Math.pow(multiple, 1 / years) - 1) * 100;
 };
 
 // Unified column registry. Identity (rank + holding) is always shown and is not
@@ -890,6 +908,21 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [selectedStock, setSelectedStock] = useState<{ code: string; name: string; positioning?: any } | null>(null);
 
+    // Forward IRR: admin-controlled current FY + per-stock target prices keyed by
+    // absolute FY (derived server-side from each thesis's Forward Metrics grid).
+    const [currentFY, setCurrentFY] = useState<number>(() => computeCurrentFY());
+    const [forwardTargets, setForwardTargets] = useState<Record<string, Record<number, number>>>({});
+    useEffect(() => {
+        fetch('/api/thesis/forward-targets')
+            .then(res => (res.ok ? res.json() : null))
+            .then(data => {
+                if (!data) return;
+                if (data.currentFY) setCurrentFY(data.currentFY);
+                if (data.targets) setForwardTargets(data.targets);
+            })
+            .catch(() => {});
+    }, []);
+
     // Column visibility. Identity (rank + holding) is always shown; every other
     // column is toggleable via the Edit-columns panel. Default = the lens below.
     const COLUMN_PREFS_KEY = 'ppColumns_v3';
@@ -1153,10 +1186,21 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     }, [enrichedData]);
 
     const enrichedDataWithWeightage = useMemo(() => {
+        const now = new Date();
+        const fyWindow = forwardWindow(currentFY, 3);
         return enrichedData.map(item => {
             const weightage = totalCurrentAmount > 0 && (item as any).calculatedAmount
                 ? ((item as any).calculatedAmount / totalCurrentAmount) * 100
                 : null;
+
+            // Forward IRR per FY-end (offset 0/1/2 from the current FY).
+            const code = ((item as any).nseCode || (item as any).bseCode || '');
+            const targets = forwardTargets[code] || forwardTargets[code?.toUpperCase?.()] || {};
+            const price = (item as any).currentPrice;
+            const fwdIrr: Record<string, number | null> = {};
+            fyWindow.forEach((fy, offset) => {
+                fwdIrr[`fwdIrr${offset}`] = computeForwardIRR(price, targets[fy], fy, now);
+            });
 
             // Calculate portfolio contribution (YTD return * weightage) with fallback logic
             let ytdReturn: number | null = null;
@@ -1180,10 +1224,11 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             return {
                 ...item,
                 weightage,
-                portfolioContribution
+                portfolioContribution,
+                ...fwdIrr
             };
         });
-    }, [enrichedData, totalCurrentAmount, stocks]);
+    }, [enrichedData, totalCurrentAmount, stocks, forwardTargets, currentFY]);
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -1415,6 +1460,9 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             return6M: wavg('return6M'),
             return1Y: wavg('return1Y'),
             irr: wavg('irr'),
+            fwdIrr0: wavg('fwdIrr0'),
+            fwdIrr1: wavg('fwdIrr1'),
+            fwdIrr2: wavg('fwdIrr2'),
         };
     }, [filteredAndSortedData]);
 
@@ -1437,7 +1485,34 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     };
 
     // Columns the user has switched on, in registry order (analyst-restricted filtered out).
-    const columnPickable = PP_COLUMNS.filter(c => !(isAnalyst && ANALYST_RESTRICTED_COLUMNS.includes(c.key)));
+    // Forward IRR columns are dynamic: their labels (FYnnE) shift with the
+    // admin-controlled current FY, so they're built here rather than in the
+    // static registry. Keys are offset-based (fwdIrr0/1/2) so a saved column
+    // preference survives an FY advance — the same slot just relabels.
+    const forwardIrrColumns: PPCol[] = useMemo(() => (
+        forwardWindow(currentFY, 3).map((fy, offset) => {
+            const label = `${fyLabel(fy, currentFY)} IRR`;
+            const key = `fwdIrr${offset}`;
+            return {
+                key,
+                label,
+                short: label,
+                group: 'Forward IRR',
+                align: 'right' as const,
+                cell: (it: any) => (
+                    it[key] == null
+                        ? <span className="pp-note" title="No forward estimate — set EPS × P/E for this year in the stock's Forward Metrics">no estimate</span>
+                        : <span title={`Annualized return from today's price to the FY${fy % 100} target (EPS × P/E)`}><PctColored v={it[key]} /></span>
+                ),
+                foot: (s: any) => <PctColored v={s[key]} />,
+            };
+        })
+    ), [currentFY]);
+
+    const ppColumns = useMemo(() => [...PP_COLUMNS, ...forwardIrrColumns], [forwardIrrColumns]);
+    const ppGroupOrder = useMemo(() => [...PP_GROUP_ORDER, 'Forward IRR'], []);
+
+    const columnPickable = ppColumns.filter(c => !(isAnalyst && ANALYST_RESTRICTED_COLUMNS.includes(c.key)));
     const visibleOptional = columnPickable.filter(c => visibleColumns[c.key]);
     const shownColumnCount = visibleOptional.length;
 
@@ -1801,7 +1876,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                     <button type="button" className="pp-colpanel-reset" onClick={resetColumns}>Reset to lens</button>
                                 </div>
                             </div>
-                            {PP_GROUP_ORDER.map(group => {
+                            {ppGroupOrder.map(group => {
                                 const cols = columnPickable.filter(c => c.group === group);
                                 if (cols.length === 0) return null;
                                 return (

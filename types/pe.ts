@@ -25,6 +25,11 @@ export interface ValuationRow {
   id: string;
   label: string;
   order: number;
+  // Semantic tag for locked rows the app derives from. EPS × P/E gives the
+  // forward target price used for Public Portfolio forward-IRR. Tagged rows
+  // are non-deletable and their label is fixed.
+  metric?: 'eps' | 'pe';
+  locked?: boolean;
 }
 
 export interface ValuationColumn {
