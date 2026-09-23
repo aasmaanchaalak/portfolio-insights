@@ -14,7 +14,8 @@ import { ValuationTableData } from '../../../types/pe';
 // For each held stock that has a Forward Metrics grid, returns the full grid
 // (every row, keyed by fiscal year) plus the derived target price
 // (EPS × target P/E) and forward IRR from today's price to each FY-end in the
-// current forward window. Deliberately excludes quantity and amounts.
+// current forward window, alongside sector, market cap (₹ cr), ROCE, trailing
+// P/E and current EPS (price / P/E). Deliberately excludes quantity and amounts.
 //
 // Optional `?code=XYZ` narrows to a single NSE/BSE code.
 //
@@ -73,6 +74,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         if (!grid) return null;
 
         const currentPrice = stock.currentPrice != null ? Number(stock.currentPrice) : null;
+        const pe = stock.priceToEarning != null ? Number(stock.priceToEarning) : null;
+        // Trailing EPS isn't stored directly; derive it as price / P/E.
+        const currentEPS = currentPrice != null && pe != null && pe > 0
+          ? Number((currentPrice / pe).toFixed(2))
+          : null;
 
         // Full grid, reshaped to { [rowLabel]: { [FYnnE]: value } } in column order.
         const columns = [...(grid.columns || [])].sort((a, b) => a.order - b.order);
@@ -105,7 +111,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           name: item.scripName || stock.name || item.nseCode || item.bseCode || 'Unknown',
           nseCode: item.nseCode || null,
           bseCode: item.bseCode || null,
+          sector: stock.industry || stock.industryGroup || null,
+          industryGroup: stock.industryGroup || null,
+          marketCap: stock.marketCap != null ? Number(stock.marketCap) : null, // ₹ crore
+          roce: stock.roce != null ? Number(stock.roce) : null,
           currentPrice,
+          pe,
+          currentEPS,
           forward,
           metrics,
         };
