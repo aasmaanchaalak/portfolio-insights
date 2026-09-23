@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuth, AuthenticatedRequest } from '../../../../lib/authMiddleware';
+import { withAuth } from '../../../../lib/authMiddleware';
 import { listIdeas, createIdea } from '../../../../lib/pipeline/queries';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -13,16 +13,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       }
 
       case 'POST': {
-        const { ticker, companyName, addedBy, assignedTo, source, whyInteresting,
-          priceAtAdd, status, priority, decision, decisionReason, triggerCondition, dateAdded } = req.body;
+        const { ticker, companyName, exchange, addedBy, owner, source, why, priceAtAdd, priority, dateAdded } = req.body;
 
         if (!ticker || !companyName || !addedBy) {
           return res.status(400).json({ error: 'ticker, companyName, and addedBy are required' });
         }
 
         const idea = await createIdea({
-          ticker, companyName, addedBy, assignedTo, source, whyInteresting,
-          priceAtAdd, status, priority, decision, decisionReason, triggerCondition, dateAdded,
+          ticker, companyName, exchange, addedBy, owner, source, why, priceAtAdd, priority, dateAdded,
         });
         return res.status(201).json({ idea });
       }

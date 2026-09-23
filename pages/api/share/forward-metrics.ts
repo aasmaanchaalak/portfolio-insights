@@ -20,7 +20,7 @@ import { ValuationTableData } from '../../../types/pe';
 // price), ROCE and current EPS (price / P/E). Deliberately excludes quantity,
 // amounts, and the price / P/E / market cap inputs themselves.
 //
-// Category precedence: currently held → 'portfolio'; pipeline Exited-Watch (or a
+// Category precedence: currently held → 'portfolio'; pipeline idea tagged Exited (or a
 // recorded realized exit with no pipeline idea) → 'exited'; any other pipeline
 // stage → 'pipeline'. A stock with a grid that is none of these is omitted.
 //
@@ -121,8 +121,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         nseCode: stock?.nseCode || (isBse(t) ? null : idea.ticker),
         bseCode: stock?.bseCode || (isBse(t) ? idea.ticker : null),
         name: idea.companyName || stock?.name || idea.ticker,
-        category: idea.status === 'exited_watch' ? 'exited' : 'pipeline',
-        pipelineStage: idea.status,
+        category: idea.tag === 'Exited' ? 'exited' : 'pipeline',
+        pipelineStage: idea.stage,
         fallbackPrice: idea.currentPrice,
       });
     }

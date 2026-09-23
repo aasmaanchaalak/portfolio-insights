@@ -1,13 +1,12 @@
-export type PipelineStatus =
-  | 'captured'
-  | 'triaged'
-  | 'studying'
-  | 'tracking'
-  | 'conviction'
-  | 'exited_watch'
-  | 'killed';
+export type PipelineStage = 'new' | 'research' | 'waiting' | 'closed';
+
+export type PipelineOutcome = 'bought' | 'passed';
 
 export type PipelinePriority = 'high' | 'medium' | 'low';
+
+export type PipelineAlert =
+  | { type: 'price'; value: number }
+  | { type: 'event'; text: string; dueDate: string | null };
 
 export type GuidanceMetric =
   | 'Revenue'
@@ -22,28 +21,34 @@ export interface PipelineIdea {
   id: string;
   ticker: string;
   companyName: string;
+  exchange: string | null;
   addedBy: string;
-  assignedTo: string | null;
+  owner: string;
   source: string | null;
-  whyInteresting: string | null;
+  why: string | null;
   priceAtAdd: number | null;
   currentPrice: number | null;
-  status: PipelineStatus;
+  stage: PipelineStage;
+  outcome: PipelineOutcome | null;
+  tag: string | null;
   priority: PipelinePriority;
-  decision: string | null;
-  decisionReason: string | null;
-  triggerCondition: string | null;
+  alert: PipelineAlert | null;
+  closedPrice: number | null;
   dateAdded: string;
-  statusChangedDate: string;
+  lastActivityAt: string;
   createdAt: string;
   updatedAt: string;
 }
+
+export type PipelineActivityKind = 'note' | 'stage' | 'decision';
 
 export interface PipelineNote {
   id: string;
   ideaId: string;
   noteText: string;
   addedBy: string;
+  kind: PipelineActivityKind;
+  attachmentIds: string[];
   createdAt: string;
 }
 
@@ -64,20 +69,30 @@ export interface GuidanceEntry {
 export interface CreateIdeaRequest {
   ticker: string;
   companyName: string;
+  exchange?: string | null;
   addedBy: string;
-  assignedTo?: string | null;
+  owner?: string | null;
   source?: string | null;
-  whyInteresting?: string | null;
+  why?: string | null;
   priceAtAdd?: number | null;
-  status?: PipelineStatus;
+  stage?: PipelineStage;
+  tag?: string | null;
   priority?: PipelinePriority;
-  decision?: string | null;
-  decisionReason?: string | null;
-  triggerCondition?: string | null;
   dateAdded?: string;
 }
 
-export interface UpdateIdeaRequest extends Partial<CreateIdeaRequest> {}
+/** Partial update — only the keys present are changed. */
+export interface UpdateIdeaRequest {
+  companyName?: string;
+  why?: string | null;
+  owner?: string;
+  priority?: PipelinePriority;
+  stage?: PipelineStage;
+  tag?: string | null;
+  alert?: PipelineAlert | null;
+  /** Who made the change — recorded on stage-change activity entries. */
+  actor?: string;
+}
 
 export interface CreateGuidanceRequest {
   ticker: string;

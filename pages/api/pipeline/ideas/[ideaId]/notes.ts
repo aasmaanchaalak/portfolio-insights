@@ -19,9 +19,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       }
 
       case 'POST': {
-        const { noteText, addedBy } = req.body;
-        if (!noteText) return res.status(400).json({ error: 'noteText is required' });
-        const note = await createNote(ideaId, noteText, addedBy || userEmail);
+        const { noteText, addedBy, attachmentIds } = req.body;
+        const ids: string[] = Array.isArray(attachmentIds) ? attachmentIds.filter((x: unknown) => typeof x === 'string') : [];
+        if (!noteText && ids.length === 0) return res.status(400).json({ error: 'noteText or attachmentIds is required' });
+        const note = await createNote(ideaId, noteText || '', addedBy || userEmail, ids);
         return res.status(201).json({ note });
       }
 

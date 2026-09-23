@@ -8,8 +8,11 @@ Cron: 0 7 * * * /path/to/venv/bin/python /path/to/scripts/update_prices.py
 """
 
 import os
+import re
 import sys
 import logging
+import urllib.parse
+import urllib.request
 from datetime import date
 
 import psycopg2
@@ -31,55 +34,73 @@ def get_tickers(conn) -> list[str]:
     return list(set(pipeline))
 
 
+# Tried in order; each pass only retries tickers the earlier ones missed.
+# Matches the suffix order in pages/api/pipeline/refresh-prices.ts.
+EXCHANGE_SUFFIXES = [(".NS", "NSE"), (".BO", "BSE"), ("-SM.NS", "NSE SME"), ("-SM.BO", "BSE SME")]
+
+
 def fetch_prices(tickers: list[str]) -> dict[str, tuple[float, date]]:
     results: dict[str, tuple[float, date]] = {}
-    if not tickers:
-        return results
 
-    ns_tickers = [f"{t}.NS" for t in tickers]
-    log.info(f"Fetching {len(ns_tickers)} tickers from yfinance (NSE)")
-
-    try:
-        data = yf.download(ns_tickers, period="2d", auto_adjust=True, progress=False)
-        close = data["Close"] if "Close" in data.columns else data.get("close")
-        if close is None:
-            log.warning("No close price data returned")
-            return results
-
-        for t in tickers:
-            col = f"{t}.NS"
-            if col not in close.columns:
+    for suffix, label in EXCHANGE_SUFFIXES:
+        missing = [t for t in tickers if t not in results]
+        if not missing:
+            break
+        log.info(f"Fetching {len(missing)} tickers from yfinance ({label}, {suffix})")
+        symbols = [f"{t}{suffix}" for t in missing]
+        try:
+            data = yf.download(symbols, period="2d", auto_adjust=True, progress=False)
+            close = data["Close"] if "Close" in data.columns else data.get("close")
+            if close is None:
+                log.warning(f"No close price data returned for {label}")
                 continue
-            series = close[col].dropna()
-            if series.empty:
-                continue
-            price = float(series.iloc[-1])
-            price_date = series.index[-1].date()
-            results[t] = (price, price_date)
-    except Exception as e:
-        log.error(f"yfinance batch fetch failed: {e}")
+            if not hasattr(close, "columns"):
+                # A single symbol can come back as a plain Series.
+                close = close.to_frame(name=symbols[0])
+            for t in missing:
+                col = f"{t}{suffix}"
+                if col not in close.columns:
+                    continue
+                series = close[col].dropna()
+                if series.empty:
+                    continue
+                results[t] = (float(series.iloc[-1]), series.index[-1].date())
+        except Exception as e:
+            log.warning(f"{label} fetch failed: {e}")
 
-    # Retry missing tickers via BSE
+    # Yahoo misses many BSE SME stocks — fall back to the Screener page.
     missing = [t for t in tickers if t not in results]
     if missing:
-        log.info(f"Retrying {len(missing)} tickers via BSE (.BO)")
-        bo_tickers = [f"{t}.BO" for t in missing]
-        try:
-            data2 = yf.download(bo_tickers, period="2d", auto_adjust=True, progress=False)
-            close2 = data2["Close"] if "Close" in data2.columns else data2.get("close")
-            if close2 is not None:
-                for t in missing:
-                    col = f"{t}.BO"
-                    if col not in close2.columns:
-                        continue
-                    series2 = close2[col].dropna()
-                    if series2.empty:
-                        continue
-                    results[t] = (float(series2.iloc[-1]), series2.index[-1].date())
-        except Exception as e:
-            log.warning(f"BSE fallback failed: {e}")
+        log.info(f"Trying Screener for {len(missing)} tickers")
+    for t in missing:
+        price = fetch_screener_price(t)
+        if price is not None:
+            results[t] = (price, date.today())
 
     return results
+
+
+SCREENER_PRICE = re.compile(r'Current Price[\s\S]{0,300}?<span class="number">([\d,.]+)</span>')
+
+
+def fetch_screener_price(ticker: str) -> float | None:
+    """Last price from screener.in/company/<ticker>/ (NSE symbol or BSE code)."""
+    url = f"https://www.screener.in/company/{urllib.parse.quote(ticker)}/"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+    except Exception as e:
+        log.warning(f"Screener fetch failed for {ticker}: {e}")
+        return None
+    m = SCREENER_PRICE.search(html)
+    if not m:
+        return None
+    try:
+        price = float(m.group(1).replace(",", ""))
+    except ValueError:
+        return None
+    return price if price > 0 else None
 
 
 def upsert_prices(conn, prices: dict[str, tuple[float, date]]) -> int:

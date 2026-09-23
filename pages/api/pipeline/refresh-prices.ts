@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { withAuth } from '../../../lib/authMiddleware';
 import { query } from '../../../lib/db';
+import { fetchScreenerCompany } from '../../../lib/pipeline/screener';
 
 async function fetchPrice(tickerWithSuffix: string): Promise<{ closePrice: number; companyName: string | null } | null> {
   try {
@@ -56,6 +57,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         tickerWithSuffix = ticker + suffix;
         price = await fetchPrice(tickerWithSuffix);
         if (price) break;
+      }
+
+      // Yahoo misses many BSE SME stocks — fall back to the Screener page.
+      if (!price) {
+        const scr = await fetchScreenerCompany(ticker);
+        if (scr?.price) price = { closePrice: scr.price, companyName: scr.companyName };
       }
 
       if (!price) {
