@@ -278,6 +278,9 @@ export async function savePortfolioData(data: any[]): Promise<void> {
 
 // ============ GridKey Data ============
 
+// ~3 months of daily uploads
+const GRIDKEY_SNAPSHOTS_KEPT = 60;
+
 export async function getGridKeyData(): Promise<any[] | null> {
   const row = await queryOne<any>(`
     SELECT data FROM gridkey_data ORDER BY updated_at DESC LIMIT 1
@@ -292,10 +295,12 @@ export async function saveGridKeyData(data: any[]): Promise<void> {
     ON CONFLICT (id) DO UPDATE SET data = $1, updated_at = NOW()
   `, [JSON.stringify(data)]);
 
-  // Keep only the latest record
+  // Keep recent snapshots (not just the latest) so holdings can be diffed
+  // between uploads when quantities change unexpectedly. Readers always take
+  // the newest row.
   await query(`
     DELETE FROM gridkey_data
-    WHERE id NOT IN (SELECT id FROM gridkey_data ORDER BY updated_at DESC LIMIT 1)
+    WHERE id NOT IN (SELECT id FROM gridkey_data ORDER BY updated_at DESC LIMIT ${GRIDKEY_SNAPSHOTS_KEPT})
   `);
 }
 
