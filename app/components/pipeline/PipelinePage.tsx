@@ -6,6 +6,12 @@ import { PipelineIdea, PipelineNote, PipelineStatus, PipelinePriority, GuidanceE
 import { useAuth } from '../../contexts/AuthContext';
 import './pipeline.css';
 import { AttachmentSection } from '../shared/AttachmentSection';
+import { DrawerTabs, DrawerTab } from '../drawer/DrawerTabs';
+import { ForwardMetricsTab } from '../thesis/ForwardMetricsTab';
+import { ThesisTab } from '../thesis/ThesisTab';
+import { PortfolioHistoryTab, PortfolioHistory, hasPortfolioHistory } from './PortfolioHistoryTab';
+import '../drawer/drawer.css';
+import '../thesis/thesis.css';
 
 // Team members are fetched from /api/team-members at runtime
 
@@ -354,10 +360,24 @@ function IdeaDetailModal({ open, idea, teamMembers, defaultAuthor, onClose, onEd
   const [noteAuthor, setNoteAuthor] = useState(defaultAuthor);
   const [savingNote, setSavingNote] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [history, setHistory] = useState<PortfolioHistory | null>(null);
 
   useEffect(() => {
     if (defaultAuthor) setNoteAuthor(defaultAuthor);
   }, [defaultAuthor]);
+
+  // Data recorded while the stock was a holding (entry, remarks, exit snapshot…),
+  // keyed by ticker so it follows the stock into the pipeline.
+  useEffect(() => {
+    if (!idea || !open) return;
+    setActiveTab('overview');
+    setHistory(null);
+    fetch(`/api/pipeline/portfolio-history?ticker=${encodeURIComponent(idea.ticker)}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setHistory(d))
+      .catch(() => {});
+  }, [idea, open]);
 
   useEffect(() => {
     if (!idea || !open) return;
@@ -408,16 +428,42 @@ function IdeaDetailModal({ open, idea, teamMembers, defaultAuthor, onClose, onEd
     : null;
   const days = daysSince(idea.statusChangedDate);
 
+  const showHistory = idea.status === 'exited_watch' || hasPortfolioHistory(history);
+  const tabs: DrawerTab[] = [
+    { id: 'overview', label: 'Overview', enabled: true },
+    { id: 'forward-metrics', label: 'Forward Metrics', enabled: true },
+    { id: 'thesis', label: 'Thesis', enabled: true },
+    ...(showHistory ? [{ id: 'portfolio-history', label: 'Portfolio History', enabled: true }] : []),
+  ];
+  const wide = activeTab !== 'overview';
+
   return (
     <>
       <div className={`pipeline-modal-backdrop ${open ? 'open' : ''}`} onClick={onClose} aria-hidden />
-      <div className={`pipeline-modal ${open ? 'open' : ''}`} role="dialog" aria-modal>
+      <div className={`pipeline-modal ${open ? 'open' : ''} ${wide ? 'wide' : ''}`} role="dialog" aria-modal>
         <div className="pipeline-modal-header">
           <h2 className="pipeline-modal-title">{idea.ticker} — {idea.companyName}</h2>
           <button className="pipeline-modal-close" onClick={onClose} type="button">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
           </button>
         </div>
+        <DrawerTabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+        {activeTab === 'forward-metrics' && (
+          <div className="pipeline-modal-body">
+            <ForwardMetricsTab stockCode={idea.ticker} stockName={idea.companyName} />
+          </div>
+        )}
+        {activeTab === 'thesis' && (
+          <div className="pipeline-modal-body">
+            <ThesisTab stockCode={idea.ticker} stockName={idea.companyName} />
+          </div>
+        )}
+        {activeTab === 'portfolio-history' && (
+          <div className="pipeline-modal-body">
+            <PortfolioHistoryTab ticker={idea.ticker} history={history} />
+          </div>
+        )}
+        {activeTab === 'overview' && (
         <div className="pipeline-modal-body">
           {/* Header */}
           <div className="pipeline-detail-header">
@@ -525,6 +571,7 @@ function IdeaDetailModal({ open, idea, teamMembers, defaultAuthor, onClose, onEd
             </button>
           </div>
         </div>
+        )}
       </div>
     </>
   );

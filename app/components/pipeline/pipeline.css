@@ -295,6 +295,30 @@
   transform: translate(-50%, -50%);
 }
 
+/* Forward Metrics / Thesis / Portfolio History tabs need the grid width. */
+.pipeline-modal.wide {
+  width: min(960px, 96vw);
+}
+
+.pipeline-history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.pipeline-history-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.875rem;
+}
+
+.pipeline-history-field .label {
+  font-size: 0.75rem;
+  color: var(--secondary-text-color);
+}
+
 .pipeline-modal-header {
   padding: 1.25rem 1.5rem 1rem;
   border-bottom: 1px solid var(--border-color);
