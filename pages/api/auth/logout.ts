@@ -10,13 +10,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const token = req.cookies.accessToken;
-
-    if (token) {
-      const payload = await verifyToken(token);
-      if (payload) {
-        await deleteSession(payload.sessionId);
-      }
+    // The access token may have lapsed; the refresh token names the same session.
+    const payload =
+      (req.cookies.accessToken && await verifyToken(req.cookies.accessToken)) ||
+      (req.cookies.refreshToken && await verifyToken(req.cookies.refreshToken));
+    if (payload) {
+      await deleteSession(payload.sessionId);
     }
 
     res.setHeader('Set-Cookie', [

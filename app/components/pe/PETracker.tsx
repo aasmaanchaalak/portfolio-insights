@@ -427,6 +427,33 @@ export function PETracker({ onBack }: PETrackerProps) {
         </table>
       </div>
 
+      {/* Phone list (≤767px) — replaces the 11-column table. */}
+      <div className="pp-mlist">
+        {visibleActive.length === 0 && (
+          <div className="pp-mempty">
+            {companies.length === 0 ? 'No PE companies yet.' : 'No active companies match.'}
+          </div>
+        )}
+        {visibleActive.map(company => (
+          <div key={company.id} className="pp-mrow" onClick={() => setSelectedCompanyId(company.id)}>
+            <div className="pp-mrow-left">
+              <div className="pp-mrow-title">
+                <span className="pp-mrow-name">{company.companyName}</span>
+                <span className="pp-ticker">{company.companyCode}</span>
+              </div>
+              <div className="pp-mrow-below">
+                <span><span className="pp-mrow-k">Inv</span>{formatCurrency(company.investedValue)}</span>
+                <span className={`pe-status-badge ${getStatusBadgeClass(company.thesisStatus)}`}>{company.thesisStatus || 'Not Set'}</span>
+              </div>
+            </div>
+            <div className="pp-mrow-right">
+              <div className="pp-mrow-main">{formatMOIC(company.moic)}</div>
+              <div className="pp-mrow-sub">{formatCurrency(company.currentValue)}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* Exited / Sold Companies */}
       {visibleExited.length > 0 && (
         <div className="pe-exited-section">
@@ -472,6 +499,26 @@ export function PETracker({ onBack }: PETrackerProps) {
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="pp-mlist">
+            {visibleExited.map(company => (
+              <div key={company.id} className="pp-mrow" onClick={() => setSelectedCompanyId(company.id)}>
+                <div className="pp-mrow-left">
+                  <div className="pp-mrow-title">
+                    <span className="pp-mrow-name">{company.companyName}</span>
+                    <span className="pp-ticker">{company.companyCode}</span>
+                  </div>
+                  <div className="pp-mrow-below">
+                    <span><span className="pp-mrow-k">Inv</span>{formatCurrency(company.investedValue)}</span>
+                    {company.exitDate && <span><span className="pp-mrow-k">Exited</span>{new Date(company.exitDate).toLocaleDateString()}</span>}
+                  </div>
+                </div>
+                <div className="pp-mrow-right">
+                  <div className="pp-mrow-main">{formatMOIC(company.moic)}</div>
+                  <div className="pp-mrow-sub">{formatCurrency(company.exitValue)}</div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

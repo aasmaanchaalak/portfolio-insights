@@ -4,12 +4,19 @@ import { Providers } from './providers'
 export const metadata = {
   title: 'Portfolio Insights',
   description: 'Analyze stock performance with advanced sorting and filtering',
+  // iOS "Add to Home Screen" → opens as a standalone app, not in Safari.
+  appleWebApp: {
+    capable: true,
+    title: 'Sagun',
+    statusBarStyle: 'default',
+  },
 }
 
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
+  themeColor: '#ffffff',
 }
 
 export default function RootLayout({

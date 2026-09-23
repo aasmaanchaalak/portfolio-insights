@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { ThesisKPI, KPIStatus } from '../../../types/thesis';
+import { uuid } from '../../../lib/uuid';
 
 interface KPIListProps {
   kpis: ThesisKPI[];
@@ -23,7 +24,7 @@ export function KPIList({ kpis, onUpdate, disabled }: KPIListProps) {
     if (!newKPI.description.trim()) return;
 
     const kpi: ThesisKPI = {
-      id: crypto.randomUUID(),
+      id: uuid(),
       description: newKPI.description.trim(),
       targetValue: newKPI.targetValue.trim() || null,
       currentStatus: 'on_track',

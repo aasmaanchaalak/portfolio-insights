@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ValuationTableData, ValuationRow, ValuationColumn } from '../../../types/pe';
 import { computeCurrentFY, fyLabel } from '../../../lib/fiscalYear';
+import { uuid } from '../../../lib/uuid';
 
 interface ForwardMetricsTabProps {
   stockCode: string;
@@ -21,7 +22,7 @@ const DEFAULT_ROWS: Omit<ValuationRow, 'id'>[] = [
 ];
 
 function newId(): string {
-  return crypto.randomUUID();
+  return uuid();
 }
 
 // Default columns span the forward window around the current FY: two completed

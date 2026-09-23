@@ -5,7 +5,11 @@ import { JWTPayload } from '../types/auth';
 
 const SALT_ROUNDS = 12;
 const ACCESS_TOKEN_EXPIRY = '15m';
-const REFRESH_TOKEN_EXPIRY = '7d';
+// Sessions slide: every refresh pushes expiry SESSION_DAYS out again, so a
+// device that's used at least once in that window stays signed in. Safe to
+// keep long because non-admin accounts are locked to one device.
+export const SESSION_DAYS = 90;
+const REFRESH_TOKEN_EXPIRY = `${SESSION_DAYS}d`;
 
 function getJwtSecret(): Uint8Array {
   const secret = process.env.JWT_SECRET;
@@ -59,7 +63,7 @@ export function generateSessionId(): string {
 
 export function getSessionExpiry(): string {
   const date = new Date();
-  date.setDate(date.getDate() + 7);
+  date.setDate(date.getDate() + SESSION_DAYS);
   return date.toISOString();
 }
 
@@ -77,7 +81,7 @@ export const ACCESS_COOKIE_OPTIONS = {
 
 export const REFRESH_COOKIE_OPTIONS = {
   ...COOKIE_OPTIONS,
-  maxAge: 7 * 24 * 60 * 60, // 7 days
+  maxAge: SESSION_DAYS * 24 * 60 * 60,
 };
 
 // ============ Device binding ============

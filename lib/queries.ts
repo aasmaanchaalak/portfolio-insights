@@ -245,6 +245,10 @@ export async function getSession(sessionId: string): Promise<Session | null> {
   };
 }
 
+export async function extendSession(sessionId: string, expiresAt: Date): Promise<void> {
+  await query(`UPDATE sessions SET expires_at = $2 WHERE session_id = $1`, [sessionId, expiresAt.toISOString()]);
+}
+
 export async function deleteSession(sessionId: string): Promise<void> {
   await query(`DELETE FROM sessions WHERE session_id = $1`, [sessionId]);
 }

@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { serialize } from 'cookie';
-import { verifyToken, createAccessToken, ACCESS_COOKIE_OPTIONS } from '../../../lib/auth';
+import { verifyToken } from '../../../lib/auth';
 import { getSession } from '../../../lib/queries';
+import { renewSession } from '../../../lib/authMiddleware';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -28,9 +28,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Session expired' });
     }
 
-    const accessToken = await createAccessToken(payload.userId, payload.sessionId);
-
-    res.setHeader('Set-Cookie', serialize('accessToken', accessToken, ACCESS_COOKIE_OPTIONS));
+    // New access token + slide the session and refresh token forward.
+    await renewSession(res, payload.userId, payload.sessionId);
 
     return res.status(200).json({ success: true });
   } catch (error) {

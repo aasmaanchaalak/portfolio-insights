@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { ThesisSignal, SignalType, SignalSentiment } from '../../../types/thesis';
+import { uuid } from '../../../lib/uuid';
 
 interface SignalsSectionProps {
   signals: ThesisSignal[];
@@ -41,7 +42,7 @@ export function SignalsSection({ signals, onUpdate, disabled }: SignalsSectionPr
     if (!newSignal.title.trim()) return;
 
     const signal: ThesisSignal = {
-      id: crypto.randomUUID(),
+      id: uuid(),
       signalType: newSignal.signalType,
       title: newSignal.title.trim(),
       description: newSignal.description.trim() || null,

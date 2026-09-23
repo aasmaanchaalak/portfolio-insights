@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { verifyToken } from '../../../lib/auth';
-import { getSession, getUserByEmail } from '../../../lib/queries';
+import { authenticate } from '../../../lib/authMiddleware';
+import { getUserByEmail } from '../../../lib/queries';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -9,25 +9,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const token = req.cookies.accessToken;
+    // Falls back to the refresh token (and renews) when the access token lapsed.
+    const auth = await authenticate(req, res);
 
-    if (!token) {
+    if (!auth) {
       return res.status(200).json({ authenticated: false });
     }
 
-    const payload = await verifyToken(token);
-
-    if (!payload) {
-      return res.status(200).json({ authenticated: false });
-    }
-
-    const session = await getSession(payload.sessionId);
-
-    if (!session) {
-      return res.status(200).json({ authenticated: false });
-    }
-
-    const user = await getUserByEmail(payload.userId);
+    const user = await getUserByEmail(auth.email);
     if (!user) {
       return res.status(200).json({ authenticated: false });
     }

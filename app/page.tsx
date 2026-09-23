@@ -871,7 +871,7 @@ const normalizeFilters = (f: any): FilterState => ({
     pledged: typeof f?.pledged === 'string' ? f.pledged : 'All',
 });
 
-const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void; isAnalyst?: boolean; teamMembers?: string[] }> = ({ gridKeyData, stocks, onStocksUpdate, isAnalyst = false, teamMembers = [] }) => {
+const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void; isAnalyst?: boolean; teamMembers?: string[]; searchOpen?: boolean; onSearchOpenChange?: (open: boolean) => void }> = ({ gridKeyData, stocks, onStocksUpdate, isAnalyst = false, teamMembers = [], searchOpen = false, onSearchOpenChange }) => {
     // Default sort = portfolio weight descending (Part II: never alphabetical —
     // alphabetical buries an 18% position beneath a 0.06% one).
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' }>({
@@ -884,6 +884,11 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     const [rangeFilters, setRangeFilters] = useState<Record<string, string>>(() => ({ ...INITIAL_RANGE_FILTERS }));
     const [showFilterPopover, setShowFilterPopover] = useState(false);
     const [showColumnPanel, setShowColumnPanel] = useState(false);
+    // Mobile only: the search input stays hidden until the header's search
+    // icon opens it (state lives in App, which owns the header).
+    const setSearchOpen = (open: boolean) => onSearchOpenChange?.(open);
+    const searchInputRef = useRef<HTMLInputElement>(null);
+    useEffect(() => { if (searchOpen) searchInputRef.current?.focus(); }, [searchOpen]);
     const [remarksModalData, setRemarksModalData] = useState<any>(null);
     const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
@@ -1499,6 +1504,57 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     const visibleOptional = columnPickable.filter(c => visibleColumns[c.key]);
     const shownColumnCount = visibleOptional.length;
 
+    // ===== Phone list lenses =====
+    // On phones the table is replaced by a list: each lens picks a headline
+    // number (right), a secondary number under it, and a few fields under the
+    // name. Picking a lens sorts by its headline, high → low.
+    interface MField { key: string; label: string; render: (it: any) => React.ReactNode }
+    interface MLens { id: string; label: string; main: MField; sub: MField; below: MField[] }
+    const mobileLenses: MLens[] = useMemo(() => {
+        const f = (key: string, label: string, render: (it: any) => React.ReactNode): MField => ({ key, label, render });
+        const pct = (key: string, label: string) => f(key, label, it => <PctColored v={it[key]} />);
+        const [fy0, fy1, fy2] = forwardWindow(currentFY, 3).map(fy => fyLabel(fy, currentFY));
+        const lenses: MLens[] = [
+            { id: 'stock', label: 'Stock', main: pct('return1D', 'Today'), sub: f('calculatedAmount', 'Value', it => fmtIndianCompact(it.calculatedAmount) ?? <PPDash />),
+              below: [f('investedAmount', 'Inv', it => fmtIndianCompact(it.investedAmount) ?? <PPDash />), pct('irr', 'IRR')] },
+            { id: 'today', label: 'Today', main: pct('return1D', 'Today'), sub: f('currentPrice', 'Price', it => fmtUnitPrice(it.currentPrice) ?? <PPDash />),
+              below: [f('averageBuyPrice', 'Avg', it => (it.averageBuyPrice > 0 ? fmtUnitPrice(it.averageBuyPrice) : null) ?? <PPDash />), f('quantity', 'Qty', it => qtyStr(it.quantity, 0) ?? <PPDash />)] },
+            { id: 'fundamentals', label: 'Growth', main: pct('roce', 'ROCE'), sub: f('priceToEarning', 'P/E', it => <PlainNum v={it.priceToEarning} digits={1} />),
+              below: [pct('yoyQuarterlySalesGrowth', 'Sales'), pct('yoyQuarterlyProfitGrowth', 'Profit')] },
+            { id: 'technicals', label: 'Technicals', main: pct('dma200ChangePercent', 'vs 200 DMA'), sub: pct('dma50ChangePercent', 'vs 50 DMA'),
+              below: [f('downFrom52WeekHigh', 'From 52W high', it => <OffPct v={it.downFrom52WeekHigh} dir="down" />)] },
+            { id: 'forward', label: 'Forward', main: pct('fwdIrr1', `${fy1} IRR`), sub: pct('fwdIrr0', fy0),
+              below: [pct('fwdIrr2', fy2)] },
+        ];
+        // Analysts never see position sizes: drop those fields.
+        if (!isAnalyst) return lenses;
+        const blank = (m: MField): MField => ANALYST_RESTRICTED_COLUMNS.includes(m.key) ? { ...m, render: () => null } : m;
+        return lenses.map(l => ({ ...l, sub: blank(l.sub), below: l.below.filter(b => !ANALYST_RESTRICTED_COLUMNS.includes(b.key)) }));
+    }, [currentFY, isAnalyst]);
+
+    const MOBILE_LENS_KEY = 'ppMobileLens';
+    const [mobileLensId, setMobileLensId] = useState<string>(() => {
+        try { return (typeof window !== 'undefined' && localStorage.getItem(MOBILE_LENS_KEY)) || 'stock'; } catch { return 'stock'; }
+    });
+    const mobileLens = mobileLenses.find(l => l.id === mobileLensId) || mobileLenses[0];
+    const selectMobileLens = (l: MLens) => {
+        setMobileLensId(l.id);
+        try { localStorage.setItem(MOBILE_LENS_KEY, l.id); } catch {}
+        setSortConfig({ key: l.main.key, direction: 'descending' });
+    };
+    // Sort options: the lens's own fields, plus whatever is currently sorted
+    // (e.g. the default weight sort) so the picker always reflects reality.
+    const mobileSortOptions = useMemo(() => {
+        const opts = [mobileLens.main, mobileLens.sub, ...mobileLens.below]
+            .filter(o => !(isAnalyst && ANALYST_RESTRICTED_COLUMNS.includes(o.key)))
+            .map(o => ({ key: o.key, label: o.label }));
+        if (!opts.some(o => o.key === sortConfig.key)) {
+            const col = ppColumns.find(c => c.key === sortConfig.key);
+            opts.unshift({ key: sortConfig.key, label: col ? col.label.replace(/ %$/, '') : sortConfig.key });
+        }
+        return opts;
+    }, [mobileLens, sortConfig.key, ppColumns, isAnalyst]);
+
     const handleStockNameClick = (item: any) => {
         const stockCode = item.nseCode || item.bseCode;
         const stockName = item.scripName || item.name;
@@ -1751,13 +1807,15 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             ) : (
                 <>
                     <div className="action-bar">
-                        <div className="search-bar">
+                        <div className={`search-bar ${searchOpen || filters.searchTerm ? 'is-open' : ''}`}>
                             <input
+                                ref={searchInputRef}
                                 type="search"
                                 name="searchTerm"
                                 placeholder="Search by name..."
                                 value={filters.searchTerm}
                                 onChange={handleFilterChange}
+                                onBlur={() => setSearchOpen(false)}
                             />
                         </div>
                         <div className="action-buttons">
@@ -1834,11 +1892,11 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                     Export CSV
                                 </button>
                             )}
-                            <button className="filter-btn" onClick={() => setShowFilterPopover(true)}>
+                            <button className="filter-btn" onClick={() => setShowFilterPopover(true)} aria-label="Filters">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                                     <path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10 8.692V13.5a.5.5 0 0 1-.342.474l-3 1.5A.5.5 0 0 1 6 14.5V8.692L1.628 3.834A.5.5 0 0 1 1.5 3.5z"/>
                                 </svg>
-                                Filters
+                                <span className="filter-btn-label">Filters</span>
                             </button>
                             <button
                                 className={`pp-editcols-btn ${showColumnPanel ? 'active' : ''}`}
@@ -1964,6 +2022,75 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                             </div>
                         </div>
                     )}
+
+                    <div className="pp-mlist">
+                        <div className="pp-mbar">
+                            <div className="pp-mlenses" role="tablist">
+                                {mobileLenses.map(l => (
+                                    <button
+                                        key={l.id}
+                                        type="button"
+                                        role="tab"
+                                        aria-selected={l.id === mobileLens.id}
+                                        className={`pp-mlens ${l.id === mobileLens.id ? 'active' : ''}`}
+                                        onClick={() => selectMobileLens(l)}
+                                    >
+                                        {l.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="pp-msort">
+                                <label className="pp-msort-by">
+                                    Sorted by
+                                    <select value={sortConfig.key} onChange={e => setSortConfig({ key: e.target.value, direction: sortConfig.direction })}>
+                                        {mobileSortOptions.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+                                    </select>
+                                </label>
+                                <button
+                                    type="button"
+                                    className="pp-msort-dir"
+                                    onClick={() => setSortConfig({ key: sortConfig.key, direction: sortConfig.direction === 'descending' ? 'ascending' : 'descending' })}
+                                >
+                                    {sortConfig.direction === 'descending' ? 'High → low' : 'Low → high'}
+                                </button>
+                                <button type="button" className="pp-mfilter" onClick={() => setShowFilterPopover(true)} aria-label="Filters">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+                                        <path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10 8.692V13.5a.5.5 0 0 1-.342.474l-3 1.5A.5.5 0 0 1 6 14.5V8.692L1.628 3.834A.5.5 0 0 1 1.5 3.5z"/>
+                                    </svg>
+                                    {activeFilterCount > 0 && <span className="pp-mfilter-count">{activeFilterCount}</span>}
+                                </button>
+                            </div>
+                        </div>
+                        {filteredAndSortedData.length === 0 && <div className="pp-mempty">No holdings match.</div>}
+                        {filteredAndSortedData.map((item, index) => {
+                            const it = item as any;
+                            const ticker = it.nseCode || it.bseCode || '';
+                            const { main, sub, below } = mobileLens;
+                            const subValue = sub.render(it);
+                            return (
+                                <div key={`${item.scripName}-${index}`} className="pp-mrow" onClick={() => handleStockNameClick(item)}>
+                                    <span className="pp-spine" data-conviction={(it.positioning?.conviction || '').toLowerCase()} />
+                                    <div className="pp-mrow-left">
+                                        <div className="pp-mrow-title">
+                                            <span className="pp-mrow-name">{splitCompanySuffix(item.scripName)[0]}</span>
+                                            {ticker && <span className="pp-ticker">{ticker}</span>}
+                                        </div>
+                                        {below.length > 0 && (
+                                            <div className="pp-mrow-below">
+                                                {below.map(b => (
+                                                    <span key={b.key}><span className="pp-mrow-k">{b.label}</span>{b.render(it)}</span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="pp-mrow-right">
+                                        <div className="pp-mrow-main">{main.render(it)}</div>
+                                        {subValue != null && <div className="pp-mrow-sub"><span className="pp-mrow-k">{sub.label}</span>{subValue}</div>}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
 
                     {viewMode === 'table' ? (
                     <>
@@ -4228,9 +4355,20 @@ interface PrivateInvestments {
     count: number;
 }
 
+// Splits "Sambhv Steel Tubes Ltd." into ["Sambhv Steel Tubes", " Ltd."] so the
+// suffix can be hidden on narrow screens without touching the stored name.
+function splitCompanySuffix(name: string): [string, string] {
+    const m = name.match(/^(.*?)(\s+(?:Ltd\.?|Limited))$/i);
+    return m ? [m[1], m[2]] : [name, ''];
+}
+
 const App: React.FC = () => {
     const { user, loading: authLoading, logout, isAdmin, isAnalyst, isManager } = useAuth();
-    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'entrydata' | 'pe' | 'pipeline' | 'admin'>('pipeline');
+    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'entrydata' | 'pe' | 'pipeline' | 'admin'>(
+        // Phones land on Public Portfolio; desktop keeps Pipeline. Safe to read
+        // window here: nothing page-specific renders until auth has loaded.
+        () => (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 'insights' : 'pipeline')
+    );
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [privateInvestments, setPrivateInvestments] = useState<PrivateInvestments>({ totalInvested: 0, count: 0 });
@@ -4238,6 +4376,8 @@ const App: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [teamMembers, setTeamMembers] = useState<string[]>([]);
     const [smallcapDaily, setSmallcapDaily] = useState<number | null>(null);
+    const [mobileNavOpen, setMobileNavOpen] = useState(false);
+    const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
     // Nifty Smallcap 100 daily change — the brand-bar benchmark next to today's gain.
     useEffect(() => {
@@ -4511,6 +4651,31 @@ const App: React.FC = () => {
                 <div className="topnav-brand">
                     <img className="topnav-logo" src="/sagun-capital-logo.png" alt="Sagun Capital" />
                 </div>
+                <span className="topnav-current">{navItems.find(i => i.id === page)?.label}</span>
+                {page === 'insights' && (
+                    <button
+                        type="button"
+                        className={`topnav-search-btn ${mobileSearchOpen ? 'active' : ''}`}
+                        onMouseDown={e => e.preventDefault()}
+                        onClick={() => setMobileSearchOpen(o => !o)}
+                        aria-label="Search holdings"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+                            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/>
+                        </svg>
+                    </button>
+                )}
+                <button
+                    type="button"
+                    className="topnav-menu-btn"
+                    onClick={() => setMobileNavOpen(true)}
+                    aria-label="Open menu"
+                    aria-expanded={mobileNavOpen}
+                >
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                        <path d="M3 6h18M3 12h18M3 18h18" />
+                    </svg>
+                </button>
                 <nav className="topnav-links">
                     {navItems.map(item => (
                         <button
@@ -4549,9 +4714,35 @@ const App: React.FC = () => {
                 </div>
             </header>
 
+            {mobileNavOpen && (
+                <div className="mnav-backdrop" onClick={() => setMobileNavOpen(false)}>
+                    <nav className="mnav-panel" onClick={e => e.stopPropagation()} aria-label="Main menu">
+                        <div className="mnav-head">
+                            <img className="topnav-logo" src="/sagun-capital-logo.png" alt="Sagun Capital" />
+                            <button type="button" className="mnav-close" onClick={() => setMobileNavOpen(false)} aria-label="Close menu">×</button>
+                        </div>
+                        <div className="mnav-links">
+                            {navItems.map(item => (
+                                <button
+                                    key={item.id}
+                                    className={`mnav-link ${page === item.id ? 'active' : ''}`}
+                                    onClick={() => { setPage(item.id as any); setMobileNavOpen(false); }}
+                                >
+                                    {item.label}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="mnav-foot">
+                            <span className="mnav-user">{user.name}</span>
+                            <button type="button" className="mnav-logout" onClick={logout}>Sign out</button>
+                        </div>
+                    </nav>
+                </div>
+            )}
+
             <main className={`app-content ${page === 'insights' ? 'is-table-page' : ''}`}>
                 {page === 'dashboard' && <Dashboard gridKeyData={gridKeyData} stocks={stocks} privateInvestments={privateInvestments} isAnalyst={isAnalyst} portfolioHistory={portfolioHistory} />}
-                {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={stocks} onStocksUpdate={setStocks} isAnalyst={isAnalyst} teamMembers={teamMembers} />}
+                {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={stocks} onStocksUpdate={setStocks} isAnalyst={isAnalyst} teamMembers={teamMembers} searchOpen={mobileSearchOpen} onSearchOpenChange={setMobileSearchOpen} />}
                 {page === 'analysis' && <AnalysisPage gridKeyData={gridKeyData} stocks={stocks} isAnalyst={isAnalyst} />}
                 {page === 'upload' && <UploadPage onDataUploaded={handleDataUploaded} />}
                 {page === 'gridkey' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}

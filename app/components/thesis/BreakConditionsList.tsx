@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { ThesisBreakCondition } from '../../../types/thesis';
+import { uuid } from '../../../lib/uuid';
 
 interface BreakConditionsListProps {
   conditions: ThesisBreakCondition[];
@@ -21,7 +22,7 @@ export function BreakConditionsList({
     if (!newCondition.trim()) return;
 
     const condition: ThesisBreakCondition = {
-      id: crypto.randomUUID(),
+      id: uuid(),
       condition: newCondition.trim(),
       isTriggered: false,
       triggeredAt: null,

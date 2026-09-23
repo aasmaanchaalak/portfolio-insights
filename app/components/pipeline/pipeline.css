@@ -928,3 +928,62 @@
   color: var(--secondary-text-color);
   font-size: 0.72rem;
 }
+
+.pipeline-status-pills.is-kanban { display: none; }
+.pipeline-msort { display: none; }
+
+/* ===== Phone (≤767px): flat list rows (.pp-mlist, globals.css) replace
+   List / Grouped / Kanban; modals become full-screen sheets. ===== */
+@media (max-width: 767px) {
+  /* margin:auto on a column-flex child shrink-wraps it to its widest (nowrap)
+     content instead of the screen — pin it to the container width. */
+  .pipeline-page { padding: 0; margin: 0; width: 100%; min-width: 0; }
+  .pipeline-header { flex-wrap: wrap; align-items: flex-start; gap: 8px; }
+  .pipeline-header-left { flex: 1 1 auto; min-width: 0; }
+  .pipeline-header-left h1 { font-size: 1.1rem; }
+  .pipeline-subtitle { font-size: 0.8rem; }
+  .pipeline-refresh-label { display: none; }
+
+  .pipeline-status-pills,
+  .pipeline-status-pills.is-kanban {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin: 0 -16px 10px;
+    padding: 0 16px;
+    scrollbar-width: none;
+  }
+  .pipeline-status-pills::-webkit-scrollbar { display: none; }
+  .pipeline-pill { flex: 0 0 auto; white-space: nowrap; }
+
+  .pipeline-filter-bar { gap: 8px; margin-bottom: 0; }
+  .pipeline-search { flex: 1 1 100%; min-width: 0; }
+  .pipeline-filter-bar .pipeline-filter-select { flex: 1 1 0; min-width: 0; }
+  .pipeline-msort { display: block; }
+  .pipeline-view-toggle,
+  .pipeline-desktop-content { display: none; }
+
+  .pipeline-page .pp-mlist { display: flex; margin-top: 10px; border-top: 1px solid var(--rule); }
+  .pipeline-page .pp-mrow { padding-left: 16px; }
+  .pipeline-page .pp-mrow-title .pp-mrow-name { flex: 0 0 auto; }
+  .pipeline-page .pp-mrow-title .pipeline-mcompany { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .pipeline-page .pp-mrow-below { align-items: center; }
+
+  .pipeline-modal,
+  .pipeline-modal.wide {
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border: none;
+    border-radius: 0;
+    transform: translateY(12px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pipeline-modal.open { transform: none; }
+  .pipeline-modal-body { padding: 16px; }
+  .pipeline-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .pipeline-notes-input-row { flex-wrap: wrap; }
+  .pipeline-notes-input-row input { flex: 1 1 100%; }
+}

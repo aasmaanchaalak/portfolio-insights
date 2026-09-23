@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ValuationTableData, ValuationRow, ValuationColumn } from '../../../../types/pe';
 import { computeCurrentFY, fyLabel } from '../../../../lib/fiscalYear';
+import { uuid } from '../../../../lib/uuid';
 
 interface ValuationTabProps {
   companyId: string;
@@ -16,7 +17,7 @@ const DEFAULT_ROWS: Omit<ValuationRow, 'id'>[] = [
 ];
 
 function newId(): string {
-  return crypto.randomUUID();
+  return uuid();
 }
 
 // Default columns are date-aware (two completed years + current + two estimates)

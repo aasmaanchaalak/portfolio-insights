@@ -1646,3 +1646,43 @@
   opacity: 0.75;
 }
 
+
+/* ===== Phone (≤767px): list rows (.pp-mlist, globals.css) replace the tables ===== */
+@media (max-width: 767px) {
+  /* margin:auto on a column-flex child shrink-wraps it to its widest (nowrap)
+     content instead of the screen — pin it to the container width. */
+  .pe-tracker { padding: 0; margin: 0; width: 100%; min-width: 0; }
+  .pe-header { margin-bottom: 12px; gap: 12px; }
+  .pe-title { font-size: 1.15rem; }
+  .pe-add-btn { padding: 0.45rem 0.75rem; font-size: 0.85rem; white-space: nowrap; }
+
+  .pe-summary-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .pe-summary-card { padding: 10px 12px; min-width: 0; }
+  .pe-summary-value { font-size: 1.1rem; }
+
+  .pe-toolbar { gap: 8px; }
+  .pe-search-input { flex: 1 1 100%; min-width: 0; max-width: none; }
+  .pe-filter-select { flex: 1 1 0; min-width: 0; }
+
+  .pe-table-container { display: none; }
+  .pe-tracker .pp-mlist { display: flex; }
+  .pe-tracker .pp-mrow { padding-left: 16px; }
+  .pe-tracker .pp-mrow-below .pe-status-badge { padding: 1px 6px; font-size: 11px; }
+  .pe-exited-title { margin-top: 20px; }
+}
+
+/* ===== Phone (≤767px): Forward Metrics / Valuation grid in the stock drawer ===== */
+@media (max-width: 767px) {
+  /* .stock-modal prefix: drawer.css may load after this file. */
+  .stock-modal .stock-modal-content { padding: 12px; }
+  .pe-valuation-container { padding: 0; }
+  .pe-valuation-status { top: 0; right: 0; }
+  .pe-valuation-scroll { margin-top: 20px; }
+  .pe-valuation-corner,
+  .pe-valuation-row-label-cell { min-width: 84px; }
+  .pe-valuation-header-cell { min-width: 64px; padding: 1px 2px; }
+  .pe-valuation-row-label { padding: 1px 2px; }
+  .pe-valuation-cell-input { min-width: 58px; padding: 6px 5px; font-size: 13px; }
+  .pe-valuation-label-input { padding: 6px 3px; font-size: 13px; }
+  .pe-valuation-add-btn { padding: 6px 6px; }
+}

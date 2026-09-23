@@ -218,6 +218,110 @@ body {
 }
 .brandbar-logout:hover { color: var(--crimson-link); text-decoration: underline; }
 
+/* ── Mobile nav (hamburger + slide-out panel) — hidden on desktop ── */
+.topnav-current, .topnav-menu-btn, .topnav-search-btn { display: none; }
+.topnav-menu-btn,
+.topnav-search-btn {
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  background: none;
+  border: none;
+  color: var(--ink);
+  cursor: pointer;
+}
+.mnav-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: oklch(0 0 0 / 0.35);
+}
+.mnav-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(300px, 82vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--page);
+  box-shadow: -8px 0 24px oklch(0 0 0 / 0.12);
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  animation: mnav-in 0.18s ease-out;
+}
+@keyframes mnav-in { from { transform: translateX(100%); } to { transform: none; } }
+.mnav-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 52px;
+  padding: 0 8px 0 16px;
+  border-bottom: 1px solid var(--rule);
+}
+.mnav-close {
+  width: 44px;
+  height: 44px;
+  background: none;
+  border: none;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.mnav-links { flex: 1 1 auto; overflow-y: auto; padding: 8px 0; }
+.mnav-link {
+  display: block;
+  width: 100%;
+  padding: 14px 20px;
+  background: none;
+  border: none;
+  border-left: 3px solid transparent;
+  text-align: left;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  color: oklch(0.46 0.003 0);
+  cursor: pointer;
+}
+.mnav-link.active {
+  color: var(--ink);
+  font-weight: 600;
+  border-left-color: var(--crimson);
+  background: var(--crimson-wash);
+}
+.mnav-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--rule);
+}
+.mnav-user {
+  font-size: 13px;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mnav-logout {
+  flex: 0 0 auto;
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+}
+@media (min-width: 769px) {
+  .mnav-backdrop { display: none; }
+}
+
 /* ── Content ── */
 .app-content {
   flex: 1 1 auto;
@@ -247,31 +351,31 @@ body {
 @media (max-width: 768px) {
   /* Two-row nav: logo + user on row 1, scrollable tab strip on row 2 so the
      tabs are always reachable instead of being squeezed to nothing. */
+  /* Single compact bar: logo · current page · hamburger. Tabs, stats and the
+     user block move into the slide-out menu. */
   .topnav {
-    flex-wrap: wrap;
     align-items: center;
-    min-height: 0;
-    gap: 8px 12px;
-    padding: 8px 12px 0;
+    min-height: 52px;
+    gap: 12px;
+    padding: 0 8px 0 16px;
   }
-  .topnav-brand { flex: 1 1 auto; order: 1; }
-  .topnav-right { order: 2; flex: 0 0 auto; gap: 8px; }
-  /* On-the-go stats crowd a phone header — the dashboard shows them in full. */
-  .brandbar-stat { display: none; }
-  .brandbar-user-name { max-width: 90px; }
-  .brandbar-stat-sep { margin-left: 0; padding-left: 0; border-left: none; }
-
-  .topnav-links {
-    order: 3;
-    flex: 1 1 100%;
-    width: 100%;
-    margin-top: 4px;
-    border-top: 1px solid var(--rule);
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+  .topnav-logo { height: 26px; }
+  .topnav-links, .topnav-right { display: none; }
+  .topnav-current {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-left: 12px;
+    border-left: 1px solid var(--rule);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .topnav-links::-webkit-scrollbar { display: none; }
-  .navrow-link { padding: 12px 12px; font-size: 13px; }
+  .topnav-menu-btn, .topnav-search-btn { display: inline-flex; }
+  .topnav-search-btn.active { color: var(--crimson); }
 
   .app-content { padding: 16px; }
   /* On phones the fixed-height / internal-scroll table layout collapses once the
@@ -1427,17 +1531,20 @@ a:hover {
       align-items: stretch;
   }
 
-  /* Let the toolbar controls wrap instead of overflowing the screen edge. */
+  /* Search input only appears once opened from the header's search icon (or
+     while a term is active). */
   .search-bar {
     flex: 1 1 auto;
     max-width: none;
   }
-  .action-buttons {
-    flex-wrap: wrap;
-  }
-  .saved-views-inline {
-    flex-wrap: wrap;
-  }
+  .search-bar:not(.is-open) { display: none; }
+  .action-bar { margin-bottom: 0; }
+  .action-bar:not(:has(.search-bar.is-open)) { display: none; }
+  /* The phone list (.pp-mlist) replaces the table/grid and its toolbar. */
+  .action-buttons,
+  .app-content .pp-table-wrap,
+  .app-content .stock-grid { display: none; }
+  .app-content .pp-mlist { display: flex; }
 
   /* Public Portfolio table: tighter cells + smaller text so more fits, and it
      still scrolls horizontally inside .pp-table-wrap for the rest. */
@@ -5245,3 +5352,197 @@ a:hover {
   font-weight: 600;
 }
 .pp-colchip-check { font-size: 12px; line-height: 1; }
+
+/* ============================================================================
+   Public Portfolio — phone list (≤767px). Replaces the dense table: lens tabs
+   pick which metrics each row shows; one headline number on the right.
+   ============================================================================ */
+.pp-mlist { display: none; flex-direction: column; margin: 0 -16px; }
+.pp-mbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--page);
+  border-bottom: 1px solid var(--rule-section);
+  padding-top: 2px;
+}
+.pp-mlenses {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 0 16px 10px;
+  scrollbar-width: none;
+}
+.pp-mlenses::-webkit-scrollbar { display: none; }
+.pp-mlens {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-control);
+  background: var(--page);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+}
+.pp-mlens.active {
+  background: var(--crimson);
+  border-color: var(--crimson);
+  color: #fff;
+  font-weight: 600;
+}
+.pp-msort {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px 6px 16px;
+}
+.pp-msort-by {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.pp-msort-by select {
+  min-width: 0;
+  border: none;
+  background: none;
+  padding: 2px 0;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.pp-msort-dir {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  padding: 6px 4px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--crimson-link);
+  cursor: pointer;
+}
+.pp-mfilter {
+  position: relative;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--ink);
+  cursor: pointer;
+}
+.pp-mfilter-count {
+  position: absolute;
+  top: 4px;
+  right: 3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--crimson);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+}
+.pp-mrow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px 11px 18px;
+  border-bottom: 1px solid var(--rule-soft);
+  cursor: pointer;
+}
+.pp-mrow:active { background: var(--row-hover); }
+.pp-mrow .pp-spine { left: 6px; height: 34px; }
+.pp-mrow-left { flex: 1 1 auto; min-width: 0; }
+.pp-mrow-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.pp-mrow-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.pp-mrow-title .pp-ticker { flex: 0 0 auto; }
+.pp-mrow-below {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin-top: 3px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--ink);
+}
+.pp-mrow-k { color: var(--ink-muted); margin-right: 3px; }
+.pp-mrow-right {
+  flex: 0 0 auto;
+  text-align: right;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.pp-mrow-main { font-size: 16px; font-weight: 600; color: var(--ink); }
+.pp-mrow-sub { margin-top: 2px; font-size: 12px; color: var(--ink); }
+.pp-mempty { padding: 32px 16px; text-align: center; color: var(--ink-muted); }
+
+/* ============================================================================
+   Dashboard — phone fixes (≤767px). Grid tracks default to min-width:auto, so
+   one nowrap row (alert chips, driver names) stretched the whole page sideways.
+   Tracks are clamped to the screen and wide rows wrap instead.
+   ============================================================================ */
+@media (max-width: 767px) {
+  .dashboard-page .dashboard-section,
+  .dashboard-page .dashboard-two-col > *,
+  .dashboard-page .alert-column,
+  .dashboard-page .positioning-allocation-card,
+  .dashboard-page .sector-list-card,
+  .dashboard-page .leaderboard-card { min-width: 0; }
+
+  .dashboard-page .overview-cards,
+  .dashboard-page .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .dashboard-page .dashboard-two-col,
+  .dashboard-page .alerts-grid,
+  .dashboard-page .positioning-allocation-grid,
+  .dashboard-page .sector-performance-grid,
+  .dashboard-page .leaderboard-grid { grid-template-columns: minmax(0, 1fr); }
+
+  .dashboard-page .overview-card { padding: 12px; }
+  .dashboard-page .card-subtext { overflow-wrap: anywhere; }
+
+  /* Headings: let the refresh timer / return figure drop to a second line. */
+  .dashboard-page .section-title { flex-wrap: wrap; font-size: 1.1rem; }
+
+  /* Alerts: chips move under the name instead of pushing the row wider. */
+  .dashboard-page .weak-row { flex-wrap: wrap; row-gap: 4px; }
+  .dashboard-page .weak-name { flex: 1 1 0; font-size: 14px; }
+  .dashboard-page .weak-chips { order: 3; flex: 1 1 100%; flex-wrap: wrap; }
+
+  /* Return drivers: period buttons share the full width; narrower name column. */
+  .dashboard-page .period-toggle { display: flex; width: 100%; }
+  .dashboard-page .period-toggle .toggle-btn { flex: 1 1 0; padding: 0.4rem 0; }
+  .dashboard-page .driver-row { gap: 8px; }
+  .dashboard-page .driver-info { min-width: 110px; max-width: 110px; }
+  .dashboard-page .driver-bar-zone { min-width: 0; }
+
+  /* Hover lists open on tap on phones — keep them inside the card. */
+  .dashboard-page .positioning-tooltip,
+  .dashboard-page .sector-tooltip { left: 0; right: 0; min-width: 0; }
+}

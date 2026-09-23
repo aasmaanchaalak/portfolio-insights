@@ -1128,7 +1128,7 @@ export function PipelinePage() {
           <p className="pipeline-subtitle">{ideas.length} ideas tracked · {conviction} in conviction list</p>
         </div>
         {activeTab === 'pipeline' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div className="pipeline-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             {refreshResult && <span style={{ fontSize: '0.8125rem', color: 'var(--secondary-text-color)' }}>{refreshResult}</span>}
             <button
               className="pipeline-btn-secondary"
@@ -1137,7 +1137,7 @@ export function PipelinePage() {
               type="button"
               style={{ padding: '0.4rem 0.875rem', fontSize: '0.8125rem' }}
             >
-              {refreshing ? 'Refreshing…' : '↻ Refresh Prices'}
+              {refreshing ? 'Refreshing…' : <>↻<span className="pipeline-refresh-label"> Refresh Prices</span></>}
             </button>
             <button className="pipeline-add-btn" onClick={() => { setEditingIdea(null); setShowAddModal(true); }}>
               + New Idea
@@ -1160,21 +1160,20 @@ export function PipelinePage() {
         <GuidanceTracker />
       ) : (
         <>
-          {/* Status Pills — hidden in Kanban (columns are the grouping) */}
-          {viewMode !== 'kanban' && (
-            <div className="pipeline-status-pills">
-              {STATUSES.map(s => (
-                <button
-                  key={s.value}
-                  className={`pipeline-pill ${statusFilter === s.value ? 'active' : ''}`}
-                  data-status={s.value}
-                  onClick={() => setStatusFilter(s.value as PipelineStatus | 'all')}
-                >
-                  {s.label} ({counts[s.value] ?? 0})
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Status Pills — hidden in Kanban on desktop (columns are the grouping);
+              phones always use the list, so they always show. */}
+          <div className={`pipeline-status-pills ${viewMode === 'kanban' ? 'is-kanban' : ''}`}>
+            {STATUSES.map(s => (
+              <button
+                key={s.value}
+                className={`pipeline-pill ${statusFilter === s.value ? 'active' : ''}`}
+                data-status={s.value}
+                onClick={() => setStatusFilter(s.value as PipelineStatus | 'all')}
+              >
+                {s.label} ({counts[s.value] ?? 0})
+              </button>
+            ))}
+          </div>
 
           {/* Filter Bar */}
           <div className="pipeline-filter-bar">
@@ -1194,6 +1193,17 @@ export function PipelinePage() {
               <option value="all">All People</option>
               {allPersons.map(p => <option key={p}>{p}</option>)}
             </select>
+            <select
+              className="pipeline-filter-select pipeline-msort"
+              value={sortKey}
+              onChange={e => { setSortKey(e.target.value as SortKey); setSortDir('desc'); }}
+              aria-label="Sort"
+            >
+              <option value="dateAdded">Newest</option>
+              <option value="pctChange">% change</option>
+              <option value="daysInStatus">Days in status</option>
+              <option value="priority">Priority</option>
+            </select>
             <div className="pipeline-view-toggle">
               {(['list', 'grouped', 'kanban'] as const).map(v => (
                 <button
@@ -1208,7 +1218,48 @@ export function PipelinePage() {
             </div>
           </div>
 
+          {/* Phone list (≤767px) — always a flat list, whatever the desktop view. */}
+          <div className="pp-mlist">
+            {loading ? (
+              <div className="pp-mempty">Loading…</div>
+            ) : filtered.length === 0 ? (
+              <div className="pp-mempty">{ideas.length === 0 ? 'No ideas yet.' : 'No ideas match the current filters.'}</div>
+            ) : filtered.map(idea => {
+              const pct = idea.priceAtAdd && idea.currentPrice
+                ? (((idea.currentPrice - idea.priceAtAdd) / idea.priceAtAdd) * 100)
+                : null;
+              const days = daysSince(idea.statusChangedDate);
+              return (
+                <div key={idea.id} className="pp-mrow" onClick={() => setDetailIdea(idea)}>
+                  <div className="pp-mrow-left">
+                    <div className="pp-mrow-title">
+                      <span className="pp-mrow-name">{idea.ticker}</span>
+                      <span className="pp-ticker pipeline-mcompany">{idea.companyName}</span>
+                    </div>
+                    <div className="pp-mrow-below">
+                      <span className={`pipeline-status-badge ${idea.status}`}>{STATUS_LABEL[idea.status]}</span>
+                      <span className="pipeline-priority">
+                        <span className={`pipeline-priority-dot ${idea.priority}`} />
+                        {idea.priority.charAt(0).toUpperCase()}
+                      </span>
+                      <span className={days > 30 ? 'pipeline-days-warn' : ''}>{days}d</span>
+                    </div>
+                  </div>
+                  <div className="pp-mrow-right">
+                    <div className="pp-mrow-main">
+                      {pct !== null
+                        ? <span className={pct >= 0 ? 'pipeline-change-pos' : 'pipeline-change-neg'}>{pct >= 0 ? '+' : ''}{pct.toFixed(1)}%</span>
+                        : <span className="pp-dash">—</span>}
+                    </div>
+                    <div className="pp-mrow-sub">{fmt(idea.currentPrice)}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
           {/* Content — switches between List, Grouped, Kanban */}
+          <div className="pipeline-desktop-content">
           {loading ? (
             <div className="pipeline-empty">Loading…</div>
           ) : viewMode === 'kanban' ? (
@@ -1282,6 +1333,7 @@ export function PipelinePage() {
               </table>
             </div>
           )}
+          </div>
         </>
       )}
 
