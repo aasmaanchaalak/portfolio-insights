@@ -49,6 +49,23 @@ export function yearsUntilFYEnd(fy: number, from: Date = new Date()): number {
   return (fyEndDate(fy).getTime() - from.getTime()) / YEAR_MS;
 }
 
+// Forward IRR from today's price to a projected target price at a fiscal-year
+// end. target = projected EPS × target P/E (from the stock's Forward Metrics).
+// Annualized (CAGR) when the FY-end is a year or more out; a simple return when
+// it's closer, since annualizing a few months extrapolates to noise.
+export function computeForwardIRR(
+  currentPrice: number | null | undefined,
+  target: number | null | undefined,
+  fy: number,
+  now: Date = new Date(),
+): number | null {
+  if (currentPrice == null || currentPrice <= 0 || target == null || target <= 0) return null;
+  const years = yearsUntilFYEnd(fy, now);
+  const multiple = target / currentPrice;
+  if (years <= 1) return (multiple - 1) * 100;
+  return (Math.pow(multiple, 1 / years) - 1) * 100;
+}
+
 // The forward window of length n starting at the current FY: [cur, cur+1, ...].
 export function forwardWindow(currentFY: number, n = 3): number[] {
   return Array.from({ length: n }, (_, i) => currentFY + i);

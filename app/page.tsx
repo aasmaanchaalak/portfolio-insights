@@ -7,7 +7,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Stock, GridKeyData } from '../types';
-import { computeCurrentFY, fyLabel, forwardWindow, yearsUntilFYEnd } from '../lib/fiscalYear';
+import { computeCurrentFY, fyLabel, forwardWindow, computeForwardIRR } from '../lib/fiscalYear';
 import { computePortfolioMetricsSnapshot, PORTFOLIO_METRIC_DEFS, formatMetricValue, PortfolioMetricsSnapshot } from '../lib/portfolioMetrics';
 import Dashboard from './components/Dashboard';
 import EntryDataPage from './components/EntryDataPage';
@@ -173,23 +173,6 @@ const computeIRR = (
     if (years <= 0) return null;
     const multiple = currentPrice / costBasis;
     return years < 1 ? (multiple - 1) * 100 : (Math.pow(multiple, 1 / years) - 1) * 100;
-};
-
-// Forward IRR from today's price to a projected target price at a fiscal-year
-// end. target = projected EPS × target P/E (from the stock's Forward Metrics).
-// Annualized (CAGR) when the FY-end is a year or more out; a simple return when
-// it's closer, since annualizing a few months extrapolates to noise.
-const computeForwardIRR = (
-    currentPrice: number | null | undefined,
-    target: number | null | undefined,
-    fy: number,
-    now: Date,
-): number | null => {
-    if (currentPrice == null || currentPrice <= 0 || target == null || target <= 0) return null;
-    const years = yearsUntilFYEnd(fy, now);
-    const multiple = target / currentPrice;
-    if (years <= 1) return (multiple - 1) * 100;
-    return (Math.pow(multiple, 1 / years) - 1) * 100;
 };
 
 // Unified column registry. Identity (rank + holding) is always shown and is not
