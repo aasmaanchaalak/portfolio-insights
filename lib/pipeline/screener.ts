@@ -8,6 +8,7 @@ export interface ScreenerCompany {
   nseSymbol: string | null;
   bseCode: string | null;
   price: number | null;
+  marketCapCr: number | null;
 }
 
 /** The company code in a screener.in/company/<code>/ link, or null. */
@@ -33,6 +34,8 @@ export async function fetchScreenerCompany(code: string): Promise<ScreenerCompan
     const bse = html.match(/bseindia\.com\/stock-share-price\/[^/"]+\/[^/"]+\/(\d+)\//i);
     const priceMatch = html.match(/Current Price[\s\S]{0,300}?<span class="number">([\d,.]+)<\/span>/i);
     const price = priceMatch ? parseFloat(priceMatch[1].replace(/,/g, '')) : NaN;
+    const mcapMatch = html.match(/Market Cap[\s\S]{0,300}?<span class="number">([\d,.]+)<\/span>/i);
+    const marketCap = mcapMatch ? parseFloat(mcapMatch[1].replace(/,/g, '')) : NaN;
 
     const decode = (s: string) => s.replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"');
     return {
@@ -41,6 +44,7 @@ export async function fetchScreenerCompany(code: string): Promise<ScreenerCompan
       nseSymbol: nse ? decodeURIComponent(nse[1]).toUpperCase() : null,
       bseCode: bse ? bse[1] : null,
       price: Number.isFinite(price) && price > 0 ? price : null,
+      marketCapCr: Number.isFinite(marketCap) && marketCap > 0 ? marketCap : null,
     };
   } catch {
     return null;

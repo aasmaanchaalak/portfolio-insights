@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ValuationTableData, ValuationRow, ValuationColumn } from '../../../types/pe';
-import { computeCurrentFY, fyLabel, parseFYLabel, deriveForwardTargetDetails, findMetricRow } from '../../../lib/fiscalYear';
+import { computeCurrentFY, fyLabel, parseFYLabel, deriveForwardTargetDetails, findMetricRow, computeForwardIRR, fyEndDate } from '../../../lib/fiscalYear';
 import { uuid } from '../../../lib/uuid';
 
 interface ForwardMetricsTabProps {
@@ -80,6 +80,36 @@ function normalize(data: ValuationTableData): { data: ValuationTableData; added:
   return { data: { ...data, rows }, added };
 }
 
+// Put `sharesCr` in every year of the Shares row — only if that row is still
+// entirely blank, so it never overwrites something typed.
+function prefillShares(data: ValuationTableData, sharesCr: number): ValuationTableData | null {
+  const row = data.rows.find(r => r.metric === 'shares');
+  if (!row || data.columns.length === 0) return null;
+  const hasAny = data.columns.some(c => typeof data.cells[`${row.id}:${c.id}`] === 'number');
+  if (hasAny) return null;
+  const cells = { ...data.cells };
+  for (const c of data.columns) cells[`${row.id}:${c.id}`] = sharesCr;
+  return { ...data, cells };
+}
+
+// A pasted spreadsheet value → number. Handles "1,234.5", "₹ 1,234", "12%",
+// "(500)" for negatives and "-" / "—" / blank for empty. Unparseable → null.
+function parsePastedNumber(raw: string): number | null {
+  let t = raw.trim().replace(/[₹$,%\s]/g, '').replace(/[−–]/g, '-');
+  if (t === '' || t === '-' || t === '—') return null;
+  let neg = false;
+  if (/^\(.*\)$/.test(t)) { neg = true; t = t.slice(1, -1); }
+  const n = Number(t);
+  return Number.isFinite(n) ? (neg ? -n : n) : null;
+}
+
+/** Clipboard text from Excel / Google Sheets → rows of cells (tab-separated). */
+function parseClipboardGrid(text: string): string[][] {
+  const lines = text.replace(/\r\n?/g, '\n').split('\n');
+  while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop(); // trailing newline
+  return lines.map(l => l.split('\t'));
+}
+
 type SaveStatus = 'idle' | 'saving' | 'saved';
 
 export function ForwardMetricsTab({ stockCode, stockName }: ForwardMetricsTabProps) {
@@ -87,6 +117,10 @@ export function ForwardMetricsTab({ stockCode, stockName }: ForwardMetricsTabPro
   const [isLoading, setIsLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [currentFY, setCurrentFY] = useState<number>(() => computeCurrentFY());
+  const [sharesSource, setSharesSource] = useState<string | null>(null);
+  const [currentPrice, setCurrentPrice] = useState<number | null>(null);
+  const tableDataRef = useRef<ValuationTableData | null>(null);
+  tableDataRef.current = tableData;
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -125,24 +159,48 @@ export function ForwardMetricsTab({ stockCode, stockName }: ForwardMetricsTabPro
 
   useEffect(() => {
     setIsLoading(true);
+    setSharesSource(null);
+    setCurrentPrice(null);
+    let cancelled = false;
+    let loaded: ValuationTableData | null = null;
+    let isNew = false; // no saved grid yet — don't create one just by viewing
     fetch(`/api/thesis/${encodeURIComponent(stockCode)}/forward-metrics`)
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         const existing: ValuationTableData | null = data?.tableData ?? null;
         if (existing) {
           const { data: norm, added } = normalize(existing);
+          loaded = norm;
           setTableData(norm);
-          // Persist once if we had to inject the locked EPS/P/E rows, so the
-          // derivation endpoint sees them too.
+          // Persist once if we had to inject the locked target-price rows, so
+          // the derivation endpoint sees them too.
           if (added) save(norm);
         } else {
-          setTableData(buildDefault(currentFY));
+          loaded = buildDefault(currentFY);
+          isNew = true;
+          setTableData(loaded);
         }
       })
-      .catch(() => setTableData(buildDefault(currentFY)))
-      .finally(() => setIsLoading(false));
+      .catch(() => { loaded = buildDefault(currentFY); isNew = true; setTableData(loaded); })
+      .finally(() => setIsLoading(false))
+      // Then fetch today's price (for the IRR row) and market cap ÷ price, which
+      // pre-fills an empty Shares row; the cells stay editable like any other.
+      .then(() => (cancelled ? null : fetch(`/api/thesis/${encodeURIComponent(stockCode)}/shares`).then(r => (r.ok ? r.json() : null))))
+      .then(d => {
+        if (cancelled || !d) return;
+        if (d.price > 0) setCurrentPrice(d.price);
+        const current = tableDataRef.current;
+        if (!current || !(d.sharesCr > 0)) return;
+        const filled = prefillShares(current, d.sharesCr);
+        if (!filled) return; // Shares already has a value
+        setSharesSource(d.source === 'screener-live' ? 'Screener' : 'Screener data');
+        if (isNew) setTableData(filled); // saved with the first real edit
+        else markDirty(filled);
+      })
+      .catch(() => {});
 
     return () => {
+      cancelled = true;
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
       if (savedTimer.current) clearTimeout(savedTimer.current);
     };
@@ -160,6 +218,42 @@ export function ForwardMetricsTab({ stockCode, stockName }: ForwardMetricsTabPro
   const updateCell = (rowId: string, colId: string, value: string) => {
     const parsed = value === '' ? null : parseFloat(value);
     markDirty({ ...tableData, cells: { ...cells, [cellKey(rowId, colId)]: parsed } });
+  };
+
+  // Paste a block copied from Excel / Google Sheets starting at this cell:
+  // columns fill rightwards (adding the next fiscal years if the block is
+  // wider than the grid), rows fill downwards; rows past the last are dropped.
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>, rowId: string, colId: string) => {
+    const grid = parseClipboardGrid(e.clipboardData.getData('text/plain'));
+    if (grid.length === 0) return;
+    e.preventDefault();
+
+    const orderedRows = [...rows].sort((a, b) => a.order - b.order);
+    let orderedCols = [...columns].sort((a, b) => a.order - b.order);
+    const r0 = orderedRows.findIndex(r => r.id === rowId);
+    const c0 = orderedCols.findIndex(c => c.id === colId);
+    if (r0 < 0 || c0 < 0) return;
+
+    const width = Math.max(...grid.map(line => line.length));
+    const newCols: ValuationColumn[] = [];
+    if (c0 + width > orderedCols.length) {
+      const years = orderedCols.map(c => parseFYLabel(c.year)).filter((y): y is number => y != null);
+      let next = years.length > 0 ? Math.max(...years) + 1 : currentFY;
+      while (orderedCols.length + newCols.length < c0 + width) {
+        newCols.push({ id: newId(), year: fyLabel(next++, currentFY), order: orderedCols.length + newCols.length });
+      }
+      orderedCols = [...orderedCols, ...newCols];
+    }
+
+    const nextCells = { ...cells };
+    grid.forEach((line, i) => {
+      const row = orderedRows[r0 + i];
+      if (!row) return;
+      line.forEach((raw, j) => {
+        nextCells[cellKey(row.id, orderedCols[c0 + j].id)] = parsePastedNumber(raw);
+      });
+    });
+    markDirty({ ...tableData, columns: [...columns, ...newCols], cells: nextCells });
   };
 
   const updateRowLabel = (rowId: string, label: string) => {
@@ -260,6 +354,7 @@ export function ForwardMetricsTab({ stockCode, stockName }: ForwardMetricsTabPro
                       className="pe-valuation-cell-input"
                       value={cells[cellKey(row.id, col.id)] ?? ''}
                       onChange={e => updateCell(row.id, col.id, e.target.value)}
+                      onPaste={e => handlePaste(e, row.id, col.id)}
                     />
                   </td>
                 ))}
@@ -295,12 +390,42 @@ export function ForwardMetricsTab({ stockCode, stockName }: ForwardMetricsTabPro
               })}
               <td />
             </tr>
+            <tr>
+              <td className="pe-valuation-row-label-cell">
+                <div className="pe-valuation-row-label">
+                  <span
+                    className="pe-valuation-label-input pe-valuation-label-locked"
+                    title={currentPrice ? `From today’s price ₹${currentPrice.toLocaleString('en-IN')} to each year’s target, annualised to 31 March` : 'Needs today’s price'}
+                  >
+                    IRR
+                  </span>
+                </div>
+              </td>
+              {sortedCols.map(col => {
+                const fy = parseFYLabel(col.year);
+                const t = fy != null ? targets[fy] : undefined;
+                // Completed years have no forward return.
+                const irr = fy != null && t && fyEndDate(fy).getTime() > Date.now()
+                  ? computeForwardIRR(currentPrice, t.price, fy)
+                  : null;
+                return (
+                  <td key={col.id} className="pe-valuation-derived">
+                    {irr != null
+                      ? <span className={`pe-valuation-derived-price ${irr >= 0 ? 'is-pos' : 'is-neg'}`}>{irr >= 0 ? '+' : '−'}{Math.abs(irr).toFixed(1)}%</span>
+                      : <span className="pe-valuation-derived-empty">—</span>}
+                  </td>
+                );
+              })}
+              <td />
+            </tr>
           </tbody>
         </table>
       </div>
       <p className="pe-valuation-note">
         Target price uses EPS × P/E. Where P/E is blank it uses (EBITDA × EV/EBITDA − net debt) ÷ shares,
-        with EBITDA and net debt in ₹ Cr and shares in crore.
+        with EBITDA and net debt in ₹ Cr and shares in crore. IRR runs from today’s price
+        {currentPrice ? ` (₹${currentPrice.toLocaleString('en-IN')})` : ''} to each year’s target on 31 March, annualised.
+        {sharesSource && <> Shares were pre-filled from market cap ÷ price ({sharesSource}) — edit them if needed.</>}
       </p>
     </div>
   );

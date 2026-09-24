@@ -1642,6 +1642,8 @@
 }
 
 .pe-valuation-derived-price { font-weight: 600; }
+.pe-valuation-derived-price.is-pos { color: var(--positive); }
+.pe-valuation-derived-price.is-neg { color: var(--negative); }
 
 .pe-valuation-derived-method {
   display: block;
