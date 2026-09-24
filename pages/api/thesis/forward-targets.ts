@@ -5,7 +5,8 @@ import { getCurrentFiscalYear } from '../../../lib/queries';
 import { deriveForwardTargets } from '../../../lib/fiscalYear';
 
 // Bulk forward target prices for every stock that has a Forward Metrics grid.
-// target price(FY) = projected EPS(FY) × target P/E(FY), keyed by absolute FY.
+// target price(FY) = EPS × target P/E, or (EBITDA × EV/EBITDA − net debt) ÷ shares
+// when P/E is blank (see deriveForwardTargetDetails), keyed by absolute FY.
 // Returns { currentFY, targets: { [stockCode]: { [fy]: price } } } so the client
 // can compute a forward IRR from today's price to each year's target.
 async function handler(req: NextApiRequest, res: NextApiResponse) {

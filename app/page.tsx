@@ -1514,8 +1514,17 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         const f = (key: string, label: string, render: (it: any) => React.ReactNode): MField => ({ key, label, render });
         const pct = (key: string, label: string) => f(key, label, it => <PctColored v={it[key]} />);
         const [fy0, fy1, fy2] = forwardWindow(currentFY, 3).map(fy => fyLabel(fy, currentFY));
+        // Absolute gain since purchase, compact (₹1.24 L); analysts can't see
+        // amounts, so their Stock lens keeps today's % move instead.
+        const absGain = isAnalyst
+            ? pct('return1D', 'Today')
+            : f('absoluteGain', 'Gain', it => {
+                const v = fmtIndianCompact(it.absoluteGain);
+                if (v == null) return <PPDash />;
+                return <span style={{ color: it.absoluteGain >= 0 ? 'var(--positive)' : 'var(--negative)' }}>{it.absoluteGain > 0 ? '+' : ''}{v}</span>;
+            });
         const lenses: MLens[] = [
-            { id: 'stock', label: 'Stock', main: pct('return1D', 'Today'), sub: f('calculatedAmount', 'Value', it => fmtIndianCompact(it.calculatedAmount) ?? <PPDash />),
+            { id: 'stock', label: 'Stock', main: absGain, sub: f('calculatedAmount', 'Value', it => fmtIndianCompact(it.calculatedAmount) ?? <PPDash />),
               below: [f('investedAmount', 'Inv', it => fmtIndianCompact(it.investedAmount) ?? <PPDash />), pct('irr', 'IRR')] },
             { id: 'today', label: 'Today', main: pct('return1D', 'Today'), sub: f('currentPrice', 'Price', it => fmtUnitPrice(it.currentPrice) ?? <PPDash />),
               below: [f('averageBuyPrice', 'Avg', it => (it.averageBuyPrice > 0 ? fmtUnitPrice(it.averageBuyPrice) : null) ?? <PPDash />), f('quantity', 'Qty', it => qtyStr(it.quantity, 0) ?? <PPDash />)] },

@@ -26,9 +26,10 @@ export interface ValuationRow {
   label: string;
   order: number;
   // Semantic tag for locked rows the app derives from. EPS × P/E gives the
-  // forward target price used for Public Portfolio forward-IRR. Tagged rows
-  // are non-deletable and their label is fixed.
-  metric?: 'eps' | 'pe';
+  // forward target price used for Public Portfolio forward-IRR; when P/E is
+  // blank, (EBITDA × EV/EBITDA − net debt) ÷ shares does. Tagged rows are
+  // non-deletable and their label is fixed.
+  metric?: 'eps' | 'pe' | 'ebitda' | 'evEbitda' | 'netDebt' | 'shares';
   locked?: boolean;
 }
 

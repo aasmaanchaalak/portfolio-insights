@@ -4,7 +4,7 @@ import { getAllForwardMetrics } from '../../../lib/thesis/queries';
 import { listIdeas } from '../../../lib/pipeline/queries';
 import {
   computeForwardIRR,
-  deriveForwardTargets,
+  deriveForwardTargetDetails,
   forwardWindow,
   fyLabel,
   parseFYLabel,
@@ -15,7 +15,7 @@ import { ValuationTableData } from '../../../types/pe';
 // exited stocks. For each such stock that has a Forward Metrics grid, returns
 // its `category` ('portfolio' | 'pipeline' | 'exited'), pipeline stage, the full grid
 // (every row, keyed by fiscal year) plus the derived target price
-// (EPS × target P/E) and forward IRR from today's price to each FY-end in the
+// (EPS × target P/E, or EV/EBITDA-based when P/E is blank) and forward IRR from today's price to each FY-end in the
 // current forward window, alongside sector, shares outstanding (market cap /
 // price), ROCE and current EPS (price / P/E). Deliberately excludes quantity,
 // amounts, and the price / P/E / market cap inputs themselves.
@@ -180,13 +180,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           metrics[row.label] = byYear;
         }
 
-        const targets = deriveForwardTargets(grid);
+        const targets = deriveForwardTargetDetails(grid);
         const forward = fyWindow.map(fy => {
-          const target = targets[fy] ?? null;
+          const target = targets[fy]?.price ?? null;
           const irr = computeForwardIRR(currentPrice, target, fy, now);
           return {
             fy: fyLabel(fy, currentFY),
             targetPrice: target != null ? Number(target.toFixed(2)) : null,
+            targetMethod: targets[fy]?.method ?? null, // 'pe' | 'evEbitda'
             forwardIRR: irr != null ? Number(irr.toFixed(2)) : null,
           };
         });

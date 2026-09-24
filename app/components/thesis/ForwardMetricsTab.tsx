@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ValuationTableData, ValuationRow, ValuationColumn } from '../../../types/pe';
-import { computeCurrentFY, fyLabel } from '../../../lib/fiscalYear';
+import { computeCurrentFY, fyLabel, parseFYLabel, deriveForwardTargetDetails, findMetricRow } from '../../../lib/fiscalYear';
 import { uuid } from '../../../lib/uuid';
 
 interface ForwardMetricsTabProps {
@@ -10,15 +10,28 @@ interface ForwardMetricsTabProps {
   stockName?: string;
 }
 
-const EPS_LABEL = 'EPS';
-const PE_LABEL = 'P/E (target)';
+type Metric = NonNullable<ValuationRow['metric']>;
+
+// Locked rows the target price is derived from, in the order they're added.
+const METRIC_ROWS: { metric: Metric; label: string; hint: string }[] = [
+  { metric: 'ebitda', label: 'EBITDA', hint: '₹ Cr — used with EV/EBITDA when P/E is blank' },
+  { metric: 'eps', label: 'EPS', hint: 'Target price = EPS × P/E' },
+  { metric: 'pe', label: 'P/E (target)', hint: 'Target price = EPS × P/E' },
+  { metric: 'evEbitda', label: 'EV/EBITDA (target)', hint: 'Used when P/E is blank: (EBITDA × EV/EBITDA − net debt) ÷ shares' },
+  { metric: 'netDebt', label: 'Net debt (₹ Cr)', hint: 'Negative for net cash. A blank year uses the nearest year’s value' },
+  { metric: 'shares', label: 'Shares (Cr)', hint: 'Shares outstanding in crore. A blank year uses the nearest year’s value' },
+];
+const METRIC_INFO = Object.fromEntries(METRIC_ROWS.map(m => [m.metric, m])) as Record<Metric, (typeof METRIC_ROWS)[number]>;
 
 const DEFAULT_ROWS: Omit<ValuationRow, 'id'>[] = [
   { label: 'Revenue', order: 0 },
-  { label: 'EBITDA', order: 1 },
+  { label: 'EBITDA', order: 1, metric: 'ebitda', locked: true },
   { label: 'PAT', order: 2 },
-  { label: EPS_LABEL, order: 3, metric: 'eps', locked: true },
-  { label: PE_LABEL, order: 4, metric: 'pe', locked: true },
+  { label: METRIC_INFO.eps.label, order: 3, metric: 'eps', locked: true },
+  { label: METRIC_INFO.pe.label, order: 4, metric: 'pe', locked: true },
+  { label: METRIC_INFO.evEbitda.label, order: 5, metric: 'evEbitda', locked: true },
+  { label: METRIC_INFO.netDebt.label, order: 6, metric: 'netDebt', locked: true },
+  { label: METRIC_INFO.shares.label, order: 7, metric: 'shares', locked: true },
 ];
 
 function newId(): string {
@@ -43,20 +56,17 @@ function buildDefault(currentFY: number): ValuationTableData {
   };
 }
 
-// Ensure a loaded grid has the locked EPS and P/E rows the app derives target
-// prices from. Existing rows named "EPS"/"P/E" are upgraded in place (keeping
-// their id so their cells survive); missing rows are appended. Returns the
-// normalized data plus whether rows had to be added (worth persisting).
+// Ensure a loaded grid has every locked row the target price is derived from.
+// Existing rows with a matching label (e.g. "EPS", "EBITDA") are upgraded in
+// place, keeping their id so their cells survive; missing rows are appended.
+// Returns the normalized data plus whether rows had to be added (worth persisting).
 function normalize(data: ValuationTableData): { data: ValuationTableData; added: boolean } {
   const rows = (data.rows || []).map(r => ({ ...r }));
   let added = false;
 
-  const tag = (
-    metric: 'eps' | 'pe',
-    label: string,
-    match: (r: ValuationRow) => boolean,
-  ) => {
-    let row = rows.find(r => r.metric === metric) ?? rows.find(match);
+  for (const { metric, label } of METRIC_ROWS) {
+    const found = findMetricRow({ ...data, rows }, metric);
+    const row = found ? rows.find(r => r.id === found.id) : undefined;
     if (row) {
       row.metric = metric;
       row.locked = true;
@@ -65,10 +75,7 @@ function normalize(data: ValuationTableData): { data: ValuationTableData; added:
       rows.push({ id: newId(), label, order: rows.length, metric, locked: true });
       added = true;
     }
-  };
-
-  tag('eps', EPS_LABEL, r => /^\s*eps\s*$/i.test(r.label || ''));
-  tag('pe', PE_LABEL, r => /p\s*\/?\s*e/i.test(r.label || ''));
+  }
 
   return { data: { ...data, rows }, added };
 }
@@ -167,12 +174,15 @@ export function ForwardMetricsTab({ stockCode, stockName }: ForwardMetricsTabPro
     markDirty({ ...tableData, rows: [...rows, { id: newId(), label: 'New Row', order: rows.length }] });
   };
 
+  // "+ Year" adds the fiscal year after the latest column (FY29E → FY30E).
   const addColumn = () => {
-    markDirty({ ...tableData, columns: [...columns, { id: newId(), year: 'FY__', order: columns.length }] });
+    const years = columns.map(c => parseFYLabel(c.year)).filter((y): y is number => y != null);
+    const next = years.length > 0 ? Math.max(...years) + 1 : currentFY;
+    markDirty({ ...tableData, columns: [...columns, { id: newId(), year: fyLabel(next, currentFY), order: columns.length }] });
   };
 
   const deleteRow = (rowId: string) => {
-    if (rows.find(r => r.id === rowId)?.locked) return; // EPS / P/E are required
+    if (rows.find(r => r.id === rowId)?.locked) return; // target-price rows are required
     const newRows = rows.filter(r => r.id !== rowId).map((r, i) => ({ ...r, order: i }));
     const newCells = Object.fromEntries(Object.entries(cells).filter(([k]) => !k.startsWith(`${rowId}:`)));
     markDirty({ ...tableData, rows: newRows, cells: newCells });
@@ -186,6 +196,7 @@ export function ForwardMetricsTab({ stockCode, stockName }: ForwardMetricsTabPro
 
   const sortedRows = [...rows].sort((a, b) => a.order - b.order);
   const sortedCols = [...columns].sort((a, b) => a.order - b.order);
+  const targets = deriveForwardTargetDetails(tableData);
 
   return (
     <div className="pe-valuation-container">
@@ -225,7 +236,7 @@ export function ForwardMetricsTab({ stockCode, stockName }: ForwardMetricsTabPro
                     {row.locked ? (
                       <span
                         className="pe-valuation-label-input pe-valuation-label-locked"
-                        title="Required row — target price is derived from EPS × P/E"
+                        title={row.metric ? METRIC_INFO[row.metric].hint : 'Required row'}
                       >
                         {row.label}
                       </span>
@@ -262,9 +273,35 @@ export function ForwardMetricsTab({ stockCode, stockName }: ForwardMetricsTabPro
               {sortedCols.map(col => <td key={col.id} />)}
               <td />
             </tr>
+            <tr className="pe-valuation-derived-row">
+              <td className="pe-valuation-row-label-cell">
+                <div className="pe-valuation-row-label">
+                  <span className="pe-valuation-label-input pe-valuation-label-locked" title="Derived — drives forward IRR">Target price</span>
+                </div>
+              </td>
+              {sortedCols.map(col => {
+                const fy = parseFYLabel(col.year);
+                const t = fy != null ? targets[fy] : undefined;
+                return (
+                  <td key={col.id} className="pe-valuation-derived">
+                    {t ? (
+                      <>
+                        <span className="pe-valuation-derived-price">₹{t.price.toLocaleString('en-IN', { maximumFractionDigits: t.price >= 1000 ? 0 : 1 })}</span>
+                        <span className="pe-valuation-derived-method">{t.method === 'pe' ? 'P/E' : 'EV/EBITDA'}</span>
+                      </>
+                    ) : <span className="pe-valuation-derived-empty">—</span>}
+                  </td>
+                );
+              })}
+              <td />
+            </tr>
           </tbody>
         </table>
       </div>
+      <p className="pe-valuation-note">
+        Target price uses EPS × P/E. Where P/E is blank it uses (EBITDA × EV/EBITDA − net debt) ÷ shares,
+        with EBITDA and net debt in ₹ Cr and shares in crore.
+      </p>
     </div>
   );
 }

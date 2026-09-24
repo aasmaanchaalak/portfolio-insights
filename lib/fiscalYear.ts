@@ -50,7 +50,7 @@ export function yearsUntilFYEnd(fy: number, from: Date = new Date()): number {
 }
 
 // Forward IRR from today's price to a projected target price at a fiscal-year
-// end. target = projected EPS × target P/E (from the stock's Forward Metrics).
+// end (target from the stock's Forward Metrics — see deriveForwardTargetDetails).
 // Annualized (CAGR) when the FY-end is a year or more out; a simple return when
 // it's closer, since annualizing a few months extrapolates to noise.
 export function computeForwardIRR(
@@ -78,33 +78,96 @@ export function fyDescription(fy: number): string {
 
 // ---------------------------------------------------------------------------
 // Forward target-price derivation from a Forward Metrics grid.
-// target price for a year = projected EPS × target (exit) P/E for that year.
-// EPS / P/E rows are found by their `metric` tag first (locked rows), then by
-// label as a fallback for older grids saved before the rows were tagged.
+//
+// For each year column:
+//   1. P/E method        target = EPS × target P/E            (when both are set)
+//   2. EV/EBITDA method  target = (EBITDA × target EV/EBITDA − net debt) ÷ shares
+//                        used when P/E is blank. EBITDA and net debt are in ₹ Cr,
+//                        shares in crore, so the result is ₹ per share. A blank
+//                        net debt or shares cell borrows the nearest year that has
+//                        one (earlier years first); net debt defaults to 0.
+//
+// Rows are found by their `metric` tag first (locked rows), then by label as a
+// fallback for older grids saved before the rows were tagged.
 // ---------------------------------------------------------------------------
+
+export type ForwardMethod = 'pe' | 'evEbitda';
+
+export interface ForwardTarget {
+  price: number;
+  method: ForwardMethod;
+}
+
+type Metric = NonNullable<ValuationTableData['rows'][number]['metric']>;
+
+const METRIC_LABELS: Record<Metric, RegExp> = {
+  eps: /^\s*eps\s*$/i,
+  pe: /p\s*\/?\s*e/i,
+  ebitda: /^\s*ebitda\s*$/i,
+  evEbitda: /ev\s*\/\s*ebitda/i,
+  netDebt: /net\s*debt/i,
+  shares: /shares/i,
+};
+
+export function findMetricRow(data: ValuationTableData, metric: Metric) {
+  return data.rows.find(r => r.metric === metric)
+    ?? data.rows.find(r => !r.metric && METRIC_LABELS[metric].test(r.label || ''));
+}
+
+export function deriveForwardTargetDetails(
+  data: ValuationTableData | null | undefined,
+): Record<number, ForwardTarget> {
+  const out: Record<number, ForwardTarget> = {};
+  if (!data || !Array.isArray(data.rows) || !Array.isArray(data.columns)) return out;
+
+  const cells = data.cells || {};
+  const cols = data.columns
+    .map(c => ({ id: c.id, fy: parseFYLabel(c.year) }))
+    .filter((c): c is { id: string; fy: number } => c.fy != null)
+    .sort((a, b) => a.fy - b.fy);
+
+  const row = (m: Metric) => findMetricRow(data, m);
+  const epsRow = row('eps'), peRow = row('pe'), ebitdaRow = row('ebitda'),
+    evRow = row('evEbitda'), netDebtRow = row('netDebt'), sharesRow = row('shares');
+
+  const val = (rowId: string | undefined, colId: string): number | null => {
+    if (!rowId) return null;
+    const v = cells[`${rowId}:${colId}`];
+    return typeof v === 'number' && isFinite(v) ? v : null;
+  };
+  // This year's value, else the nearest year's: earlier years first, then later.
+  const nearest = (rowId: string | undefined, idx: number): number | null => {
+    const own = val(rowId, cols[idx].id);
+    if (own != null) return own;
+    for (let j = idx - 1; j >= 0; j--) { const v = val(rowId, cols[j].id); if (v != null) return v; }
+    for (let j = idx + 1; j < cols.length; j++) { const v = val(rowId, cols[j].id); if (v != null) return v; }
+    return null;
+  };
+
+  cols.forEach((col, idx) => {
+    const eps = val(epsRow?.id, col.id);
+    const pe = val(peRow?.id, col.id);
+    if (eps != null && pe != null && eps !== 0 && pe !== 0) {
+      const price = eps * pe;
+      if (price > 0) out[col.fy] = { price, method: 'pe' };
+      return;
+    }
+    const ebitda = val(ebitdaRow?.id, col.id);
+    const multiple = val(evRow?.id, col.id);
+    const shares = nearest(sharesRow?.id, idx);
+    if (ebitda == null || multiple == null || multiple <= 0 || shares == null || shares <= 0) return;
+    const netDebt = nearest(netDebtRow?.id, idx) ?? 0;
+    const price = (ebitda * multiple - netDebt) / shares;
+    if (price > 0) out[col.fy] = { price, method: 'evEbitda' };
+  });
+  return out;
+}
+
+/** Target price per absolute FY — see deriveForwardTargetDetails for the methods. */
 export function deriveForwardTargets(
   data: ValuationTableData | null | undefined,
 ): Record<number, number> {
   const out: Record<number, number> = {};
-  if (!data || !Array.isArray(data.rows) || !Array.isArray(data.columns)) return out;
-
-  const epsRow =
-    data.rows.find(r => (r as any).metric === 'eps') ??
-    data.rows.find(r => /^\s*eps\s*$/i.test(r.label || ''));
-  const peRow =
-    data.rows.find(r => (r as any).metric === 'pe') ??
-    data.rows.find(r => /p\s*\/?\s*e/i.test(r.label || ''));
-  if (!epsRow || !peRow) return out;
-
-  const cells = data.cells || {};
-  for (const col of data.columns) {
-    const fy = parseFYLabel(col.year);
-    if (fy == null) continue;
-    const eps = cells[`${epsRow.id}:${col.id}`];
-    const pe = cells[`${peRow.id}:${col.id}`];
-    if (typeof eps === 'number' && typeof pe === 'number' && eps !== 0 && pe !== 0) {
-      out[fy] = eps * pe;
-    }
-  }
+  for (const [fy, t] of Object.entries(deriveForwardTargetDetails(data))) out[Number(fy)] = t.price;
   return out;
 }
