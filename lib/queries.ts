@@ -5,7 +5,7 @@ import { computeCurrentFY } from './fiscalYear';
 
 // ============ Users ============
 
-export type UserRole = 'portfolio' | 'analyst';
+export type UserRole = 'portfolio' | 'analyst' | 'manager';
 
 export interface User {
   id: string;
@@ -13,6 +13,7 @@ export interface User {
   passwordHash: string;
   name: string | null;
   role: UserRole;
+  isAdmin: boolean;
   createdAt: string;
   lastLoginAt: string | null;
   deviceIdHash: string | null;
@@ -22,7 +23,7 @@ export interface User {
 
 export async function getUserByEmail(email: string): Promise<User | null> {
   const row = await queryOne<any>(`
-    SELECT id, email, password_hash, name, role, created_at, last_login_at,
+    SELECT id, email, password_hash, name, role, is_admin, created_at, last_login_at,
            device_id_hash, device_label, device_bound_at
     FROM users WHERE email = $1
   `, [email]);
@@ -35,6 +36,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     passwordHash: row.password_hash,
     name: row.name,
     role: row.role || 'analyst',
+    isAdmin: !!row.is_admin,
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at,
     deviceIdHash: row.device_id_hash ?? null,
@@ -61,13 +63,13 @@ export async function clearUserDevice(email: string): Promise<void> {
   `, [email]);
 }
 
-export async function createUser(email: string, passwordHash: string, name?: string, role: UserRole = 'analyst'): Promise<User> {
+export async function createUser(email: string, passwordHash: string, name?: string, role: UserRole = 'analyst', isAdmin = false): Promise<User> {
   const rows = await query<any>(`
-    INSERT INTO users (email, password_hash, name, role)
-    VALUES ($1, $2, $3, $4)
-    RETURNING id, email, password_hash, name, role, created_at, last_login_at,
+    INSERT INTO users (email, password_hash, name, role, is_admin)
+    VALUES ($1, $2, $3, $4, $5)
+    RETURNING id, email, password_hash, name, role, is_admin, created_at, last_login_at,
               device_id_hash, device_label, device_bound_at
-  `, [email, passwordHash, name || null, role]);
+  `, [email, passwordHash, name || null, role, isAdmin]);
 
   const row = rows[0];
   return {
@@ -76,6 +78,7 @@ export async function createUser(email: string, passwordHash: string, name?: str
     passwordHash: row.password_hash,
     name: row.name,
     role: row.role || 'analyst',
+    isAdmin: !!row.is_admin,
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at,
     deviceIdHash: row.device_id_hash ?? null,
@@ -103,6 +106,7 @@ export interface UserSummary {
   email: string;
   name: string | null;
   role: UserRole;
+  isAdmin: boolean;
   createdAt: string;
   lastLoginAt: string | null;
   deviceBound: boolean;
@@ -112,7 +116,7 @@ export interface UserSummary {
 
 export async function getAllUsers(): Promise<UserSummary[]> {
   const rows = await query<any>(`
-    SELECT id, email, name, role, created_at, last_login_at,
+    SELECT id, email, name, role, is_admin, created_at, last_login_at,
            device_id_hash, device_label, device_bound_at
     FROM users
     ORDER BY created_at DESC
@@ -123,6 +127,7 @@ export async function getAllUsers(): Promise<UserSummary[]> {
     email: row.email,
     name: row.name,
     role: row.role || 'analyst',
+    isAdmin: !!row.is_admin,
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at,
     deviceBound: !!row.device_id_hash,
@@ -135,6 +140,15 @@ export async function updateUserRole(email: string, role: UserRole): Promise<voi
   await query(`
     UPDATE users SET role = $1 WHERE email = $2
   `, [role, email]);
+}
+
+export async function setUserAdmin(email: string, isAdmin: boolean): Promise<void> {
+  await query(`UPDATE users SET is_admin = $1 WHERE email = $2`, [isAdmin, email]);
+}
+
+export async function hasAnyAdmin(): Promise<boolean> {
+  const row = await queryOne<any>(`SELECT 1 FROM users WHERE is_admin LIMIT 1`);
+  return !!row;
 }
 
 export async function deleteUser(email: string): Promise<void> {
@@ -247,15 +261,15 @@ export async function getSession(sessionId: string): Promise<Session | null> {
 
 // Session plus the owning user's name and role in one round trip, so auth
 // doesn't need a second query (and handlers don't need a getUserByEmail).
-export async function getSessionWithUser(sessionId: string): Promise<{ userEmail: string; name: string | null; role: UserRole } | null> {
+export async function getSessionWithUser(sessionId: string): Promise<{ userEmail: string; name: string | null; role: UserRole; isAdmin: boolean } | null> {
   const row = await queryOne<any>(`
-    SELECT s.user_email, u.name, u.role
+    SELECT s.user_email, u.name, u.role, u.is_admin
     FROM sessions s
     JOIN users u ON u.email = s.user_email
     WHERE s.session_id = $1 AND s.expires_at > NOW()
   `, [sessionId]);
   if (!row) return null;
-  return { userEmail: row.user_email, name: row.name ?? null, role: row.role || 'analyst' };
+  return { userEmail: row.user_email, name: row.name ?? null, role: row.role || 'analyst', isAdmin: !!row.is_admin };
 }
 
 export async function extendSession(sessionId: string, expiresAt: Date): Promise<void> {

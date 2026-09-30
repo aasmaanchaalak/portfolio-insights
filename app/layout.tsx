@@ -1,15 +1,21 @@
 import './globals.css'
+import type { Metadata } from 'next'
 import { Providers } from './providers'
+import { getFirmSettingsSafe } from '../lib/firmSettings'
 
-export const metadata = {
-  title: 'Portfolio Insights',
-  description: 'Analyze stock performance with advanced sorting and filtering',
-  // iOS "Add to Home Screen" → opens as a standalone app, not in Safari.
-  appleWebApp: {
-    capable: true,
-    title: 'Sagun',
-    statusBarStyle: 'default',
-  },
+// Firm name comes from Admin → Firm settings, so metadata is resolved per request.
+export async function generateMetadata(): Promise<Metadata> {
+  const firm = await getFirmSettingsSafe()
+  return {
+    title: firm.name,
+    description: 'Analyze stock performance with advanced sorting and filtering',
+    // iOS "Add to Home Screen" → opens as a standalone app, not in Safari.
+    appleWebApp: {
+      capable: true,
+      title: firm.shortName,
+      statusBarStyle: 'default',
+    },
+  }
 }
 
 export const viewport = {

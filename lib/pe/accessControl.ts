@@ -2,22 +2,17 @@
 
 import { PEContact, PEBroker } from '../../types/pe';
 
-const ADMIN_EMAIL = 'aditya@saguncapital.com';
-
-export function isAdmin(userEmail: string | undefined): boolean {
-  return userEmail === ADMIN_EMAIL;
+// Contact and broker details are admin-only; `isAdmin` is the caller's flag.
+export function canAccessSensitiveData(isAdmin: boolean): boolean {
+  return isAdmin;
 }
 
-export function canAccessSensitiveData(userEmail: string | undefined): boolean {
-  return isAdmin(userEmail);
+export function canModifySensitiveData(isAdmin: boolean): boolean {
+  return isAdmin;
 }
 
-export function canModifySensitiveData(userEmail: string | undefined): boolean {
-  return isAdmin(userEmail);
-}
-
-export function sanitizeContact(contact: PEContact, userEmail: string | undefined): PEContact {
-  if (canAccessSensitiveData(userEmail)) return contact;
+export function sanitizeContact(contact: PEContact, isAdmin: boolean): PEContact {
+  if (canAccessSensitiveData(isAdmin)) return contact;
   return {
     ...contact,
     email: contact.email ? '[RESTRICTED]' : null,
@@ -26,13 +21,13 @@ export function sanitizeContact(contact: PEContact, userEmail: string | undefine
   };
 }
 
-export function sanitizeContacts(contacts: PEContact[], userEmail: string | undefined): PEContact[] {
-  return contacts.map(contact => sanitizeContact(contact, userEmail));
+export function sanitizeContacts(contacts: PEContact[], isAdmin: boolean): PEContact[] {
+  return contacts.map(contact => sanitizeContact(contact, isAdmin));
 }
 
-export function sanitizeBroker(broker: PEBroker | null, userEmail: string | undefined): PEBroker | null {
+export function sanitizeBroker(broker: PEBroker | null, isAdmin: boolean): PEBroker | null {
   if (!broker) return null;
-  if (canAccessSensitiveData(userEmail)) return broker;
+  if (canAccessSensitiveData(isAdmin)) return broker;
   return {
     ...broker,
     brokerEmail: broker.brokerEmail ? '[RESTRICTED]' : null,

@@ -2,7 +2,8 @@
 
 ## 🧹 Latest Changes
 - **NEW**: Migrated from Redis to PostgreSQL for all data storage
-- **NEW**: Admin Panel for user management (accessible only by aditya@saguncapital.com)
+- **NEW**: Admin Panel for user management (accessible to users with the admin flag)
+- **NEW**: Firm Settings in Admin Panel — firm name, logo, benchmark index (stored in `app_settings`, see `lib/firmSettings.ts`)
 - **NEW**: Role-based access control with two roles: `portfolio` (full access) and `analyst` (restricted)
 - **NEW**: Analyst role restrictions - cannot see: invested amounts, portfolio value, quantity, absolute gains
 - **NEW**: Email + Password authentication with allowlist (replaced hardcoded password)
@@ -162,8 +163,8 @@ Combined Data → Calculate Amounts → Calculate Weightages → Calculate Portf
 
 ### Admin Panel
 - **URL**: Admin tab in navigation (only visible to admin)
-- **Admin**: aditya@saguncapital.com
-- **Features**: View all users, change user roles
+- **Admin**: any user with `users.is_admin = TRUE` (separate from role; gets manager access, exempt from device lock). First user to register on a fresh deployment becomes admin. Admins can grant/revoke admin for others.
+- **Features**: View all users, change user roles, firm settings (name, logo, benchmark)
 
 ### Auth Flow
 1. **Registration**: Only emails in `ALLOWED_EMAILS` env var can register (defaults to `analyst` role)

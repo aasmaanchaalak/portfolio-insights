@@ -6,7 +6,7 @@ import { sanitizeBroker, canModifySensitiveData } from '../../../../lib/pe/acces
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { method } = req;
   const { companyId } = req.query;
-  const userEmail = (req as AuthenticatedRequest).user.email;
+  const isAdmin = (req as AuthenticatedRequest).user.isAdmin;
 
   if (!companyId || typeof companyId !== 'string') {
     return res.status(400).json({ error: 'Company ID is required' });
@@ -19,11 +19,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     switch (method) {
       case 'GET': {
         const broker = await getBroker(companyId);
-        return res.status(200).json({ broker: sanitizeBroker(broker, userEmail) });
+        return res.status(200).json({ broker: sanitizeBroker(broker, isAdmin) });
       }
 
       case 'PUT': {
-        if (!canModifySensitiveData(userEmail)) {
+        if (!canModifySensitiveData(isAdmin)) {
           return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
         }
         const { brokerName, brokerFirm, brokerEmail, brokerPhone, notes } = req.body;
@@ -33,7 +33,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       }
 
       case 'DELETE': {
-        if (!canModifySensitiveData(userEmail)) {
+        if (!canModifySensitiveData(isAdmin)) {
           return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
         }
         const deleted = await deleteBroker(companyId);

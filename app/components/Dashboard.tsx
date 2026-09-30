@@ -81,7 +81,9 @@ const formatPercent = (value: number | null, decimals: number = 2): string => {
     return `${value >= 0 ? '+' : ''}${value.toFixed(decimals)}%`;
 };
 
-interface NiftySmallcapData {
+interface BenchmarkData {
+    label: string;
+    short: string;
     lastPrice: number;
     dailyChange: number;
     weeklyChange: number;
@@ -99,7 +101,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
     const [driverPeriod, setDriverPeriod] = useState<'1D' | '1M' | '3M' | '6M' | '1Y' | 'ALL'>('1D');
     const [statesLoaded, setStatesLoaded] = useState(false);
     const [alertsLoaded, setAlertsLoaded] = useState(false);
-    const [niftySmallcap, setNiftySmallcap] = useState<NiftySmallcapData | null>(null);
+    const [benchmark, setBenchmark] = useState<BenchmarkData | null>(null);
     const [peSummary, setPeSummary] = useState<PEFactsheetSummary | null>(null);
     const [positioningData, setPositioningData] = useState<Record<string, { conviction: string; strategyType: string; actionIntent: string }>>({});
     const [fyStartPrices, setFyStartPrices] = useState<Record<string, number>>({});
@@ -246,20 +248,20 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         loadStoredAlerts();
     }, []);
 
-    // Load Nifty Smallcap data on mount
+    // Load benchmark index data (Admin → Firm settings) on mount
     useEffect(() => {
-        const loadNiftySmallcap = async () => {
+        const loadBenchmark = async () => {
             try {
-                const response = await fetch('/api/nifty-smallcap');
+                const response = await fetch('/api/benchmark');
                 if (response.ok) {
                     const data = await response.json();
-                    setNiftySmallcap(data);
+                    setBenchmark(data);
                 }
             } catch (error) {
-                console.error('Error loading Nifty Smallcap data:', error);
+                console.error('Error loading benchmark data:', error);
             }
         };
-        loadNiftySmallcap();
+        loadBenchmark();
         // Private book current value comes from the PE tracker (current NAV of held companies)
         fetch('/api/pe/factsheet-summary')
             .then(r => (r.ok ? r.json() : null))
@@ -1326,9 +1328,9 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                         <div className={`card-value ${pnlMetrics.dailyPercent >= 0 ? 'positive' : 'negative'}`}>
                             {formatPercent(pnlMetrics.dailyPercent)}
                         </div>
-                        {niftySmallcap && (
-                            <div className={`card-subtext benchmark ${niftySmallcap.dailyChange >= 0 ? 'positive' : 'negative'}`}>
-                                SMLCAP100: {formatPercent(niftySmallcap.dailyChange)}
+                        {benchmark && (
+                            <div className={`card-subtext benchmark ${benchmark.dailyChange >= 0 ? 'positive' : 'negative'}`}>
+                                {benchmark.short}: {formatPercent(benchmark.dailyChange)}
                             </div>
                         )}
                     </div>
@@ -1337,9 +1339,9 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                         <div className={`card-value ${pnlMetrics.weeklyPercent >= 0 ? 'positive' : 'negative'}`}>
                             {formatPercent(pnlMetrics.weeklyPercent)}
                         </div>
-                        {niftySmallcap && (
-                            <div className={`card-subtext benchmark ${niftySmallcap.weeklyChange >= 0 ? 'positive' : 'negative'}`}>
-                                SC100: {formatPercent(niftySmallcap.weeklyChange)}
+                        {benchmark && (
+                            <div className={`card-subtext benchmark ${benchmark.weeklyChange >= 0 ? 'positive' : 'negative'}`}>
+                                {benchmark.short}: {formatPercent(benchmark.weeklyChange)}
                             </div>
                         )}
                     </div>
@@ -1348,9 +1350,9 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                         <div className={`card-value ${pnlMetrics.monthlyPercent >= 0 ? 'positive' : 'negative'}`}>
                             {formatPercent(pnlMetrics.monthlyPercent)}
                         </div>
-                        {niftySmallcap && (
-                            <div className={`card-subtext benchmark ${niftySmallcap.monthlyChange >= 0 ? 'positive' : 'negative'}`}>
-                                SC100: {formatPercent(niftySmallcap.monthlyChange)}
+                        {benchmark && (
+                            <div className={`card-subtext benchmark ${benchmark.monthlyChange >= 0 ? 'positive' : 'negative'}`}>
+                                {benchmark.short}: {formatPercent(benchmark.monthlyChange)}
                             </div>
                         )}
                     </div>
@@ -1359,9 +1361,9 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                         <div className={`card-value ${pnlMetrics.yearlyPercent >= 0 ? 'positive' : 'negative'}`}>
                             {formatPercent(pnlMetrics.yearlyPercent)}
                         </div>
-                        {niftySmallcap && (
-                            <div className={`card-subtext benchmark ${niftySmallcap.yearlyChange >= 0 ? 'positive' : 'negative'}`}>
-                                SC100: {formatPercent(niftySmallcap.yearlyChange)}
+                        {benchmark && (
+                            <div className={`card-subtext benchmark ${benchmark.yearlyChange >= 0 ? 'positive' : 'negative'}`}>
+                                {benchmark.short}: {formatPercent(benchmark.yearlyChange)}
                             </div>
                         )}
                     </div>
@@ -1544,9 +1546,9 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                         <div className="metric-value">
                             {weightedMetrics.avgPE !== null ? weightedMetrics.avgPE.toFixed(2) : 'N/A'}
                         </div>
-                        {niftySmallcap && niftySmallcap.pe != null && (
+                        {benchmark && benchmark.pe != null && (
                             <div className="metric-subtext">
-                                SMLCAP100: {Number(niftySmallcap.pe).toFixed(2)}
+                                {benchmark.short}: {Number(benchmark.pe).toFixed(2)}
                             </div>
                         )}
                     </div>
@@ -1909,9 +1911,9 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 </div>
             </section>
 
-            {niftySmallcap?.lastUpdated && (
+            {benchmark?.lastUpdated && (
                 <footer className="dashboard-footer">
-                    Priced · {new Date(niftySmallcap.lastUpdated).toLocaleString('en-IN', {
+                    Priced · {new Date(benchmark.lastUpdated).toLocaleString('en-IN', {
                         day: '2-digit', month: 'short', year: 'numeric',
                         hour: '2-digit', minute: '2-digit', hour12: true,
                     })}

@@ -21,9 +21,6 @@ import {
   bindUserDevice,
 } from '../../../lib/queries';
 
-// Admin is exempt from device locking and single-session enforcement.
-const ADMIN_EMAIL = 'aditya@saguncapital.com';
-
 // A short, human-readable label for the bound device, shown to the admin.
 function deviceLabelFromRequest(req: NextApiRequest): string {
   const ua = (req.headers['user-agent'] || '').toString();
@@ -66,7 +63,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const isAdmin = normalizedEmail === ADMIN_EMAIL;
+    // Admins are exempt from device locking and single-session enforcement.
+    const isAdmin = user.isAdmin;
 
     // Cookies to write on a successful response.
     const cookies: string[] = [];
@@ -114,7 +112,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json({
       success: true,
-      user: { email: user.email, name: user.name, role: user.role || 'analyst' },
+      user: { email: user.email, name: user.name, role: user.role || 'analyst', isAdmin: user.isAdmin },
     });
   } catch (error) {
     console.error('Login error:', error);

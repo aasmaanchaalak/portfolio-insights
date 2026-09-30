@@ -1,20 +1,13 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuth } from '../../../lib/authMiddleware';
-import { getAllUsers, updateUserRole, getUserByEmail, deleteUser, deleteUserSessions, clearUserDevice, UserRole } from '../../../lib/queries';
-
-const ADMIN_EMAIL = 'aditya@saguncapital.com';
+import { withAuth, authUser } from '../../../lib/authMiddleware';
+import { getAllUsers, updateUserRole, getUserByEmail, deleteUser, deleteUserSessions, clearUserDevice, setUserAdmin, UserRole } from '../../../lib/queries';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    // Get the current user from the auth middleware
-    const userEmail = (req as any).user?.email;
-
-    if (!userEmail) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
+    const { email: userEmail, isAdmin } = authUser(req);
 
     // Only admin can access this endpoint
-    if (userEmail !== ADMIN_EMAIL) {
+    if (!isAdmin) {
       return res.status(403).json({ error: 'Access denied. Admin only.' });
     }
 
@@ -45,6 +38,23 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           return res.status(200).json({ success: true, message: 'Device lock reset' });
         }
 
+        // Grant or revoke admin. You can't revoke your own, so there's always one admin left.
+        if (action === 'set-admin') {
+          const { isAdmin: makeAdmin } = req.body;
+          if (!email || typeof makeAdmin !== 'boolean') {
+            return res.status(400).json({ error: 'Email and isAdmin are required' });
+          }
+          if (email === userEmail && !makeAdmin) {
+            return res.status(400).json({ error: 'You cannot remove your own admin access' });
+          }
+          const target = await getUserByEmail(email);
+          if (!target) {
+            return res.status(404).json({ error: 'User not found' });
+          }
+          await setUserAdmin(email, makeAdmin);
+          return res.status(200).json({ success: true });
+        }
+
         if (!email || !role) {
           return res.status(400).json({ error: 'Email and role are required' });
         }
@@ -61,8 +71,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         }
 
         // Prevent admin from changing their own role
-        if (email === ADMIN_EMAIL) {
-          return res.status(400).json({ error: 'Cannot change admin role' });
+        if (email === userEmail) {
+          return res.status(400).json({ error: 'Cannot change your own role' });
         }
 
         await updateUserRole(email, role as UserRole);
@@ -85,9 +95,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           return res.status(404).json({ error: 'User not found' });
         }
 
-        // Prevent admin from deleting themselves
-        if (email === ADMIN_EMAIL) {
-          return res.status(400).json({ error: 'Cannot delete admin account' });
+        // Admin accounts must be demoted before they can be deleted
+        if (user.isAdmin) {
+          return res.status(400).json({ error: 'Cannot delete an admin account. Remove admin access first.' });
         }
 
         await deleteUserSessions(email);

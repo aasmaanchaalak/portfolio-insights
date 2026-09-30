@@ -133,6 +133,8 @@ body {
 }
 .topnav-brand { display: flex; align-items: center; flex: 0 0 auto; }
 .topnav-logo { height: 30px; width: auto; display: block; }
+/* No logo uploaded → firm name as text, sized to the logo slot. */
+.firm-wordmark { font-family: var(--font-serif); font-weight: 700; font-size: 20px; line-height: 30px; color: var(--ink); white-space: nowrap; }
 .topnav-links {
   display: flex;
   align-items: stretch;

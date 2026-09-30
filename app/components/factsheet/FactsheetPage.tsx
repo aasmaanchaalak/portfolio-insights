@@ -4,8 +4,10 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Stock, GridKeyData } from '../../../types';
 import { PEFactsheetSummary } from '../../../types/pe';
 import { FactsheetInputs, FnoPosition, FnoOverlay } from '../../../types/factsheet';
+import { useFirm } from '../../contexts/FirmContext';
 
-interface NiftySmallcapData {
+interface BenchmarkData {
+  label: string;
   lastPrice: number;
   dailyChange: number;
   weeklyChange: number;
@@ -80,7 +82,8 @@ export function FactsheetPage({ stocks, gridKeyData, portfolioHistory, isAnalyst
   const [cashPosition, setCashPosition] = useState<number | null>(null);
   const [pmNote, setPmNote] = useState<string>('');
   const [fnoPositions, setFnoPositions] = useState<FnoPosition[]>([]);
-  const [nifty, setNifty] = useState<NiftySmallcapData | null>(null);
+  const { firm } = useFirm();
+  const [nifty, setNifty] = useState<BenchmarkData | null>(null);
   const [pe, setPe] = useState<PEFactsheetSummary | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -106,7 +109,7 @@ export function FactsheetPage({ stocks, gridKeyData, portfolioHistory, isAnalyst
   // Benchmark + PE aggregate — fetched only once the user clicks Generate.
   useEffect(() => {
     if (!generated) return;
-    authedFetch('/api/nifty-smallcap').then(r => (r.ok ? r.json() : null)).then(d => d && setNifty(d)).catch(() => {});
+    authedFetch('/api/benchmark').then(r => (r.ok ? r.json() : null)).then(d => d && setNifty(d)).catch(() => {});
     authedFetch('/api/pe/factsheet-summary').then(r => (r.ok ? r.json() : null)).then(d => d && setPe(d)).catch(() => {});
   }, [generated]);
 
@@ -445,18 +448,20 @@ export function FactsheetPage({ stocks, gridKeyData, portfolioHistory, isAnalyst
         {/* masthead */}
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: `2px solid ${NAVY}`, paddingBottom: 12 }}>
           <div>
-            <img
-              src="/sagun-capital-logo.png"
-              alt="Sagun Capital"
-              style={{ height: 54, display: 'block' }}
-              onError={e => {
-                const el = e.currentTarget;
-                el.style.display = 'none';
-                const sib = el.nextElementSibling as HTMLElement | null;
-                if (sib) sib.style.display = 'block';
-              }}
-            />
-            <div className="fs-h" style={{ fontSize: 30, letterSpacing: 0.2, display: 'none' }}>Sagun Capital</div>
+            {firm.logoUrl && (
+              <img
+                src={firm.logoUrl}
+                alt={firm.name}
+                style={{ height: 54, display: 'block' }}
+                onError={e => {
+                  const el = e.currentTarget;
+                  el.style.display = 'none';
+                  const sib = el.nextElementSibling as HTMLElement | null;
+                  if (sib) sib.style.display = 'block';
+                }}
+              />
+            )}
+            <div className="fs-h" style={{ fontSize: 30, letterSpacing: 0.2, display: firm.logoUrl ? 'none' : 'block' }}>{firm.name}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div className="fs-h" style={{ fontSize: 15 }}>{monthLabel}</div>
@@ -503,7 +508,7 @@ export function FactsheetPage({ stocks, gridKeyData, portfolioHistory, isAnalyst
                   <td style={{ textAlign: 'right', padding: '6px 0', color: rc(returns.ytd), fontWeight: 600 }}>{fmtPct(returns.ytd)}</td>
                 </tr>
                 <tr style={{ borderTop: `1px solid ${LINE}`, color: '#4a4f57' }}>
-                  <td style={{ padding: '6px 0' }}>Nifty Smallcap 100</td>
+                  <td style={{ padding: '6px 0' }}>{firm.benchmark.label}</td>
                   <td style={{ textAlign: 'right', padding: '6px 6px' }}>{fmtPct(nifty?.monthlyChange ?? null)}</td>
                   <td style={{ textAlign: 'right', padding: '6px 6px' }}>—</td>
                   <td style={{ textAlign: 'right', padding: '6px 6px' }}>{fmtPct(nifty?.yearlyChange ?? null)}</td>
@@ -660,7 +665,7 @@ export function FactsheetPage({ stocks, gridKeyData, portfolioHistory, isAnalyst
       <section className="factsheet-page">
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: `2px solid ${NAVY}`, paddingBottom: 8 }}>
           <div className="fs-h" style={{ fontSize: 14 }}>Holdings &amp; Exposure</div>
-          <div style={{ fontSize: 9.5, color: GREY }}>Sagun Capital · {monthLabel} · As of {asOf}</div>
+          <div style={{ fontSize: 9.5, color: GREY }}>{firm.name} · {monthLabel} · As of {asOf}</div>
         </header>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 22 }}>
@@ -815,7 +820,7 @@ export function FactsheetPage({ stocks, gridKeyData, portfolioHistory, isAnalyst
         <div style={{ border: `1px solid ${LINE}`, background: '#faf9f5', padding: '9px 12px' }}>
           <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: NAVY, marginBottom: 4 }}>Valuation &amp; Methodology</div>
           <div style={{ fontSize: 8.5, lineHeight: 1.45, color: '#4a4f57' }}>
-            Public securities marked at last available close. Portfolio Monthly / Quarterly / Yearly are value-weighted trailing returns from holding-level data; YTD is measured from the start of the financial year using recorded portfolio snapshots. Benchmark is the Nifty Smallcap 100 (price return); quarterly and YTD benchmark figures are not published by the source and are shown as “—”. Private valuations follow latest marks — funds at manager NAV, direct positions at last priced round; IRR is money-weighted across positions with a recorded investment date, MOIC/DPI/TVPI computed against paid-in capital with full exits treated as distributions. F&amp;O figures are entered manually and reported separately from cash-equity returns.
+            Public securities marked at last available close. Portfolio Monthly / Quarterly / Yearly are value-weighted trailing returns from holding-level data; YTD is measured from the start of the financial year using recorded portfolio snapshots. Benchmark is the {firm.benchmark.label} (price return); quarterly and YTD benchmark figures are not published by the source and are shown as “—”. Private valuations follow latest marks — funds at manager NAV, direct positions at last priced round; IRR is money-weighted across positions with a recorded investment date, MOIC/DPI/TVPI computed against paid-in capital with full exits treated as distributions. F&amp;O figures are entered manually and reported separately from cash-equity returns.
           </div>
         </div>
 

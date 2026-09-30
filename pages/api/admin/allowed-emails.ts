@@ -1,18 +1,12 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { withAuth, AuthenticatedRequest } from '../../../lib/authMiddleware';
-import { getAllowedEmails, addAllowedEmail, removeAllowedEmail } from '../../../lib/queries';
-
-const ADMIN_EMAIL = 'aditya@saguncapital.com';
+import { getAllowedEmails, addAllowedEmail, removeAllowedEmail, getUserByEmail } from '../../../lib/queries';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const userEmail = (req as AuthenticatedRequest).user.email;
 
-  if (!userEmail) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-
   // Only admin can access this endpoint
-  if (userEmail !== ADMIN_EMAIL) {
+  if (!(req as AuthenticatedRequest).user.isAdmin) {
     return res.status(403).json({ error: 'Access denied. Admin only.' });
   }
 
@@ -53,8 +47,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         return res.status(400).json({ error: 'Email is required' });
       }
 
-      // Prevent removing admin email
-      if (email.toLowerCase() === ADMIN_EMAIL) {
+      // Prevent removing an admin's email
+      const target = await getUserByEmail(email.toLowerCase());
+      if (target?.isAdmin) {
         return res.status(400).json({ error: 'Cannot remove admin email' });
       }
 

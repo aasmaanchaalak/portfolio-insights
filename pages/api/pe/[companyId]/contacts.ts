@@ -12,7 +12,7 @@ import { sanitizeContacts, canModifySensitiveData } from '../../../../lib/pe/acc
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { method } = req;
   const { companyId, contactId } = req.query;
-  const userEmail = (req as AuthenticatedRequest).user.email;
+  const isAdmin = (req as AuthenticatedRequest).user.isAdmin;
 
   if (!companyId || typeof companyId !== 'string') {
     return res.status(400).json({ error: 'Company ID is required' });
@@ -28,13 +28,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     switch (method) {
       case 'GET': {
         const contacts = await getContacts(companyId);
-        const sanitizedContacts = sanitizeContacts(contacts, userEmail);
+        const sanitizedContacts = sanitizeContacts(contacts, isAdmin);
         return res.status(200).json({ contacts: sanitizedContacts });
       }
 
       case 'POST': {
         // Only admin can create contacts
-        if (!canModifySensitiveData(userEmail)) {
+        if (!canModifySensitiveData(isAdmin)) {
           return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
         }
 
@@ -69,7 +69,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
       case 'PUT': {
         // Only admin can update contacts
-        if (!canModifySensitiveData(userEmail)) {
+        if (!canModifySensitiveData(isAdmin)) {
           return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
         }
 
@@ -110,7 +110,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
       case 'DELETE': {
         // Only admin can delete contacts
-        if (!canModifySensitiveData(userEmail)) {
+        if (!canModifySensitiveData(isAdmin)) {
           return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
         }
 

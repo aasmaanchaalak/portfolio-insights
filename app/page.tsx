@@ -17,6 +17,7 @@ const EntryDataPage = dynamic(() => import('./components/EntryDataPage'), { ssr:
 const AdminPanel = dynamic(() => import('./components/AdminPanel'), { ssr: false });
 const CorporateEventsChart = dynamic(() => import('./components/CorporateEventsChart').then(m => m.CorporateEventsChart), { ssr: false });
 import { useAuth } from './contexts/AuthContext';
+import { useFirm, FirmLogo } from './contexts/FirmContext';
 import LoginPage from './components/LoginPage';
 import { StockDetailDrawer } from './components/drawer/StockDetailDrawer';
 import { PositioningChips } from './components/positioning/PositioningChip';
@@ -4405,6 +4406,7 @@ function writeAppCache(email: string, patch: Partial<CachedAppData>) {
 
 const App: React.FC = () => {
     const { user, loading: authLoading, logout, isAdmin, isAnalyst, isManager } = useAuth();
+    const { firm } = useFirm();
     const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'entrydata' | 'pe' | 'pipeline' | 'admin'>(
         // Phones land on Public Portfolio; desktop keeps Pipeline. Safe to read
         // window here: nothing page-specific renders until auth has loaded.
@@ -4416,7 +4418,7 @@ const App: React.FC = () => {
     const [portfolioHistory, setPortfolioHistory] = useState<{ date: string; value: number }[]>([]);
     const [loading, setLoading] = useState(true);
     const [teamMembers, setTeamMembers] = useState<string[]>([]);
-    const [smallcapDaily, setSmallcapDaily] = useState<number | null>(null);
+    const [benchmarkDaily, setBenchmarkDaily] = useState<number | null>(null);
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
     const [livePrices, setLivePrices] = useState<LivePricesState | null>(null);
@@ -4470,13 +4472,13 @@ const App: React.FC = () => {
         });
     }, [stocks, livePrices]);
 
-    // Nifty Smallcap 100 daily change — the brand-bar benchmark next to today's gain.
+    // Benchmark index daily change (Admin → Firm settings) — shown in the brand bar next to today's gain.
     useEffect(() => {
         if (!user) return;
-        fetch('/api/nifty-smallcap')
+        fetch('/api/benchmark')
             .then(r => (r.ok ? r.json() : null))
             .then((d: { dailyChange?: number } | null) => {
-                if (d && typeof d.dailyChange === 'number') setSmallcapDaily(d.dailyChange);
+                if (d && typeof d.dailyChange === 'number') setBenchmarkDaily(d.dailyChange);
             })
             .catch(() => {});
     }, [user]);
@@ -4740,7 +4742,7 @@ const App: React.FC = () => {
         <div className="app-root">
             <header className="topnav">
                 <div className="topnav-brand">
-                    <img className="topnav-logo" src="/sagun-capital-logo.png" alt="Sagun Capital" />
+                    <FirmLogo className="topnav-logo" />
                 </div>
                 <span className="topnav-current">{navItems.find(i => i.id === page)?.label}</span>
                 {page === 'insights' && (
@@ -4791,11 +4793,11 @@ const App: React.FC = () => {
                             </span>
                         </div>
                     )}
-                    {smallcapDaily !== null && (
+                    {benchmarkDaily !== null && (
                         <div className="brandbar-stat brandbar-stat-sep">
-                            <span className="brandbar-stat-label">Smallcap 100 today</span>
-                            <span className="brandbar-stat-num serif n" style={{ color: smallcapDaily >= 0 ? 'var(--positive)' : 'var(--negative)' }}>
-                                {fmtSignedPct(smallcapDaily)}
+                            <span className="brandbar-stat-label">{firm.benchmark.label} today</span>
+                            <span className="brandbar-stat-num serif n" style={{ color: benchmarkDaily >= 0 ? 'var(--positive)' : 'var(--negative)' }}>
+                                {fmtSignedPct(benchmarkDaily)}
                             </span>
                         </div>
                     )}
@@ -4813,7 +4815,7 @@ const App: React.FC = () => {
                 <div className="mnav-backdrop" onClick={() => setMobileNavOpen(false)}>
                     <nav className="mnav-panel" onClick={e => e.stopPropagation()} aria-label="Main menu">
                         <div className="mnav-head">
-                            <img className="topnav-logo" src="/sagun-capital-logo.png" alt="Sagun Capital" />
+                            <FirmLogo className="topnav-logo" />
                             <button type="button" className="mnav-close" onClick={() => setMobileNavOpen(false)} aria-label="Close menu">×</button>
                         </div>
                         <div className="mnav-links">

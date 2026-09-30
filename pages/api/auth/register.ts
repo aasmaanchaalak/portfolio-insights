@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { hashPassword } from '../../../lib/auth';
-import { getUserByEmail, createUser, isEmailAllowed } from '../../../lib/queries';
+import { getUserByEmail, createUser, isEmailAllowed, hasAnyAdmin } from '../../../lib/queries';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -32,7 +32,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const passwordHash = await hashPassword(password);
-    await createUser(normalizedEmail, passwordHash, name.trim());
+    // Fresh deployment: the first account becomes the admin (with manager access).
+    const firstAdmin = !(await hasAnyAdmin());
+    await createUser(normalizedEmail, passwordHash, name.trim(), firstAdmin ? 'manager' : 'analyst', firstAdmin);
 
     return res.status(201).json({ success: true, message: 'Registration successful' });
   } catch (error) {

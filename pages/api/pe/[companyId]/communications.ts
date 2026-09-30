@@ -7,7 +7,6 @@ import {
   updateCommunication,
   deleteCommunication,
 } from '../../../../lib/pe/queries';
-import { isAdmin } from '../../../../lib/pe/accessControl';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { method } = req;
@@ -106,7 +105,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       }
 
       case 'DELETE': {
-        if (!isAdmin(userEmail)) {
+        if (!(req as AuthenticatedRequest).user.isAdmin) {
           return res.status(403).json({ error: 'Only admin can delete communications' });
         }
         if (!communicationId || typeof communicationId !== 'string') {

@@ -8,6 +8,7 @@ interface User {
   email: string;
   name: string;
   role: UserRole;
+  isAdmin: boolean;
 }
 
 interface AuthContextType {
@@ -21,15 +22,13 @@ interface AuthContextType {
   register: (email: string, password: string, name: string) => Promise<void>;
 }
 
-const ADMIN_EMAIL = 'aditya@saguncapital.com';
-
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const isAdmin = user?.email === ADMIN_EMAIL;
+  const isAdmin = !!user?.isAdmin;
   const isAnalyst = user?.role === 'analyst';
   const isManager = user?.role === 'manager' || isAdmin;
 
@@ -42,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email: data.user.email,
           name: data.user.name,
           role: data.user.role || 'analyst',
+          isAdmin: !!data.user.isAdmin,
         });
       } else {
         setUser(null);
@@ -89,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: data.user.email,
       name: data.user.name,
       role: data.user.role || 'analyst',
+      isAdmin: !!data.user.isAdmin,
     });
   };
 

@@ -1,8 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuth } from '../../../lib/authMiddleware';
+import { withAuth, authUser } from '../../../lib/authMiddleware';
 import { getCurrentFiscalYear, setCurrentFiscalYear } from '../../../lib/queries';
-
-const ADMIN_EMAIL = 'aditya@saguncapital.com';
 
 // GET  → { currentFY }               (any authenticated user)
 // PUT  → { action: 'advance' }       advance to next FY        (admin only)
@@ -15,8 +13,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     if (req.method === 'PUT') {
-      const userEmail = (req as any).user?.email;
-      if (userEmail !== ADMIN_EMAIL) {
+      if (!authUser(req).isAdmin) {
         return res.status(403).json({ error: 'Access denied. Admin only.' });
       }
 

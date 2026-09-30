@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuth } from '../../../lib/authMiddleware';
+import { withAuth, authUser } from '../../../lib/authMiddleware';
 import {
   getGridKeyData,
   getAnalystOverrides,
@@ -7,8 +7,6 @@ import {
   clearAnalystOverride,
   ANALYST_VISIBILITY_THRESHOLD,
 } from '../../../lib/queries';
-
-const ADMIN_EMAIL = 'aditya@saguncapital.com';
 
 interface SmallCompany {
   code: string;
@@ -19,8 +17,7 @@ interface SmallCompany {
 }
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const userEmail = (req as any).user?.email;
-  if (userEmail !== ADMIN_EMAIL) {
+  if (!authUser(req).isAdmin) {
     return res.status(403).json({ error: 'Access denied. Admin only.' });
   }
 

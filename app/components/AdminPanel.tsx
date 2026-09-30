@@ -2,12 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useFirm } from '../contexts/FirmContext';
+import { BENCHMARKS } from '../../lib/benchmarks';
+
+const MAX_LOGO_BYTES = 500 * 1024;
 
 interface UserSummary {
   id: string;
   email: string;
   name: string | null;
   role: 'portfolio' | 'analyst' | 'manager';
+  isAdmin: boolean;
   createdAt: string;
   lastLoginAt: string | null;
   deviceBound: boolean;
@@ -23,7 +28,8 @@ interface AllowedEmail {
 }
 
 export default function AdminPanel() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user: me } = useAuth();
+  const { firm, loaded: firmLoaded, refresh: refreshFirm } = useFirm();
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [allowedEmails, setAllowedEmails] = useState<AllowedEmail[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,6 +44,15 @@ export default function AdminPanel() {
   const [portfolioSaving, setPortfolioSaving] = useState(false);
   const [portfolioSaveMsg, setPortfolioSaveMsg] = useState('');
   const [recentHistory, setRecentHistory] = useState<{ date: string; value: number }[]>([]);
+
+  // Firm settings (branding + benchmark). `firmLogo` is undefined while unchanged,
+  // a data URL for a new upload, or null to remove the current logo.
+  const [firmName, setFirmName] = useState('');
+  const [firmShortName, setFirmShortName] = useState('');
+  const [firmBenchmark, setFirmBenchmark] = useState('');
+  const [firmLogo, setFirmLogo] = useState<string | null | undefined>(undefined);
+  const [firmSaving, setFirmSaving] = useState(false);
+  const [firmMsg, setFirmMsg] = useState('');
 
   // Fiscal year (admin-controlled current FY that drives forward windows)
   const [currentFY, setCurrentFY] = useState<number | null>(null);
@@ -71,6 +86,56 @@ export default function AdminPanel() {
       fetchFiscalYear();
     }
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (!firmLoaded) return;
+    setFirmName(firm.name);
+    setFirmShortName(firm.shortName === firm.name ? '' : firm.shortName);
+    setFirmBenchmark(firm.benchmark.symbol);
+    setFirmLogo(undefined);
+  }, [firm, firmLoaded]);
+
+  const pickLogo = (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > MAX_LOGO_BYTES) {
+      setFirmMsg('Logo must be under 500 KB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => { setFirmLogo(reader.result as string); setFirmMsg(''); };
+    reader.readAsDataURL(file);
+  };
+
+  const saveFirmSettings = async () => {
+    if (!firmName.trim()) {
+      setFirmMsg('Firm name is required');
+      return;
+    }
+    setFirmSaving(true);
+    setFirmMsg('');
+    try {
+      const res = await fetch('/api/settings/firm', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: firmName,
+          shortName: firmShortName,
+          benchmark: firmBenchmark,
+          ...(firmLogo !== undefined ? { logo: firmLogo } : {}),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to save');
+      }
+      await refreshFirm();
+      setFirmMsg('Saved ✓');
+    } catch (err) {
+      setFirmMsg(err instanceof Error ? err.message : 'Failed to save');
+    } finally {
+      setFirmSaving(false);
+    }
+  };
 
   const fetchFiscalYear = async () => {
     try {
@@ -349,6 +414,35 @@ export default function AdminPanel() {
     }
   };
 
+  const setAdmin = async (email: string, makeAdmin: boolean) => {
+    const prompt = makeAdmin
+      ? `Make ${email} an admin? They'll get the Admin panel, manager access, and won't be device-locked.`
+      : `Remove admin access from ${email}?`;
+    if (!confirm(prompt)) return;
+
+    try {
+      setUpdating(email);
+      const res = await fetch('/api/admin/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, action: 'set-admin', isAdmin: makeAdmin }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to update admin access');
+      }
+
+      setUsers(prev => prev.map(user =>
+        user.email === email ? { ...user, isAdmin: makeAdmin } : user
+      ));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update admin access');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   const updateRole = async (email: string, newRole: 'portfolio' | 'analyst' | 'manager') => {
     try {
       setUpdating(email);
@@ -406,7 +500,67 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* Portfolio Value Entry */}
+      {/* Firm Settings */}
+      <div className="admin-section" style={{ marginBottom: '2rem', padding: '1.25rem', background: 'var(--surface-color)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+        <h3 style={{ margin: '0 0 0.75rem', fontSize: '1rem', fontWeight: 600 }}>Firm Settings</h3>
+        <p style={{ margin: '0 0 1rem', fontSize: '0.875rem', color: 'var(--secondary-text-color)' }}>
+          Name and logo appear in the top bar, the factsheet and the browser / home-screen title. The benchmark is compared against on the Dashboard, the top bar and the factsheet.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+          <label className="firm-field">
+            <span>Firm name</span>
+            <input type="text" value={firmName} onChange={e => setFirmName(e.target.value)} maxLength={80} placeholder="e.g. Acme Capital" />
+          </label>
+          <label className="firm-field">
+            <span>Short name <em>(home-screen icon label)</em></span>
+            <input type="text" value={firmShortName} onChange={e => setFirmShortName(e.target.value)} maxLength={30} placeholder={firmName || 'Same as firm name'} />
+          </label>
+          <label className="firm-field">
+            <span>Benchmark index</span>
+            <select value={firmBenchmark} onChange={e => setFirmBenchmark(e.target.value)}>
+              {BENCHMARKS.map(b => (
+                <option key={b.symbol} value={b.symbol}>{b.label}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="firm-field" style={{ marginBottom: '1rem' }}>
+          <span>Logo <em>(PNG, JPEG, WebP or SVG, under 500 KB; shown about 30px tall)</em></span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            {(() => {
+              const preview = firmLogo === undefined ? firm.logoUrl : firmLogo;
+              return preview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={preview} alt="Logo preview" style={{ height: 36, maxWidth: 240, objectFit: 'contain', padding: 4, background: '#fff', border: '1px solid var(--border-color)', borderRadius: 4 }} />
+              ) : (
+                <span style={{ fontSize: '0.8125rem', color: 'var(--secondary-text-color)' }}>No logo: the firm name is shown as text</span>
+              );
+            })()}
+            <label className="reset-device-btn" style={{ cursor: 'pointer' }}>
+              {(firmLogo === undefined ? firm.logoUrl : firmLogo) ? 'Replace' : 'Upload'}
+              <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" style={{ display: 'none' }} onChange={e => { pickLogo(e.target.files?.[0]); e.target.value = ''; }} />
+            </label>
+            {(firmLogo === undefined ? firm.logoUrl : firmLogo) && (
+              <button type="button" className="remove-btn" onClick={() => setFirmLogo(null)}>Remove</button>
+            )}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <button
+            onClick={saveFirmSettings}
+            disabled={firmSaving || !firmLoaded}
+            style={{ padding: '0.4375rem 1rem', background: 'var(--accent-color)', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', opacity: firmSaving ? 0.6 : 1 }}
+          >
+            {firmSaving ? 'Saving…' : 'Save firm settings'}
+          </button>
+          {firmMsg && (
+            <span style={{ fontSize: '0.875rem', color: firmMsg.includes('✓') ? 'var(--success-color)' : 'var(--error-color)' }}>
+              {firmMsg}
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Fiscal Year */}
       <div className="admin-section" style={{ marginBottom: '2rem', padding: '1.25rem', background: 'var(--surface-color)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
         <h3 style={{ margin: '0 0 0.75rem', fontSize: '1rem', fontWeight: 600 }}>Fiscal Year</h3>
@@ -583,6 +737,10 @@ export default function AdminPanel() {
 
       <div className="role-legend">
         <div className="legend-item">
+          <span className="admin-badge" style={{ marginLeft: 0 }}>Admin</span>
+          <span>Manager access + this Admin panel; not device-locked. Separate from role.</span>
+        </div>
+        <div className="legend-item">
           <span className="role-badge manager">Manager</span>
           <span>Full access + can upload Screener/GridKey data and manage entry prices</span>
         </div>
@@ -614,11 +772,11 @@ export default function AdminPanel() {
             </thead>
             <tbody>
               {users.map(user => (
-                <tr key={user.id} className={user.email === 'aditya@saguncapital.com' ? 'admin-row' : ''}>
+                <tr key={user.id} className={user.isAdmin ? 'admin-row' : ''}>
                   <td>{user.name || '-'}</td>
                   <td>
                     {user.email}
-                    {user.email === 'aditya@saguncapital.com' && (
+                    {user.isAdmin && (
                       <span className="admin-badge">Admin</span>
                     )}
                   </td>
@@ -628,7 +786,7 @@ export default function AdminPanel() {
                     </span>
                   </td>
                   <td>
-                    {user.email === 'aditya@saguncapital.com' ? (
+                    {user.isAdmin ? (
                       <span style={{ fontSize: '0.75rem', color: 'var(--secondary-text-color)' }}>Not locked</span>
                     ) : user.deviceBound ? (
                       <span
@@ -646,8 +804,8 @@ export default function AdminPanel() {
                   <td>{formatDate(user.createdAt)}</td>
                   <td>{formatDate(user.lastLoginAt)}</td>
                   <td>
-                    {user.email === 'aditya@saguncapital.com' ? (
-                      <span className="admin-protected">Protected</span>
+                    {user.email === me?.email ? (
+                      <span className="admin-protected">You</span>
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <select
@@ -660,7 +818,14 @@ export default function AdminPanel() {
                           <option value="portfolio">Portfolio</option>
                           <option value="manager">Manager</option>
                         </select>
-                        {user.deviceBound && (
+                        <button
+                          onClick={() => setAdmin(user.email, !user.isAdmin)}
+                          disabled={updating === user.email}
+                          className="reset-device-btn"
+                        >
+                          {user.isAdmin ? 'Remove admin' : 'Make admin'}
+                        </button>
+                        {user.deviceBound && !user.isAdmin && (
                           <button
                             onClick={() => resetDevice(user.email)}
                             disabled={updating === user.email}
@@ -670,13 +835,15 @@ export default function AdminPanel() {
                             Reset device
                           </button>
                         )}
-                        <button
-                          onClick={() => deleteUser(user.email)}
-                          disabled={updating === user.email}
-                          className="remove-btn"
-                        >
-                          Delete
-                        </button>
+                        {!user.isAdmin && (
+                          <button
+                            onClick={() => deleteUser(user.email)}
+                            disabled={updating === user.email}
+                            className="remove-btn"
+                          >
+                            Delete
+                          </button>
+                        )}
                       </div>
                     )}
                   </td>
@@ -719,7 +886,8 @@ export default function AdminPanel() {
           </thead>
           <tbody>
             {allowedEmails.map(item => {
-              const isRegistered = users.some(u => u.email === item.email);
+              const account = users.find(u => u.email === item.email);
+              const isRegistered = !!account;
               return (
                 <tr key={item.id}>
                   <td>{item.email}</td>
@@ -730,7 +898,7 @@ export default function AdminPanel() {
                   </td>
                   <td>{formatDate(item.createdAt)}</td>
                   <td>
-                    {item.email === 'aditya@saguncapital.com' ? (
+                    {account?.isAdmin ? (
                       <span className="admin-protected">Protected</span>
                     ) : (
                       <button
@@ -910,6 +1078,33 @@ export default function AdminPanel() {
         .role-select:disabled {
           opacity: 0.5;
           cursor: not-allowed;
+        }
+
+        .firm-field {
+          display: flex;
+          flex-direction: column;
+          gap: 0.375rem;
+        }
+
+        .firm-field > span {
+          font-size: 0.8125rem;
+          font-weight: 600;
+          color: var(--secondary-text-color);
+        }
+
+        .firm-field em {
+          font-style: normal;
+          font-weight: 400;
+        }
+
+        .firm-field input,
+        .firm-field select {
+          padding: 0.4375rem 0.625rem;
+          border: 1px solid var(--border-color);
+          border-radius: 6px;
+          background: var(--background-color);
+          color: var(--primary-text-color);
+          font-size: 0.875rem;
         }
 
         .add-email-form {

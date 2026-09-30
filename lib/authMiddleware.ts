@@ -16,6 +16,7 @@ export interface AuthenticatedRequest extends NextApiRequest {
     sessionId: string;
     name: string | null;
     role: UserRole;
+    isAdmin: boolean;
   };
 }
 
@@ -48,7 +49,7 @@ export async function authenticate(req: NextApiRequest, res: NextApiResponse): P
   const access = req.cookies.accessToken ? await verifyToken(req.cookies.accessToken) : null;
   if (access) {
     const session = await getSessionWithUser(access.sessionId);
-    if (session) return { email: access.userId, sessionId: access.sessionId, name: session.name, role: session.role };
+    if (session) return { email: access.userId, sessionId: access.sessionId, name: session.name, role: session.role, isAdmin: session.isAdmin };
   }
 
   const refresh = req.cookies.refreshToken ? await verifyToken(req.cookies.refreshToken) : null;
@@ -57,7 +58,7 @@ export async function authenticate(req: NextApiRequest, res: NextApiResponse): P
   if (!session) return null;
 
   await renewSession(res, refresh.userId, refresh.sessionId);
-  return { email: refresh.userId, sessionId: refresh.sessionId, name: session.name, role: session.role };
+  return { email: refresh.userId, sessionId: refresh.sessionId, name: session.name, role: session.role, isAdmin: session.isAdmin };
 }
 
 export function withAuth(handler: NextApiHandler): NextApiHandler {
