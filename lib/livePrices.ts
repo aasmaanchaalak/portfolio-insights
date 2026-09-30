@@ -47,6 +47,8 @@ async function fetchYahooQuote(symbol: string): Promise<LiveQuote | null> {
       prevClose,
       changePct: prevClose ? Math.round(((price - prevClose) / prevClose) * 10000) / 100 : null,
       time,
+      dayHigh: Number(meta?.regularMarketDayHigh) || null,
+      dayLow: Number(meta?.regularMarketDayLow) || null,
     };
   } catch {
     return null;

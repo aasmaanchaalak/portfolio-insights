@@ -26,6 +26,7 @@ import { StockPositioning, Conviction, StrategyType, ActionIntent } from '../typ
 const PETracker = dynamic(() => import('./components/pe/PETracker').then(m => m.PETracker), { ssr: false });
 const FactsheetPage = dynamic(() => import('./components/factsheet/FactsheetPage').then(m => m.FactsheetPage), { ssr: false });
 import { PipelinePage } from './components/pipeline/PipelinePage';
+import { NotificationToggle } from './components/NotificationToggle';
 
 type SortKey = keyof Stock;
 type SortDirection = 'ascending' | 'descending';
@@ -4829,6 +4830,7 @@ const App: React.FC = () => {
                                 </button>
                             ))}
                         </div>
+                        <NotificationToggle />
                         <div className="mnav-foot">
                             <span className="mnav-user">{user.name}</span>
                             <button type="button" className="mnav-logout" onClick={logout}>Sign out</button>

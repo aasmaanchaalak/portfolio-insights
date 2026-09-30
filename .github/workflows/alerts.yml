@@ -1,0 +1,23 @@
+# Checks holdings for DMA breaks and circuits every 10 minutes during NSE
+# market hours (09:15–15:30 IST = 03:45–10:00 UTC, Mon–Fri) and sends push
+# notifications. The endpoint itself skips runs outside market hours.
+#
+# Repo secrets needed: APP_URL (e.g. https://portfolio-insights-oj4v.vercel.app)
+# and CRON_SECRET (same value as the Vercel env var).
+name: Portfolio alerts
+
+on:
+  schedule:
+    - cron: '*/10 3-10 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Run alert check
+        run: |
+          curl -fsS --max-time 90 -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron/alerts"

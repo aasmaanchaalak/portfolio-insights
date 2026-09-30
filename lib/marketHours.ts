@@ -5,6 +5,8 @@ export interface LiveQuote {
   prevClose: number | null;
   changePct: number | null;
   time: number; // epoch ms of the last trade
+  dayHigh?: number | null;
+  dayLow?: number | null;
 }
 
 /** True during NSE's regular session (Mon–Fri, 09:15–15:30 IST). Holidays aren't modelled. */

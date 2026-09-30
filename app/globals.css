@@ -299,6 +299,13 @@ body {
   border-left-color: var(--crimson);
   background: var(--crimson-wash);
 }
+.notify-toggle { padding: 14px 20px; border-top: 1px solid var(--rule); }
+.notify-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.notify-toggle-label { font-weight: 600; color: var(--ink); }
+.notify-toggle-btn { min-width: 56px; padding: 6px 14px; border: 1px solid var(--rule-strong); border-radius: 999px; background: transparent; color: var(--ink-muted); font: inherit; font-weight: 600; cursor: pointer; }
+.notify-toggle-btn.on { background: var(--positive); border-color: var(--positive); color: #fff; }
+.notify-toggle-btn:disabled { opacity: 0.6; cursor: default; }
+.notify-toggle-hint { margin: 6px 0 0; font-size: 12px; line-height: 1.4; color: var(--ink-muted); }
 .mnav-foot {
   display: flex;
   align-items: center;

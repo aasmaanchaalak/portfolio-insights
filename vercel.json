@@ -6,6 +6,9 @@
     },
     "pages/api/live-prices.ts": {
       "maxDuration": 30
+    },
+    "pages/api/cron/alerts.ts": {
+      "maxDuration": 60
     }
   }
 }
