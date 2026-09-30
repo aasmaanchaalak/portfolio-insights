@@ -7,6 +7,7 @@ export interface ScreenerCompany {
   companyName: string | null;
   nseSymbol: string | null;
   bseCode: string | null;
+  bseSymbol: string | null;  // BSE scrip id (e.g. CRANEX) — Yahoo's "<id>.BO" ticker
   price: number | null;
   marketCapCr: number | null;
 }
@@ -31,7 +32,7 @@ export async function fetchScreenerCompany(code: string): Promise<ScreenerCompan
 
     const title = html.match(/<title>\s*([^<]*?)\s+share price/i);
     const nse = html.match(/nseindia\.com\/get-quotes\/equity\?symbol=([^"&]+)/i);
-    const bse = html.match(/bseindia\.com\/stock-share-price\/[^/"]+\/[^/"]+\/(\d+)\//i);
+    const bse = html.match(/bseindia\.com\/stock-share-price\/[^/"]+\/([^/"]+)\/(\d+)\//i);
     const priceMatch = html.match(/Current Price[\s\S]{0,300}?<span class="number">([\d,.]+)<\/span>/i);
     const price = priceMatch ? parseFloat(priceMatch[1].replace(/,/g, '')) : NaN;
     const mcapMatch = html.match(/Market Cap[\s\S]{0,300}?<span class="number">([\d,.]+)<\/span>/i);
@@ -42,7 +43,8 @@ export async function fetchScreenerCompany(code: string): Promise<ScreenerCompan
       code: code.toUpperCase(),
       companyName: title ? decode(title[1]) : null,
       nseSymbol: nse ? decodeURIComponent(nse[1]).toUpperCase() : null,
-      bseCode: bse ? bse[1] : null,
+      bseCode: bse ? bse[2] : null,
+      bseSymbol: bse ? decodeURIComponent(bse[1]).toUpperCase() : null,
       price: Number.isFinite(price) && price > 0 ? price : null,
       marketCapCr: Number.isFinite(marketCap) && marketCap > 0 ? marketCap : null,
     };

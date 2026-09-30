@@ -16,6 +16,7 @@ const CACHE_KEY = 'live-prices:v2';
 const FRESH_OPEN_MS = 9 * 60 * 1000;     // just under the app's 10-min poll
 const FRESH_CLOSED_MS = 30 * 60 * 1000;  // prices don't move after the close
 const KEEP_SECONDS = 7 * 24 * 60 * 60;   // keep the last snapshot to serve while refreshing
+const BSE_SYMBOLS_KEY = 'live-prices:bse-symbols'; // BSE scrip code → scrip id, resolved via Screener once
 
 interface LivePricesPayload {
   asOf: string;
@@ -32,7 +33,10 @@ function isFresh(p: LivePricesPayload): boolean {
 }
 
 async function fetchPrices(holdings: any[]): Promise<LivePricesPayload> {
-  const quotes = await mapWithLimit(holdings, 8, h => fetchHoldingQuote(h.nseCode || null, h.bseCode || null));
+  const bseSymbols = (await getCache<Record<string, string>>(BSE_SYMBOLS_KEY)) || {};
+  const known = Object.keys(bseSymbols).length;
+  const quotes = await mapWithLimit(holdings, 8, h => fetchHoldingQuote(h.nseCode || null, h.bseCode || null, bseSymbols));
+  if (Object.keys(bseSymbols).length > known) await setCache(BSE_SYMBOLS_KEY, bseSymbols);
   const prices: Record<string, LiveQuote> = {};
   holdings.forEach((h, i) => {
     const q = quotes[i];

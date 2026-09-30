@@ -1,7 +1,10 @@
 // Intraday quotes for portfolio holdings.
 // - NSE (mainboard and SME): Yahoo's chart endpoint, "<SYMBOL>.NS", or
-//   "<SYMBOL>-SM.NS" for NSE Emerge listings.
-// - BSE-only scrips: BSE's own quote API (Yahoo doesn't take numeric codes).
+//   "<SYMBOL>-SM.NS" for NSE Emerge listings. Real-time.
+// - BSE-only scrips: Yahoo "<BSE scrip id>.BO" (~15 min delayed). Yahoo
+//   doesn't take numeric scrip codes, so the id is read once from the
+//   company's Screener page and remembered. BSE's own quote API is the
+//   fallback — it 403s requests from Vercel, but works elsewhere.
 // - Anything still missing: the Screener page price (no day change).
 
 import https from 'https';
@@ -115,12 +118,28 @@ async function fetchBseQuote(scripCode: string): Promise<LiveQuote | null> {
   return null;
 }
 
+// Screener rate-limits bursts (429 after ~15 quick requests), so its lookups
+// go one at a time with a short gap. They're rare: once per new BSE-only stock.
+let screenerQueue: Promise<unknown> = Promise.resolve();
+function fetchScreenerQueued(code: string): ReturnType<typeof fetchScreenerCompany> {
+  const run = screenerQueue.then(() => fetchScreenerCompany(code));
+  screenerQueue = run.catch(() => null).then(() => new Promise(r => setTimeout(r, 300)));
+  return run;
+}
+
 // Which Yahoo suffix worked for each NSE symbol, so SME stocks skip the
 // failed ".NS" lookup on later refreshes (lives as long as the server instance).
 const nseSuffixMemo = new Map<string, string>();
 
-/** Quote for one holding: NSE via Yahoo, BSE via BSE's API, Screener as last resort. */
-export async function fetchHoldingQuote(nseCode: string | null, bseCode: string | null): Promise<LiveQuote | null> {
+/**
+ * Quote for one holding. `bseSymbols` maps BSE scrip code → scrip id and is
+ * filled in here as ids are resolved, so the caller can persist it.
+ */
+export async function fetchHoldingQuote(
+  nseCode: string | null,
+  bseCode: string | null,
+  bseSymbols: Record<string, string> = {},
+): Promise<LiveQuote | null> {
   if (nseCode) {
     const sym = nseCode.toUpperCase();
     const known = nseSuffixMemo.get(sym);
@@ -133,13 +152,23 @@ export async function fetchHoldingQuote(nseCode: string | null, bseCode: string 
     }
     nseSuffixMemo.delete(sym);
   }
+  let scr: Awaited<ReturnType<typeof fetchScreenerCompany>> | undefined;
   if (bseCode) {
-    const q = await fetchBseQuote(String(bseCode));
+    const code = String(bseCode);
+    if (!bseSymbols[code] && !nseCode) {
+      scr = await fetchScreenerQueued(code);
+      if (scr?.bseSymbol) bseSymbols[code] = scr.bseSymbol;
+    }
+    if (bseSymbols[code]) {
+      const q = await fetchYahooQuote(`${bseSymbols[code]}.BO`);
+      if (q) return q;
+    }
+    const q = await fetchBseQuote(code);
     if (q) return q;
   }
   const code = nseCode || bseCode;
   if (!code) return null;
-  const scr = await fetchScreenerCompany(code);
+  if (scr === undefined) scr = await fetchScreenerQueued(code);
   if (!scr?.price) console.warn(`[live-prices] no quote for ${code}: Screener fallback also failed`);
   return scr?.price ? { price: scr.price, prevClose: null, changePct: null, time: Date.now() } : null;
 }
