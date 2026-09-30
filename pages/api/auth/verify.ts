@@ -1,6 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { authenticate } from '../../../lib/authMiddleware';
-import { getUserByEmail } from '../../../lib/queries';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -10,20 +9,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Falls back to the refresh token (and renews) when the access token lapsed.
+    // The session lookup already joins the user row, so no second query.
     const auth = await authenticate(req, res);
 
     if (!auth) {
       return res.status(200).json({ authenticated: false });
     }
 
-    const user = await getUserByEmail(auth.email);
-    if (!user) {
-      return res.status(200).json({ authenticated: false });
-    }
-
     return res.status(200).json({
       authenticated: true,
-      user: { email: user.email, name: user.name, role: user.role || 'analyst' },
+      user: { email: auth.email, name: auth.name, role: auth.role },
     });
   } catch (error) {
     console.error('Verify error:', error);

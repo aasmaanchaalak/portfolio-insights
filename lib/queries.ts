@@ -245,6 +245,19 @@ export async function getSession(sessionId: string): Promise<Session | null> {
   };
 }
 
+// Session plus the owning user's name and role in one round trip, so auth
+// doesn't need a second query (and handlers don't need a getUserByEmail).
+export async function getSessionWithUser(sessionId: string): Promise<{ userEmail: string; name: string | null; role: UserRole } | null> {
+  const row = await queryOne<any>(`
+    SELECT s.user_email, u.name, u.role
+    FROM sessions s
+    JOIN users u ON u.email = s.user_email
+    WHERE s.session_id = $1 AND s.expires_at > NOW()
+  `, [sessionId]);
+  if (!row) return null;
+  return { userEmail: row.user_email, name: row.name ?? null, role: row.role || 'analyst' };
+}
+
 export async function extendSession(sessionId: string, expiresAt: Date): Promise<void> {
   await query(`UPDATE sessions SET expires_at = $2 WHERE session_id = $1`, [sessionId, expiresAt.toISOString()]);
 }

@@ -98,6 +98,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Logout error:', error);
     }
+    // Drop the portfolio data cached on this device (see readAppCache in page.tsx).
+    try {
+      Object.keys(localStorage).filter(k => k.startsWith('pi-cache:')).forEach(k => localStorage.removeItem(k));
+    } catch {}
     setUser(null);
   };
 

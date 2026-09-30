@@ -6,22 +6,24 @@
  */
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { Stock, GridKeyData } from '../types';
 import { computeCurrentFY, fyLabel, forwardWindow, computeForwardIRR } from '../lib/fiscalYear';
-import { isIndianMarketOpen, LiveQuote } from '../lib/livePrices';
+import { isIndianMarketOpen, LiveQuote } from '../lib/marketHours';
 import { computePortfolioMetricsSnapshot, PORTFOLIO_METRIC_DEFS, formatMetricValue, PortfolioMetricsSnapshot } from '../lib/portfolioMetrics';
-import Dashboard from './components/Dashboard';
-import EntryDataPage from './components/EntryDataPage';
-import AdminPanel from './components/AdminPanel';
-import { CorporateEventsChart } from './components/CorporateEventsChart';
+// Pages and panels you don't land on load on demand, keeping the first bundle small.
+const Dashboard = dynamic(() => import('./components/Dashboard'), { ssr: false });
+const EntryDataPage = dynamic(() => import('./components/EntryDataPage'), { ssr: false });
+const AdminPanel = dynamic(() => import('./components/AdminPanel'), { ssr: false });
+const CorporateEventsChart = dynamic(() => import('./components/CorporateEventsChart').then(m => m.CorporateEventsChart), { ssr: false });
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import { StockDetailDrawer } from './components/drawer/StockDetailDrawer';
 import { PositioningChips } from './components/positioning/PositioningChip';
 import { PositioningFilters, PositioningFilterState, INITIAL_POSITIONING_FILTERS } from './components/positioning/PositioningFilters';
 import { StockPositioning, Conviction, StrategyType, ActionIntent } from '../types/positioning';
-import { PETracker } from './components/pe/PETracker';
-import { FactsheetPage } from './components/factsheet/FactsheetPage';
+const PETracker = dynamic(() => import('./components/pe/PETracker').then(m => m.PETracker), { ssr: false });
+const FactsheetPage = dynamic(() => import('./components/factsheet/FactsheetPage').then(m => m.FactsheetPage), { ssr: false });
 import { PipelinePage } from './components/pipeline/PipelinePage';
 
 type SortKey = keyof Stock;
@@ -4372,6 +4374,35 @@ function splitCompanySuffix(name: string): [string, string] {
     return m ? [m[1], m[2]] : [name, ''];
 }
 
+// Last-loaded app data, kept on the device so the app opens with numbers on
+// screen and refreshes in the background. Keyed per user; cleared on logout.
+const CACHE_PREFIX = 'pi-cache:v1:';
+type LivePricesState = { asOf: string; marketOpen: boolean; prices: Record<string, LiveQuote> };
+interface CachedAppData {
+    stocks: Stock[];
+    gridKeyData: GridKeyData[];
+    privateInvestments: PrivateInvestments;
+    portfolioHistory: { date: string; value: number }[];
+    teamMembers: string[];
+    livePrices?: LivePricesState | null;
+}
+function readAppCache(email: string): CachedAppData | null {
+    try {
+        const raw = localStorage.getItem(CACHE_PREFIX + email);
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        return null;
+    }
+}
+function writeAppCache(email: string, patch: Partial<CachedAppData>) {
+    try {
+        const prev = readAppCache(email) || {};
+        localStorage.setItem(CACHE_PREFIX + email, JSON.stringify({ ...prev, ...patch }));
+    } catch {
+        // storage full or blocked — the cache is only a speed-up
+    }
+}
+
 const App: React.FC = () => {
     const { user, loading: authLoading, logout, isAdmin, isAnalyst, isManager } = useAuth();
     const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'entrydata' | 'pe' | 'pipeline' | 'admin'>(
@@ -4388,22 +4419,35 @@ const App: React.FC = () => {
     const [smallcapDaily, setSmallcapDaily] = useState<number | null>(null);
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-    const [livePrices, setLivePrices] = useState<{ asOf: string; marketOpen: boolean; prices: Record<string, LiveQuote> } | null>(null);
+    const [livePrices, setLivePrices] = useState<LivePricesState | null>(null);
 
-    // Live quotes for holdings: fetched on load, then every minute while the
-    // market is open and the tab is visible.
+    // Live quotes for holdings: fetched on load, then every 10 minutes while
+    // the market is open and the tab is visible. The server answers from its
+    // cache at once; when that snapshot is old it says `stale` and we ask it to
+    // refresh (the slow Yahoo/BSE fetch) without holding anything up.
     useEffect(() => {
         if (!user) return;
         let cancelled = false;
+        const apply = (d: any) => {
+            if (cancelled || !d?.prices) return;
+            const next = { asOf: d.asOf, marketOpen: d.marketOpen, prices: d.prices };
+            setLivePrices(next);
+            writeAppCache(user.email, { livePrices: next });
+        };
         const load = () => {
             if (document.hidden) return;
             fetch('/api/live-prices')
                 .then(r => (r.ok ? r.json() : null))
-                .then(d => { if (!cancelled && d?.prices) setLivePrices(d); })
+                .then(d => {
+                    apply(d);
+                    if (d?.stale) {
+                        return fetch('/api/live-prices?refresh=1').then(r => (r.ok ? r.json() : null)).then(apply);
+                    }
+                })
                 .catch(() => {});
         };
         load();
-        const timer = setInterval(() => { if (isIndianMarketOpen()) load(); }, 60_000);
+        const timer = setInterval(() => { if (isIndianMarketOpen()) load(); }, 10 * 60_000);
         const onVisible = () => { if (!document.hidden && isIndianMarketOpen()) load(); };
         document.addEventListener('visibilitychange', onVisible);
         return () => {
@@ -4465,58 +4509,62 @@ const App: React.FC = () => {
     }, [liveStocks, gridKeyData]);
 
     useEffect(() => {
-        if (user) {
-            fetch('/api/team-members')
-                .then(r => r.ok ? r.json() : [])
-                .then((data: { id: string; name: string }[]) => setTeamMembers(data.map(m => m.name)))
-                .catch(() => {});
+        if (!user) {
+            setLoading(false);
+            return;
         }
-    }, [user]);
+        let cancelled = false;
 
-    useEffect(() => {
-        const loadData = async () => {
-            if (!user) {
-                setLoading(false);
-                return;
-            }
-
+        // Show whatever this device loaded last time straight away…
+        const cached = readAppCache(user.email);
+        if (cached?.stocks) {
+            setStocks(cached.stocks);
+            setGridKeyData(cached.gridKeyData || []);
+            setPrivateInvestments(cached.privateInvestments || { totalInvested: 0, count: 0 });
+            setPortfolioHistory(cached.portfolioHistory || []);
+            setTeamMembers(cached.teamMembers || []);
+            if (cached.livePrices) setLivePrices(cached.livePrices);
+            setLoading(false);
+        } else {
             setLoading(true);
-            try {
-                // These three requests are independent, so fire them together
-                // instead of awaiting each in series (cuts initial load latency).
-                const [portfolioResponse, gridKeyResponse, historyResponse] = await Promise.all([
-                    fetch('/api/portfolio'),
-                    fetch('/api/gridkey'),
-                    fetch('/api/portfolio-history'),
-                ]);
+        }
 
-                if (!portfolioResponse.ok) {
-                    throw new Error('Failed to fetch portfolio data');
-                }
-                setStocks(await portfolioResponse.json());
-
-                // GridKey data and private investments
-                if (gridKeyResponse.ok) {
-                    const { gridKeyData, privateInvestments: privInv } = await gridKeyResponse.json();
-                    setGridKeyData(gridKeyData || []);
-                    setPrivateInvestments(privInv || { totalInvested: 0, count: 0 });
-                }
-
-                // Portfolio history
-                if (historyResponse.ok) {
-                    setPortfolioHistory(await historyResponse.json());
-                }
-            } catch (error) {
+        // …then replace it with fresh data from a single request.
+        fetch('/api/bootstrap')
+            .then(r => {
+                if (!r.ok) throw new Error('Failed to load app data');
+                return r.json();
+            })
+            .then(d => {
+                if (cancelled) return;
+                const fresh: CachedAppData = {
+                    stocks: d.stocks || [],
+                    gridKeyData: d.gridKeyData || [],
+                    privateInvestments: d.privateInvestments || { totalInvested: 0, count: 0 },
+                    portfolioHistory: d.portfolioHistory || [],
+                    teamMembers: (d.teamMembers || []).map((m: { name: string }) => m.name),
+                };
+                setStocks(fresh.stocks);
+                setGridKeyData(fresh.gridKeyData);
+                setPrivateInvestments(fresh.privateInvestments);
+                setPortfolioHistory(fresh.portfolioHistory);
+                setTeamMembers(fresh.teamMembers);
+            })
+            .catch(error => {
                 console.error('Error loading data:', error);
-                // Fallback to empty array
-                setStocks([]);
-            } finally {
-                setLoading(false);
-            }
-        };
+            })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
 
-        loadData();
+        return () => { cancelled = true; };
     }, [user]);
+
+    // Keep the device cache in step with later changes too (uploads, remarks).
+    useEffect(() => {
+        if (!user || loading) return;
+        writeAppCache(user.email, { stocks, gridKeyData, privateInvestments, portfolioHistory, teamMembers });
+    }, [user, loading, stocks, gridKeyData, privateInvestments, portfolioHistory, teamMembers]);
 
     // Helper function to save portfolio value to history
     const savePortfolioValueToHistory = async () => {
@@ -4667,14 +4715,6 @@ const App: React.FC = () => {
         return <LoginPage />;
     }
 
-    if (loading) {
-        return (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-                <div>Loading portfolio data...</div>
-            </div>
-        );
-    }
-
     // Horizontal nav (DESIGN.md Part II — a left sidebar is banned). Admin is
     // appended neutrally, never tinted (an amber Admin tab reads as an error).
     const navItems = [
@@ -4691,6 +4731,10 @@ const App: React.FC = () => {
         ...(isAdmin ? [{ id: 'admin', label: 'Admin' }] : []),
     ];
     const { todayPercent, hasHoldings } = portfolioTotals;
+    // Only pages built on portfolio data wait for it, and only on a first
+    // visit with nothing cached — Pipeline, PE, uploads and Admin render at once.
+    const waitingForData = loading && stocks.length === 0
+        && (page === 'dashboard' || page === 'insights' || page === 'analysis' || page === 'entrydata');
 
     return (
         <div className="app-root">
@@ -4792,6 +4836,9 @@ const App: React.FC = () => {
             )}
 
             <main className={`app-content ${page === 'insights' ? 'is-table-page' : ''}`}>
+                {waitingForData ? (
+                    <div className="app-loading">Loading portfolio data…</div>
+                ) : <>
                 {page === 'dashboard' && <Dashboard gridKeyData={gridKeyData} stocks={liveStocks} privateInvestments={privateInvestments} isAnalyst={isAnalyst} portfolioHistory={portfolioHistory} />}
                 {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={liveStocks} onStocksUpdate={setStocks} isAnalyst={isAnalyst} teamMembers={teamMembers} searchOpen={mobileSearchOpen} onSearchOpenChange={setMobileSearchOpen} />}
                 {page === 'analysis' && <AnalysisPage gridKeyData={gridKeyData} stocks={liveStocks} isAnalyst={isAnalyst} />}
@@ -4799,8 +4846,9 @@ const App: React.FC = () => {
                 {page === 'gridkey' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}
                 {page === 'entrydata' && <EntryDataPage gridKeyData={gridKeyData} stocks={liveStocks} />}
                 {page === 'pe' && <PETracker />}
-                {page === 'pipeline' && <PipelinePage />}
+                {page === 'pipeline' && <PipelinePage teamMembers={teamMembers} />}
                 {page === 'admin' && <AdminPanel />}
+                </>}
             </main>
         </div>
     );

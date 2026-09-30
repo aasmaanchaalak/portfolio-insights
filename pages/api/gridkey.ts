@@ -1,46 +1,23 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuth } from '../../lib/authMiddleware';
+import { withAuth, authUser } from '../../lib/authMiddleware';
 import {
   getGridKeyData,
   saveGridKeyData,
-  getPrivateInvestments,
   savePrivateInvestments,
   getPortfolioData,
   getAllEntryData,
   setEntryData,
-  getUserByEmail,
-  getAnalystOverrides,
-  isVisibleToAnalyst,
   getFYStartPrices,
   recordRealizedExit,
 } from '../../lib/queries';
 import { upsertExitedWatchIdea } from '../../lib/pipeline/queries';
+import { getGridKeyResponse } from '../../lib/portfolioResponse';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     if (req.method === 'GET') {
       try {
-        const [gridKeyData, privateInvestments] = await Promise.all([
-          getGridKeyData(),
-          getPrivateInvestments()
-        ]);
-
-        const userEmail = (req as any).user?.email;
-        const user = userEmail ? await getUserByEmail(userEmail) : null;
-        let visibleData = gridKeyData || [];
-        if (user?.role === 'analyst') {
-          const overrides = await getAnalystOverrides();
-          visibleData = visibleData.filter((item: any) => {
-            const code = item.nseCode || item.bseCode;
-            const invested = (Number(item.quantity) || 0) * (Number(item.averageBuyPrice) || 0);
-            return isVisibleToAnalyst(invested, code, overrides);
-          });
-        }
-
-        res.status(200).json({
-          gridKeyData: visibleData,
-          privateInvestments
-        });
+        res.status(200).json(await getGridKeyResponse(authUser(req).role));
       } catch (error) {
         console.error('Error reading GridKey data:', error);
         res.status(500).json({ error: 'Failed to read GridKey data' });
@@ -127,9 +104,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           });
 
           if (exitedHoldings.length > 0) {
-            const userEmail = (req as any).user?.email;
-            const user = userEmail ? await getUserByEmail(userEmail) : null;
-            const addedBy = user?.name || 'System';
+            const addedBy = authUser(req).name || 'System';
 
             // Last-known price map (exit price proxy) from the current portfolio snapshot.
             const portfolioData = await getPortfolioData() || [];

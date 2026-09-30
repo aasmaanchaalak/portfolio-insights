@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuth } from '../../lib/authMiddleware';
-import { getRealizedExits, getUserByEmail } from '../../lib/queries';
+import { withAuth, authUser } from '../../lib/authMiddleware';
+import { getRealizedExits } from '../../lib/queries';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -10,9 +10,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     // Realized exits expose quantities and prices — hide from analysts.
-    const userEmail = (req as any).user?.email;
-    const user = userEmail ? await getUserByEmail(userEmail) : null;
-    if (user?.role === 'analyst') {
+    if (authUser(req).role === 'analyst') {
       return res.status(200).json({ exits: [] });
     }
 

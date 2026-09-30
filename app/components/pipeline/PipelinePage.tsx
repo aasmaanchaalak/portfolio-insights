@@ -1273,11 +1273,14 @@ function readStored(key: string): string | null {
   try { return typeof window !== 'undefined' ? localStorage.getItem(key) : null; } catch { return null; }
 }
 
-export function PipelinePage() {
+// teamMembers comes from the app shell's bootstrap load; fetched here only
+// when the page is rendered on its own.
+export function PipelinePage({ teamMembers: providedTeam }: { teamMembers?: string[] } = {}) {
   const { user, isAdmin } = useAuth();
   const [ideas, setIdeas] = useState<PipelineIdea[]>([]);
   const [loading, setLoading] = useState(true);
-  const [teamMembers, setTeamMembers] = useState<string[]>([]);
+  const [fetchedTeam, setTeamMembers] = useState<string[]>([]);
+  const teamMembers = providedTeam ?? fetchedTeam;
   const [search, setSearch] = useState('');
   const [ownerScope, setOwnerScope] = useState<'everyone' | 'mine'>(() => readStored('pipelineOwner') === 'mine' ? 'mine' : 'everyone');
   const [staleOnly, setStaleOnly] = useState(false);
@@ -1287,11 +1290,12 @@ export function PipelinePage() {
   const [refreshNote, setRefreshNote] = useState('');
 
   useEffect(() => {
+    if (providedTeam) return;
     fetch('/api/team-members')
       .then(r => r.ok ? r.json() : [])
       .then((data: { id: string; name: string }[]) => setTeamMembers(data.map(m => m.name)))
       .catch(() => {});
-  }, []);
+  }, [providedTeam]);
 
   const me = resolveAuthor(user?.name, teamMembers);
 

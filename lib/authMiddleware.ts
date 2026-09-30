@@ -8,13 +8,22 @@ import {
   ACCESS_COOKIE_OPTIONS,
   REFRESH_COOKIE_OPTIONS,
 } from './auth';
-import { getSession, extendSession } from './queries';
+import { getSessionWithUser, extendSession, UserRole } from './queries';
 
 export interface AuthenticatedRequest extends NextApiRequest {
   user: {
     email: string;
     sessionId: string;
+    name: string | null;
+    role: UserRole;
   };
+}
+
+export type AuthUser = AuthenticatedRequest['user'];
+
+/** The authenticated caller — only valid inside a withAuth handler. */
+export function authUser(req: NextApiRequest): AuthUser {
+  return (req as AuthenticatedRequest).user;
 }
 
 // Issue a fresh access token and slide the session + refresh token forward.
@@ -35,20 +44,20 @@ export async function renewSession(res: NextApiResponse, userId: string, session
 // valid; otherwise falls back to the refresh token and renews on the spot, so
 // reopening the app after the access token lapsed (e.g. an iOS home-screen app
 // that was suspended) doesn't bounce the user to the login screen.
-export async function authenticate(req: NextApiRequest, res: NextApiResponse): Promise<{ email: string; sessionId: string } | null> {
+export async function authenticate(req: NextApiRequest, res: NextApiResponse): Promise<AuthUser | null> {
   const access = req.cookies.accessToken ? await verifyToken(req.cookies.accessToken) : null;
   if (access) {
-    const session = await getSession(access.sessionId);
-    if (session) return { email: access.userId, sessionId: access.sessionId };
+    const session = await getSessionWithUser(access.sessionId);
+    if (session) return { email: access.userId, sessionId: access.sessionId, name: session.name, role: session.role };
   }
 
   const refresh = req.cookies.refreshToken ? await verifyToken(req.cookies.refreshToken) : null;
   if (!refresh || (refresh as any).type !== 'refresh') return null;
-  const session = await getSession(refresh.sessionId);
+  const session = await getSessionWithUser(refresh.sessionId);
   if (!session) return null;
 
   await renewSession(res, refresh.userId, refresh.sessionId);
-  return { email: refresh.userId, sessionId: refresh.sessionId };
+  return { email: refresh.userId, sessionId: refresh.sessionId, name: session.name, role: session.role };
 }
 
 export function withAuth(handler: NextApiHandler): NextApiHandler {

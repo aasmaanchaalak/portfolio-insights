@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuth } from '../../../lib/authMiddleware';
+import { withAuth, authUser } from '../../../lib/authMiddleware';
 import {
-  getUserByEmail,
   getRealizedExits,
   getAllEntryData,
   getAllRemarks,
@@ -30,9 +29,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    const userEmail = (req as any).user?.email;
-    const user = userEmail ? await getUserByEmail(userEmail) : null;
-    const isAnalyst = user?.role === 'analyst';
+    const isAnalyst = authUser(req).role === 'analyst';
 
     const [exits, entryData, remarks, assignments, buckets, positioning, themes, pledges] = await Promise.all([
       isAnalyst ? Promise.resolve([] as RealizedExit[]) : getRealizedExits(),

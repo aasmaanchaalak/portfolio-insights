@@ -172,6 +172,7 @@ body {
 .brandbar-stat-label { font-size: 11px; color: var(--ink-muted); }
 .live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--positive); margin-right: 5px; vertical-align: middle; animation: live-pulse 2s ease-in-out infinite; }
 .live-asof { font-variant-numeric: tabular-nums; }
+.app-loading { padding: 3rem 1rem; text-align: center; color: var(--ink-muted); }
 @keyframes live-pulse { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
 .brandbar-stat-num {

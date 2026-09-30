@@ -1,8 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuth } from '../../lib/authMiddleware';
+import { withAuth, authUser } from '../../lib/authMiddleware';
 import {
   getGridKeyData,
-  getUserByEmail,
   getAnalystOverrides,
   isVisibleToAnalyst,
   getCache,
@@ -10,9 +9,13 @@ import {
 } from '../../lib/queries';
 import { fetchHoldingQuote, isIndianMarketOpen, mapWithLimit, LiveQuote } from '../../lib/livePrices';
 
-const CACHE_KEY = 'live-prices:v1';
-const TTL_OPEN_SECONDS = 45;         // shared across users so polling tabs don't multiply Yahoo calls
-const TTL_CLOSED_SECONDS = 30 * 60;  // prices don't move after the close
+// Stale-while-revalidate: a plain GET always answers straight from the cache
+// (flagging `stale` when it's old), so the app never waits on Yahoo/BSE. The
+// app then calls ?refresh=1 in the background, which does the slow fetch.
+const CACHE_KEY = 'live-prices:v2';
+const FRESH_OPEN_MS = 9 * 60 * 1000;     // just under the app's 10-min poll
+const FRESH_CLOSED_MS = 30 * 60 * 1000;  // prices don't move after the close
+const KEEP_SECONDS = 7 * 24 * 60 * 60;   // keep the last snapshot to serve while refreshing
 
 interface LivePricesPayload {
   asOf: string;
@@ -20,10 +23,15 @@ interface LivePricesPayload {
   prices: Record<string, LiveQuote>; // keyed by lower-cased NSE code or BSE code
 }
 
-async function loadPrices(holdings: any[]): Promise<LivePricesPayload> {
-  const cached = await getCache<LivePricesPayload>(CACHE_KEY);
-  if (cached) return cached;
+function isFresh(p: LivePricesPayload): boolean {
+  const age = Date.now() - new Date(p.asOf).getTime();
+  // A snapshot taken during the session goes stale at the close, so the
+  // closing price replaces the last intraday one.
+  if (!isIndianMarketOpen()) return !p.marketOpen && age < FRESH_CLOSED_MS;
+  return age < FRESH_OPEN_MS;
+}
 
+async function fetchPrices(holdings: any[]): Promise<LivePricesPayload> {
   const quotes = await mapWithLimit(holdings, 8, h => fetchHoldingQuote(h.nseCode || null, h.bseCode || null));
   const prices: Record<string, LiveQuote> = {};
   holdings.forEach((h, i) => {
@@ -32,11 +40,16 @@ async function loadPrices(holdings: any[]): Promise<LivePricesPayload> {
     if (h.nseCode) prices[String(h.nseCode).toLowerCase()] = q;
     if (h.bseCode) prices[String(h.bseCode).toLowerCase()] = q;
   });
-
-  const marketOpen = isIndianMarketOpen();
-  const payload: LivePricesPayload = { asOf: new Date().toISOString(), marketOpen, prices };
-  await setCache(CACHE_KEY, payload, marketOpen ? TTL_OPEN_SECONDS : TTL_CLOSED_SECONDS);
+  const payload: LivePricesPayload = { asOf: new Date().toISOString(), marketOpen: isIndianMarketOpen(), prices };
+  await setCache(CACHE_KEY, payload, KEEP_SECONDS);
   return payload;
+}
+
+// One fetch at a time per server instance, however many refreshes arrive.
+let inflight: Promise<LivePricesPayload> | null = null;
+function refreshPrices(holdings: any[]): Promise<LivePricesPayload> {
+  if (!inflight) inflight = fetchPrices(holdings).finally(() => { inflight = null; });
+  return inflight;
 }
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -46,14 +59,22 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    const holdings = ((await getGridKeyData()) || []).filter((h: any) => h.nseCode || h.bseCode);
-    const payload = await loadPrices(holdings);
+    const isAnalyst = authUser(req).role === 'analyst';
+    const [gridKey, cached, overrides] = await Promise.all([
+      getGridKeyData(),
+      getCache<LivePricesPayload>(CACHE_KEY),
+      isAnalyst ? getAnalystOverrides() : Promise.resolve(null),
+    ]);
+    const holdings = (gridKey || []).filter((h: any) => h.nseCode || h.bseCode);
+
+    let payload = cached;
+    if (!payload || (req.query.refresh === '1' && !isFresh(payload))) {
+      payload = await refreshPrices(holdings);
+    }
+    const stale = !isFresh(payload);
 
     // Analysts only get quotes for the holdings they're allowed to see.
-    const userEmail = (req as any).user?.email;
-    const user = userEmail ? await getUserByEmail(userEmail) : null;
-    if (user?.role === 'analyst') {
-      const overrides = await getAnalystOverrides();
+    if (overrides) {
       const allowed = new Set<string>();
       for (const h of holdings) {
         const invested = (Number(h.quantity) || 0) * (Number(h.averageBuyPrice) || 0);
@@ -63,10 +84,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       }
       const prices: Record<string, LiveQuote> = {};
       for (const [code, q] of Object.entries(payload.prices)) if (allowed.has(code)) prices[code] = q;
-      return res.status(200).json({ ...payload, prices });
+      return res.status(200).json({ ...payload, prices, stale });
     }
 
-    return res.status(200).json(payload);
+    return res.status(200).json({ ...payload, stale });
   } catch (error) {
     console.error('Live prices error:', error);
     return res.status(500).json({ error: 'Failed to fetch live prices' });
