@@ -77,7 +77,9 @@ function getJsonLenient(url: string, headers: Record<string, string>): Promise<a
       stream.setEncoding('utf8');
       stream.on('data', chunk => { body += chunk; });
       stream.on('end', () => {
-        try { resolve(JSON.parse(body)); } catch (e) { reject(e); }
+        try { resolve(JSON.parse(body)); } catch {
+          reject(new Error(`bad JSON (${res.headers['content-type'] || 'no type'}): ${body.slice(0, 120).replace(/\s+/g, ' ')}`));
+        }
       });
       stream.on('error', reject);
     });
@@ -93,7 +95,10 @@ async function fetchBseQuote(scripCode: string): Promise<LiveQuote | null> {
     try {
       const rate = (await getJsonLenient(url, BSE_HEADERS))?.CurrRate;
       const price = parseFloat(rate?.LTP);
-      if (!Number.isFinite(price) || price <= 0) return null;
+      if (!Number.isFinite(price) || price <= 0) {
+        console.warn(`[live-prices] BSE ${scripCode}: no LTP in response`, JSON.stringify(rate ?? null).slice(0, 200));
+        return null;
+      }
       const chg = parseFloat(rate?.Chg);
       const pct = parseFloat(rate?.PcChg);
       return {
@@ -102,8 +107,9 @@ async function fetchBseQuote(scripCode: string): Promise<LiveQuote | null> {
         changePct: Number.isFinite(pct) ? pct : null,
         time: Date.now(),
       };
-    } catch {
-      // retry
+    } catch (e: any) {
+      // Logged to diagnose BSE failures seen only on Vercel.
+      console.warn(`[live-prices] BSE ${scripCode} attempt ${attempt + 1} failed: ${e?.code || ''} ${e?.message || e}`);
     }
   }
   return null;
@@ -134,6 +140,7 @@ export async function fetchHoldingQuote(nseCode: string | null, bseCode: string 
   const code = nseCode || bseCode;
   if (!code) return null;
   const scr = await fetchScreenerCompany(code);
+  if (!scr?.price) console.warn(`[live-prices] no quote for ${code}: Screener fallback also failed`);
   return scr?.price ? { price: scr.price, prevClose: null, changePct: null, time: Date.now() } : null;
 }
 
