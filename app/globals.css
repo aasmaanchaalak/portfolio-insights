@@ -170,6 +170,10 @@ body {
 /* right-side stats + user block */
 .brandbar-stat { display: flex; flex-direction: column; white-space: nowrap; text-align: right; }
 .brandbar-stat-label { font-size: 11px; color: var(--ink-muted); }
+.live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--positive); margin-right: 5px; vertical-align: middle; animation: live-pulse 2s ease-in-out infinite; }
+.live-asof { font-variant-numeric: tabular-nums; }
+@keyframes live-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
 .brandbar-stat-num {
   font-size: 18px;
   font-weight: 600;

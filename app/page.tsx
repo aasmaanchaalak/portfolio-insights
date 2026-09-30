@@ -8,6 +8,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Stock, GridKeyData } from '../types';
 import { computeCurrentFY, fyLabel, forwardWindow, computeForwardIRR } from '../lib/fiscalYear';
+import { isIndianMarketOpen, LiveQuote } from '../lib/livePrices';
 import { computePortfolioMetricsSnapshot, PORTFOLIO_METRIC_DEFS, formatMetricValue, PortfolioMetricsSnapshot } from '../lib/portfolioMetrics';
 import Dashboard from './components/Dashboard';
 import EntryDataPage from './components/EntryDataPage';
@@ -4387,6 +4388,43 @@ const App: React.FC = () => {
     const [smallcapDaily, setSmallcapDaily] = useState<number | null>(null);
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+    const [livePrices, setLivePrices] = useState<{ asOf: string; marketOpen: boolean; prices: Record<string, LiveQuote> } | null>(null);
+
+    // Live quotes for holdings: fetched on load, then every minute while the
+    // market is open and the tab is visible.
+    useEffect(() => {
+        if (!user) return;
+        let cancelled = false;
+        const load = () => {
+            if (document.hidden) return;
+            fetch('/api/live-prices')
+                .then(r => (r.ok ? r.json() : null))
+                .then(d => { if (!cancelled && d?.prices) setLivePrices(d); })
+                .catch(() => {});
+        };
+        load();
+        const timer = setInterval(() => { if (isIndianMarketOpen()) load(); }, 60_000);
+        const onVisible = () => { if (!document.hidden && isIndianMarketOpen()) load(); };
+        document.addEventListener('visibilitychange', onVisible);
+        return () => {
+            cancelled = true;
+            clearInterval(timer);
+            document.removeEventListener('visibilitychange', onVisible);
+        };
+    }, [user]);
+
+    // Screener data with the live price and today's change laid over it, so
+    // every value, weightage and P&L figure downstream reflects live prices.
+    const liveStocks = useMemo(() => {
+        const prices = livePrices?.prices;
+        if (!prices) return stocks;
+        return stocks.map(s => {
+            const q = (s.nseCode ? prices[s.nseCode.toLowerCase()] : undefined)
+                ?? (s.bseCode ? prices[s.bseCode.toLowerCase()] : undefined);
+            if (!q) return s;
+            return { ...s, currentPrice: q.price, return1D: q.changePct ?? s.return1D };
+        });
+    }, [stocks, livePrices]);
 
     // Nifty Smallcap 100 daily change — the brand-bar benchmark next to today's gain.
     useEffect(() => {
@@ -4403,7 +4441,7 @@ const App: React.FC = () => {
     // (value × return1D / (100 + return1D)), mirroring the Dashboard's pnlMetrics.
     const portfolioTotals = useMemo(() => {
         const byCode = new Map<string, { price: number; r1d: number | null }>();
-        for (const s of stocks) {
+        for (const s of liveStocks) {
             if (s.currentPrice != null) {
                 const entry = { price: s.currentPrice, r1d: s.return1D ?? null };
                 if (s.nseCode) byCode.set(s.nseCode.toLowerCase(), entry);
@@ -4424,7 +4462,7 @@ const App: React.FC = () => {
         const prevValue = value - todayGain;
         const todayPercent = prevValue > 0 ? (todayGain / prevValue) * 100 : 0;
         return { todayGain, todayPercent, hasHoldings };
-    }, [stocks, gridKeyData]);
+    }, [liveStocks, gridKeyData]);
 
     useEffect(() => {
         if (user) {
@@ -4699,7 +4737,11 @@ const App: React.FC = () => {
                 <div className="topnav-right">
                     {hasHoldings && (
                         <div className="brandbar-stat">
-                            <span className="brandbar-stat-label">Today's gain</span>
+                            <span className="brandbar-stat-label">
+                                {livePrices?.marketOpen && <span className="live-dot" aria-hidden="true" />}
+                                Today's gain
+                                {livePrices && <span className="live-asof"> · {new Date(livePrices.asOf).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</span>}
+                            </span>
                             <span className="brandbar-stat-num serif n" style={{ color: todayPercent >= 0 ? 'var(--positive)' : 'var(--negative)' }}>
                                 {fmtSignedPct(todayPercent)}
                             </span>
@@ -4750,12 +4792,12 @@ const App: React.FC = () => {
             )}
 
             <main className={`app-content ${page === 'insights' ? 'is-table-page' : ''}`}>
-                {page === 'dashboard' && <Dashboard gridKeyData={gridKeyData} stocks={stocks} privateInvestments={privateInvestments} isAnalyst={isAnalyst} portfolioHistory={portfolioHistory} />}
-                {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={stocks} onStocksUpdate={setStocks} isAnalyst={isAnalyst} teamMembers={teamMembers} searchOpen={mobileSearchOpen} onSearchOpenChange={setMobileSearchOpen} />}
-                {page === 'analysis' && <AnalysisPage gridKeyData={gridKeyData} stocks={stocks} isAnalyst={isAnalyst} />}
+                {page === 'dashboard' && <Dashboard gridKeyData={gridKeyData} stocks={liveStocks} privateInvestments={privateInvestments} isAnalyst={isAnalyst} portfolioHistory={portfolioHistory} />}
+                {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={liveStocks} onStocksUpdate={setStocks} isAnalyst={isAnalyst} teamMembers={teamMembers} searchOpen={mobileSearchOpen} onSearchOpenChange={setMobileSearchOpen} />}
+                {page === 'analysis' && <AnalysisPage gridKeyData={gridKeyData} stocks={liveStocks} isAnalyst={isAnalyst} />}
                 {page === 'upload' && <UploadPage onDataUploaded={handleDataUploaded} />}
                 {page === 'gridkey' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}
-                {page === 'entrydata' && <EntryDataPage gridKeyData={gridKeyData} stocks={stocks} />}
+                {page === 'entrydata' && <EntryDataPage gridKeyData={gridKeyData} stocks={liveStocks} />}
                 {page === 'pe' && <PETracker />}
                 {page === 'pipeline' && <PipelinePage />}
                 {page === 'admin' && <AdminPanel />}

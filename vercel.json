@@ -3,6 +3,9 @@
   "functions": {
     "pages/api/bulk-deals.ts": {
       "maxDuration": 30
+    },
+    "pages/api/live-prices.ts": {
+      "maxDuration": 30
     }
   }
 }
