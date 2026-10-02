@@ -12,6 +12,7 @@ import {
   ALL_ACTIONS,
 } from '../../types/positioning';
 import './positioning/positioning.css';
+import { FOOverviewSection } from './fo/FOOverviewSection';
 
 interface PrivateInvestments {
     totalInvested: number;
@@ -24,6 +25,7 @@ interface DashboardProps {
     privateInvestments: PrivateInvestments;
     isAnalyst?: boolean;
     portfolioHistory: { date: string; value: number }[];
+    onOpenFo?: () => void;
 }
 
 interface TechnicalState {
@@ -93,7 +95,7 @@ interface BenchmarkData {
     lastUpdated: string;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInvestments, isAnalyst = false, portfolioHistory }) => {
+const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInvestments, isAnalyst = false, portfolioHistory, onOpenFo }) => {
     const [previousStates, setPreviousStates] = useState<TechnicalState[]>([]);
     const [transitionAlerts, setTransitionAlerts] = useState<Alert[]>([]);
     const [storedAlerts, setStoredAlerts] = useState<Alert[]>([]);
@@ -1380,6 +1382,8 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                     )}
                 </div>
             </section>
+
+            {!isAnalyst && onOpenFo && <FOOverviewSection onOpen={onOpenFo} />}
 
             {/* Technical Alerts + Return Drivers — side by side */}
             <div className="dashboard-two-col">

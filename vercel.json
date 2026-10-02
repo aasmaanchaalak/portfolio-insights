@@ -1,5 +1,7 @@
 {
-  "regions": ["bom1"],
+  "regions": [
+    "bom1"
+  ],
   "functions": {
     "pages/api/bulk-deals.ts": {
       "maxDuration": 30
@@ -9,6 +11,12 @@
     },
     "pages/api/cron/alerts.ts": {
       "maxDuration": 60
+    },
+    "pages/api/fo/index.ts": {
+      "maxDuration": 30
+    },
+    "pages/api/fo/data.ts": {
+      "maxDuration": 30
     }
   }
 }

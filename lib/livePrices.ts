@@ -27,7 +27,7 @@ const YAHOO_HEADERS = {
 // symbol) with years-old prices, so treat anything this old as a miss.
 const MAX_QUOTE_AGE_MS = 10 * 24 * 60 * 60 * 1000;
 
-async function fetchYahooQuote(symbol: string): Promise<LiveQuote | null> {
+export async function fetchYahooQuote(symbol: string): Promise<LiveQuote | null> {
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=5m&range=1d`;
     const res = await fetch(url, { headers: YAHOO_HEADERS, signal: AbortSignal.timeout(8000) });

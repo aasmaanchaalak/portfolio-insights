@@ -27,6 +27,9 @@ const PETracker = dynamic(() => import('./components/pe/PETracker').then(m => m.
 const FactsheetPage = dynamic(() => import('./components/factsheet/FactsheetPage').then(m => m.FactsheetPage), { ssr: false });
 import { PipelinePage } from './components/pipeline/PipelinePage';
 import { NotificationToggle } from './components/NotificationToggle';
+import { FOPage } from './components/fo/FOPage';
+import { FODataPage } from './components/fo/FODataPage';
+import { FoHolding, FO_PORTFOLIO } from '../lib/fo/types';
 
 type SortKey = keyof Stock;
 type SortDirection = 'ascending' | 'descending';
@@ -618,7 +621,7 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
     );
 };
 
-const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateInvestments: { totalInvested: number; count: number }) => void }> = ({ onGridKeyUploaded }) => {
+const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateInvestments: { totalInvested: number; count: number }, foHoldings: FoHolding[] | null) => void }> = ({ onGridKeyUploaded }) => {
     const [file, setFile] = useState<File | null>(null);
     const [status, setStatus] = useState('');
     const [error, setError] = useState('');
@@ -700,7 +703,9 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateIn
                     return;
                 }
 
-                const data: GridKeyData[] = dataLines.map(line => {
+                const portfolioCol = header.indexOf('Portfolio');
+                const rowPortfolios: string[] = [];
+                const perRow: GridKeyData[] = dataLines.map(line => {
                     const values = parseCSVLine(line);
                     const scripName = values[header.indexOf('Asset name')] || '';
                     const bseCode = values[header.indexOf('Bse')] || null;
@@ -719,6 +724,7 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateIn
                     )] || '0';
                     const cleanAvgBuyPrice = avgBuyPriceValue.replace(/,/g, '');
                     const averageBuyPrice = cleanAvgBuyPrice ? parseFloat(cleanAvgBuyPrice) : null;
+                    rowPortfolios.push(portfolioCol >= 0 ? (values[portfolioCol] || '').trim() : '');
 
                     return {
                         scripName,
@@ -728,6 +734,36 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateIn
                         averageBuyPrice
                     };
                 });
+
+                // Combined-holdings exports have one row per portfolio: sum them per
+                // stock (quantity-weighted average price), and keep the F&O
+                // account's own rows for the F&O page.
+                let data: GridKeyData[] = perRow;
+                let foHoldings: FoHolding[] | null = null;
+                if (portfolioCol >= 0) {
+                    const merged = new Map<string, GridKeyData & { cost: number }>();
+                    for (const item of perRow) {
+                        const key = item.nseCode || item.bseCode || `name:${item.scripName}`;
+                        const qty = item.quantity || 0;
+                        const m = merged.get(key);
+                        if (m) {
+                            m.quantity = (m.quantity || 0) + qty;
+                            m.cost += qty * (item.averageBuyPrice || 0);
+                            m.nseCode = m.nseCode || item.nseCode;
+                            m.bseCode = m.bseCode || item.bseCode;
+                        } else {
+                            merged.set(key, { ...item, quantity: qty, cost: qty * (item.averageBuyPrice || 0) });
+                        }
+                    }
+                    data = [...merged.values()].map(({ cost, ...item }) => ({
+                        ...item,
+                        averageBuyPrice: item.quantity ? cost / item.quantity : item.averageBuyPrice,
+                    }));
+                    foHoldings = perRow
+                        .filter((item, i) => rowPortfolios[i].toLowerCase() === FO_PORTFOLIO.toLowerCase()
+                            && (item.quantity || 0) > 0 && (item.nseCode || item.bseCode))
+                        .map(item => ({ name: item.scripName, nseCode: item.nseCode, bseCode: item.bseCode, quantity: item.quantity || 0 }));
+                }
 
                 // Filter out stocks with no BSE or NSE code, and stocks with only 1 share
                 const filtered = data.filter(item =>
@@ -748,7 +784,7 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateIn
                     count: privateStocks.length
                 };
 
-                onGridKeyUploaded(filtered, privateInvestments);
+                onGridKeyUploaded(filtered, privateInvestments, foHoldings);
                 setStatus(`GridKey data uploaded successfully! ${filtered.length} stocks processed${privateInvestments.count > 0 ? ` + ${privateInvestments.count} private investments` : ''} (1-share holdings excluded). View Portfolio View to see current amounts.`);
                 setError('');
             } catch (err) {
@@ -4408,7 +4444,7 @@ function writeAppCache(email: string, patch: Partial<CachedAppData>) {
 const App: React.FC = () => {
     const { user, loading: authLoading, logout, isAdmin, isAnalyst, isManager } = useAuth();
     const { firm } = useFirm();
-    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'entrydata' | 'pe' | 'pipeline' | 'admin'>(
+    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'entrydata' | 'fodata' | 'pe' | 'fo' | 'pipeline' | 'admin'>(
         // Phones land on Public Portfolio; desktop keeps Pipeline. Safe to read
         // window here: nothing page-specific renders until auth has loaded.
         () => (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 'insights' : 'pipeline')
@@ -4661,7 +4697,7 @@ const App: React.FC = () => {
         }
     };
 
-    const handleGridKeyUploaded = async (data: GridKeyData[], privateInv: { totalInvested: number; count: number }) => {
+    const handleGridKeyUploaded = async (data: GridKeyData[], privateInv: { totalInvested: number; count: number }, foHoldings: FoHolding[] | null) => {
         try {
             // Save to API
             const response = await fetch('/api/gridkey', {
@@ -4669,7 +4705,7 @@ const App: React.FC = () => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ data, privateInvestments: privateInv }),
+                body: JSON.stringify({ data, privateInvestments: privateInv, foHoldings }),
             });
 
             if (!response.ok) {
@@ -4728,8 +4764,11 @@ const App: React.FC = () => {
             { id: 'upload', label: 'Screener Data' },
             { id: 'gridkey', label: 'GridKey Data' },
             { id: 'entrydata', label: 'Entry Data' },
+            { id: 'fodata', label: 'F&O Data' },
         ] : []),
         { id: 'pe', label: 'PE Tracker' },
+        // F&O is all amounts, so analysts don't get it.
+        ...(!isAnalyst ? [{ id: 'fo', label: 'F&O' }] : []),
         { id: 'pipeline', label: 'Pipeline' },
         ...(isAdmin ? [{ id: 'admin', label: 'Admin' }] : []),
     ];
@@ -4843,13 +4882,15 @@ const App: React.FC = () => {
                 {waitingForData ? (
                     <div className="app-loading">Loading portfolio data…</div>
                 ) : <>
-                {page === 'dashboard' && <Dashboard gridKeyData={gridKeyData} stocks={liveStocks} privateInvestments={privateInvestments} isAnalyst={isAnalyst} portfolioHistory={portfolioHistory} />}
+                {page === 'dashboard' && <Dashboard gridKeyData={gridKeyData} stocks={liveStocks} privateInvestments={privateInvestments} isAnalyst={isAnalyst} portfolioHistory={portfolioHistory} onOpenFo={() => setPage('fo')} />}
                 {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={liveStocks} onStocksUpdate={setStocks} isAnalyst={isAnalyst} teamMembers={teamMembers} searchOpen={mobileSearchOpen} onSearchOpenChange={setMobileSearchOpen} />}
                 {page === 'analysis' && <AnalysisPage gridKeyData={gridKeyData} stocks={liveStocks} isAnalyst={isAnalyst} />}
                 {page === 'upload' && <UploadPage onDataUploaded={handleDataUploaded} />}
                 {page === 'gridkey' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}
                 {page === 'entrydata' && <EntryDataPage gridKeyData={gridKeyData} stocks={liveStocks} />}
                 {page === 'pe' && <PETracker />}
+                {page === 'fo' && !isAnalyst && <FOPage canEdit={isManager} onOpenData={() => setPage('fodata')} />}
+                {page === 'fodata' && isManager && <FODataPage />}
                 {page === 'pipeline' && <PipelinePage teamMembers={teamMembers} />}
                 {page === 'admin' && <AdminPanel />}
                 </>}

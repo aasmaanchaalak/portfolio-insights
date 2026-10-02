@@ -12,6 +12,8 @@ import {
 } from '../../lib/queries';
 import { upsertExitedWatchIdea } from '../../lib/pipeline/queries';
 import { getGridKeyResponse } from '../../lib/portfolioResponse';
+import { setHoldings } from '../../lib/fo/queries';
+import { FO_PORTFOLIO } from '../../lib/fo/types';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -24,7 +26,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       }
     } else if (req.method === 'POST') {
       try {
-        const { data: gridKeyData, privateInvestments } = req.body;
+        const { data: gridKeyData, privateInvestments, foHoldings } = req.body;
 
         if (!Array.isArray(gridKeyData)) {
           return res.status(400).json({ error: 'Data must be an array' });
@@ -171,6 +173,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             privateInvestments?.count || 0
           )
         ]);
+
+        // The F&O account's holdings (only in combined exports, which name each row's portfolio).
+        if (Array.isArray(foHoldings)) {
+          const clean = foHoldings
+            .filter((h: any) => h && typeof h.name === 'string' && Number(h.quantity) > 0 && (h.nseCode || h.bseCode))
+            .map((h: any) => ({ name: h.name, nseCode: h.nseCode || null, bseCode: h.bseCode || null, quantity: Number(h.quantity) }));
+          await setHoldings(FO_PORTFOLIO, clean, authUser(req).name || authUser(req).email);
+        }
 
         res.status(200).json({
           success: true,
