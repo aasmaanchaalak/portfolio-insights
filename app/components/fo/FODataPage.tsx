@@ -8,6 +8,8 @@ import readXlsxFile from 'read-excel-file/browser';
 import { parseNuvamaPnlReport, SheetRows } from '../../../lib/fo/nuvama';
 import { FoReport } from '../../../lib/fo/types';
 import { rsAbs, rsSigned, shortDate } from './format';
+
+const signedRs = (v: number) => (v < 0 ? '\u2212' : '') + rsAbs(v);
 import './fo.css';
 
 interface DataState {
@@ -78,8 +80,11 @@ export function FODataPage() {
     e.preventDefault();
     const n = (s: string) => (s.trim() === '' ? null : Number(s.replace(/,/g, '')));
     const vals = { total: n(form.total), span: n(form.span), exposure: n(form.exposure), cash: n(form.cash) };
-    if (Object.values(vals).some(v => v !== null && (!Number.isFinite(v) || v < 0))) {
+    if (Object.values(vals).some(v => v !== null && !Number.isFinite(v))) {
       setMarginMsg({ ok: false, text: 'Enter amounts in rupees, e.g. 4500000.' }); return;
+    }
+    if ([vals.total, vals.span, vals.exposure].some(v => v !== null && v < 0)) {
+      setMarginMsg({ ok: false, text: 'Margin amounts cannot be negative. Only cash can be (a debit balance).' }); return;
     }
     try {
       await post({ kind: 'margin', account, ...vals });
@@ -90,12 +95,13 @@ export function FODataPage() {
 
   const Msg = ({ m }: { m: { ok: boolean; text: string } | null }) =>
     m ? <div className={`fo-msg ${m.ok ? 'ok' : 'err'}`}>{m.text}</div> : null;
-  const amountField = (key: keyof typeof form, label: string, hint?: string) => (
+  const amountField = (key: keyof typeof form, label: string, hint?: string, signed = false) => (
     <label className="fo-field">
       <span>{label}</span>
-      <input inputMode="decimal" value={form[key]} placeholder="₹" onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} />
+      {/* iOS's decimal keypad has no minus key, so signed fields get the full keyboard. */}
+      <input inputMode={signed ? 'text' : 'decimal'} value={form[key]} placeholder="₹" onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} />
       {hint && <small>{hint}</small>}
-      {form[key] && Number.isFinite(Number(form[key].replace(/,/g, ''))) && <small className="n">{rsAbs(Number(form[key].replace(/,/g, '')))}</small>}
+      {form[key] && Number.isFinite(Number(form[key].replace(/,/g, ''))) && <small className="n">{signedRs(Number(form[key].replace(/,/g, '')))}</small>}
     </label>
   );
 
@@ -158,7 +164,7 @@ export function FODataPage() {
               {amountField('total', 'Margin used')}
               {amountField('span', 'SPAN', 'optional')}
               {amountField('exposure', 'Exposure', 'optional')}
-              {amountField('cash', 'Cash (ledger)', 'counts fully toward the 50% cash rule')}
+              {amountField('cash', 'Cash (ledger)', 'negative for a debit balance', true)}
               <button type="submit" className="fo-btn">Save</button>
             </form>
             <Msg m={marginMsg} />

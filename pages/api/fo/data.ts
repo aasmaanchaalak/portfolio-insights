@@ -59,7 +59,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       const { account } = req.body;
       if (typeof account !== 'string' || !account) return res.status(400).json({ error: 'Account is required' });
       const m = { span: numOrNull(req.body.span), exposure: numOrNull(req.body.exposure), total: numOrNull(req.body.total), cash: numOrNull(req.body.cash) };
-      if (Object.values(m).some(v => v !== null && v < 0)) return res.status(400).json({ error: 'Amounts cannot be negative' });
+      // Cash can be a debit balance; margin figures can't be negative.
+      if ([m.span, m.exposure, m.total].some(v => v !== null && v < 0)) return res.status(400).json({ error: 'Margin amounts cannot be negative' });
       await setMarginEntry(account, m, by);
       return res.status(200).json({ success: true });
     }

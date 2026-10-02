@@ -11,6 +11,8 @@ import { grp, px, rsAbs, rsSigned, rsOrDash, pctSigned, signColor, shortDate } f
 import './fo.css';
 
 const COLS = 'minmax(230px,2fr) 92px 92px 88px 88px 96px 100px 104px 90px';
+// Cash can be a debit balance: unsigned amount, with a minus when negative.
+const cashRs = (v: number) => (v < 0 ? '\u2212' : '') + rsAbs(v);
 const REFRESH_MS = 2 * 60 * 1000;
 
 export function useFoDashboard() {
@@ -335,10 +337,10 @@ function Margin({ data }: { data: FoDashboard }) {
           <span>Source</span><span className="fo-r">Market value</span><span className="fo-r">Haircut</span><span className="fo-r">Counts as</span>
         </div>
         <div className="fo-c-row">
-          <div><div className="fo-c-name b">Cash</div><div className="n fo-c-sub">{m.cash > 0 ? 'Ledger balance, entered on F&O Data' : 'Not entered yet'}</div></div>
-          <span className="n fo-r fo-ink2">{m.cash > 0 ? rsAbs(m.cash) : '—'}</span>
+          <div><div className="fo-c-name b">Cash</div><div className="n fo-c-sub">{m.cash < 0 ? 'Ledger debit balance' : m.cash > 0 ? 'Ledger balance, entered on F&O Data' : 'Not entered yet'}</div></div>
+          <span className="n fo-r fo-ink2">{m.cash !== 0 ? cashRs(m.cash) : '—'}</span>
           <span className="n fo-r fo-ink2">0%</span>
-          <span className="n fo-r fo-b6">{m.cash > 0 ? rsAbs(m.cash) : '—'}</span>
+          <span className="n fo-r fo-b6">{m.cash !== 0 ? cashRs(m.cash) : '—'}</span>
         </div>
         {m.collateral.map(c => (
           <div key={c.name} className="fo-c-row">
@@ -358,8 +360,8 @@ function Margin({ data }: { data: FoDashboard }) {
             <div>
               <div className="fo-rule-head">{ok ? '50% cash rule met' : '50% cash rule breached'}</div>
               <div className="n fo-rule-note">
-                Needs {rsAbs(need)} in cash (half of margin used) · have {rsAbs(m.cashForRule)}
-                {need > 0 && ` · ${(m.cashForRule / need).toFixed(1)}× covered`}
+                Needs {rsAbs(need)} in cash (half of margin used) · have {cashRs(m.cashForRule)}
+                {need > 0 && m.cashForRule > 0 && ` · ${(m.cashForRule / need).toFixed(1)}× covered`}
               </div>
             </div>
           </div>
