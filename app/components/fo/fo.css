@@ -40,7 +40,6 @@
 .fo-rail-overview { border-top: none; border-bottom: 1px solid var(--rule-strong); margin-bottom: 0; }
 .fo-rail-overview .fo-rail-cell { padding: 12px 12px; }
 .fo-rail-overview .fo-rail-cell:last-child { padding-right: 0; }
-.fo-rail-note2 { margin-top: 2px !important; }
 .fo-rail-overview .fo-rail-cell:first-child { padding-left: 0; }
 .fo-rail-overview .fo-rail-value { font-family: var(--font-sans); font-size: 17px; letter-spacing: 0; margin-top: 5px; }
 .fo-rail-overview .fo-rail-note { margin-top: 5px; }

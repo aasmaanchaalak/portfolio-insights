@@ -11,8 +11,7 @@ export function foSummaryCells(d: FoDashboard) {
   const open = legs.reduce((s, l) => s + l.openPnl, 0);
   const delta = legs.reduce((s, l) => s + l.deltaRs, 0);
   const m = d.margin;
-  const util = m.available > 0 ? (m.used / m.available) * 100 : null;
-  const cells: { label: string; value: string; color: string; note: string; note2?: string }[] = [
+  const cells: { label: string; value: string; color: string; note: string }[] = [
     {
       label: d.pricedAt ? 'Today MTM' : 'Last session MTM',
       value: today == null ? '—' : rsSigned(today),
@@ -36,8 +35,7 @@ export function foSummaryCells(d: FoDashboard) {
       label: 'Margin used',
       value: rsAbs(m.used),
       color: 'var(--ink)',
-      note: m.available > 0 ? `${util!.toFixed(1)}% of ${rsAbs(m.available)}` : 'collateral not set',
-      note2: `Cash ${m.cash < 0 ? '\u2212' : ''}${rsAbs(m.cash)}`,
+      note: `${m.available > 0 ? `of ${rsAbs(m.available)}` : 'collateral not set'} · cash ${m.cash < 0 ? '\u2212' : ''}${rsAbs(m.cash)}`,
     },
     {
       label: 'Next expiry',
@@ -64,7 +62,6 @@ export function FOSummary({ data, variant }: { data: FoDashboard; variant: 'page
           <div className="fo-rail-label">{c.label}</div>
           <div className="fo-rail-value n" style={{ color: c.color }}>{c.value}</div>
           <div className="fo-rail-note n">{c.note}</div>
-          {c.note2 && <div className="fo-rail-note fo-rail-note2 n">{c.note2}</div>}
         </div>
       ))}
     </div>
