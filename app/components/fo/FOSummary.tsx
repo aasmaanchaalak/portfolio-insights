@@ -12,7 +12,7 @@ export function foSummaryCells(d: FoDashboard) {
   const delta = legs.reduce((s, l) => s + l.deltaRs, 0);
   const m = d.margin;
   const util = m.available > 0 ? (m.used / m.available) * 100 : null;
-  const cells: { label: string; value: string; color: string; note: string; bar?: number | null }[] = [
+  const cells: { label: string; value: string; color: string; note: string; note2?: string }[] = [
     {
       label: d.pricedAt ? 'Today MTM' : 'Last session MTM',
       value: today == null ? '—' : rsSigned(today),
@@ -36,8 +36,8 @@ export function foSummaryCells(d: FoDashboard) {
       label: 'Margin used',
       value: rsAbs(m.used),
       color: 'var(--ink)',
-      note: m.available > 0 ? `of ${rsAbs(m.available)} · ${util!.toFixed(1)}%` : 'collateral not set',
-      bar: util,
+      note: m.available > 0 ? `${util!.toFixed(1)}% of ${rsAbs(m.available)}` : 'collateral not set',
+      note2: `Cash ${m.cash < 0 ? '\u2212' : ''}${rsAbs(m.cash)}`,
     },
     {
       label: 'Next expiry',
@@ -55,16 +55,16 @@ export const utilColor = (u: number | null) =>
   u == null ? 'var(--ink)' : u >= 80 ? 'var(--negative)' : u >= 60 ? 'var(--caution-ink)' : 'var(--ink)';
 
 export function FOSummary({ data, variant }: { data: FoDashboard; variant: 'page' | 'overview' }) {
+  // The Overview's half-width column keeps only P&L and margin.
+  const cells = foSummaryCells(data).filter(c => variant === 'page' || (c.label !== 'Next expiry' && c.label !== 'Net delta'));
   return (
     <div className={`fo-rail fo-rail-${variant}`}>
-      {foSummaryCells(data).map(c => (
+      {cells.map(c => (
         <div key={c.label} className="fo-rail-cell">
           <div className="fo-rail-label">{c.label}</div>
           <div className="fo-rail-value n" style={{ color: c.color }}>{c.value}</div>
           <div className="fo-rail-note n">{c.note}</div>
-          {c.bar != null && (
-            <div className="fo-util-bar"><div style={{ width: `${Math.min(c.bar, 100)}%`, background: utilColor(c.bar) === 'var(--ink)' ? 'var(--accent-bar)' : utilColor(c.bar) }} /></div>
-          )}
+          {c.note2 && <div className="fo-rail-note fo-rail-note2 n">{c.note2}</div>}
         </div>
       ))}
     </div>

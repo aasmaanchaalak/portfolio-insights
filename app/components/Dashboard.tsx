@@ -1383,10 +1383,10 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 </div>
             </section>
 
-            {!isAnalyst && onOpenFo && <FOOverviewSection onOpen={onOpenFo} />}
-
-            {/* Technical Alerts + Return Drivers — side by side */}
+            {/* Left: F&O, then Technical Alerts · Right: Return Drivers */}
             <div className="dashboard-two-col">
+            <div className="dashboard-col">
+            {!isAnalyst && onOpenFo && <FOOverviewSection onOpen={onOpenFo} />}
             {/* Technical Alerts */}
             <section className="dashboard-section">
                 <h2 className="section-title">
@@ -1454,6 +1454,8 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                     </div>
                 )}
             </section>
+
+            </div>
 
             {/* Portfolio Return Drivers */}
             <section className="dashboard-section return-drivers-section">

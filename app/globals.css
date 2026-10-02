@@ -4842,10 +4842,13 @@ a:hover {
   align-items: start;
   margin-bottom: 26px;
 }
-.dashboard-page .dashboard-two-col > .dashboard-section { margin-bottom: 0; }
+.dashboard-page .dashboard-two-col > .dashboard-section,
+.dashboard-page .dashboard-col > .dashboard-section { margin-bottom: 0; }
+.dashboard-page .dashboard-col { min-width: 0; }
 @media (max-width: 900px) {
   .dashboard-page .dashboard-two-col { grid-template-columns: 1fr; gap: 0; }
-  .dashboard-page .dashboard-two-col > .dashboard-section { margin-bottom: 26px; }
+  .dashboard-page .dashboard-two-col > .dashboard-section,
+  .dashboard-page .dashboard-col > .dashboard-section { margin-bottom: 26px; }
 }
 
 /* ── Semantic color: ONLY on signed numbers / status ── */
