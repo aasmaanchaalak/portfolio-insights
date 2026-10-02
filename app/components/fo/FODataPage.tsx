@@ -15,7 +15,7 @@ import './fo.css';
 interface DataState {
   accounts: string[];
   reports: { account: string; asOf: string; legs: number; uploadedAt: string; uploadedBy: string | null }[];
-  margins: Record<string, { span: number | null; exposure: number | null; total: number | null; cash: number | null; updatedAt: string; updatedBy: string | null }>;
+  margins: Record<string, { cash: number | null; pledged: number | null; updatedAt: string; updatedBy: string | null }>;
   holdings: { portfolio: string; count: number; updatedAt: string | null };
 }
 
@@ -68,23 +68,21 @@ export function FODataPage() {
 
   // ---- margin ----
   const m = state?.margins[account];
-  const [form, setForm] = useState({ total: '', span: '', exposure: '', cash: '' });
+  const [form, setForm] = useState({ cash: '', pledged: '' });
   useEffect(() => {
-    setForm({
-      total: m?.total != null ? String(m.total) : '', span: m?.span != null ? String(m.span) : '',
-      exposure: m?.exposure != null ? String(m.exposure) : '', cash: m?.cash != null ? String(m.cash) : '',
-    });
-  }, [m?.total, m?.span, m?.exposure, m?.cash, account]); // eslint-disable-line react-hooks/exhaustive-deps
+    const str = (v: number | null | undefined) => (v != null ? String(v) : '');
+    setForm({ cash: str(m?.cash), pledged: str(m?.pledged) });
+  }, [m?.cash, m?.pledged, account]); // eslint-disable-line react-hooks/exhaustive-deps
   const [marginMsg, setMarginMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const saveMargin = async (e: React.FormEvent) => {
     e.preventDefault();
     const n = (s: string) => (s.trim() === '' ? null : Number(s.replace(/,/g, '')));
-    const vals = { total: n(form.total), span: n(form.span), exposure: n(form.exposure), cash: n(form.cash) };
+    const vals = { cash: n(form.cash), pledged: n(form.pledged) };
     if (Object.values(vals).some(v => v !== null && !Number.isFinite(v))) {
       setMarginMsg({ ok: false, text: 'Enter amounts in rupees, e.g. 4500000.' }); return;
     }
-    if ([vals.total, vals.span, vals.exposure].some(v => v !== null && v < 0)) {
-      setMarginMsg({ ok: false, text: 'Margin amounts cannot be negative. Only cash can be (a debit balance).' }); return;
+    if (vals.pledged !== null && vals.pledged < 0) {
+      setMarginMsg({ ok: false, text: 'Only cash can be negative (a debit balance).' }); return;
     }
     try {
       await post({ kind: 'margin', account, ...vals });
@@ -157,14 +155,11 @@ export function FODataPage() {
           <section className="fo-data-sec">
             <div className="fo-sec-head"><h2 className="serif">Margin and cash</h2><span className="fo-sec-note">{accountLabel(account)}{m ? ` · updated ${when(m.updatedAt)}` : ''}</span></div>
             <ul className="fo-steps">
-              <li>Copy these from Nuvama's margin / limits screen. Margin used is needed daily; cash only when it changes.</li>
-              <li>Fill either Margin used, or SPAN and Exposure (their sum is used). Without a figure, margin is estimated from NSE VaR rates.</li>
+              <li>Copy both from Nuvama's Margin screen with each daily upload. Margin used is calculated from NSE's SPAN file.</li>
             </ul>
             <form onSubmit={saveMargin} className="fo-form">
-              {amountField('total', 'Margin used')}
-              {amountField('span', 'SPAN', 'optional')}
-              {amountField('exposure', 'Exposure', 'optional')}
-              {amountField('cash', 'Cash (ledger)', 'negative for a debit balance', true)}
+              {amountField('cash', 'Cash available', 'can be negative', true)}
+              {amountField('pledged', 'Margin from pledged holdings')}
               <button type="submit" className="fo-btn">Save</button>
             </form>
             <Msg m={marginMsg} />

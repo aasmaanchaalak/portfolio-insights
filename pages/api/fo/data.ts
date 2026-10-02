@@ -10,7 +10,7 @@ import { FoReport, PURPOSES, Purpose, FO_PORTFOLIO } from '../../../lib/fo/types
 // F&O Data page.
 // GET                       → uploaded report dates, margin entries, holdings summary
 // POST { kind: 'report' }   → a parsed broker report (parsed in the browser)
-// POST { kind: 'margin' }   → margin used / SPAN / exposure / cash for an account
+// POST { kind: 'margin' }   → Nuvama's Cash Available and Margin from Pledged Holdings
 // POST { kind: 'purpose' }  → Hedge / Income / Directional for one contract (null = default)
 
 const numOrNull = (v: any) => (v === '' || v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v));
@@ -58,9 +58,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (kind === 'margin') {
       const { account } = req.body;
       if (typeof account !== 'string' || !account) return res.status(400).json({ error: 'Account is required' });
-      const m = { span: numOrNull(req.body.span), exposure: numOrNull(req.body.exposure), total: numOrNull(req.body.total), cash: numOrNull(req.body.cash) };
-      // Cash can be a debit balance; margin figures can't be negative.
-      if ([m.span, m.exposure, m.total].some(v => v !== null && v < 0)) return res.status(400).json({ error: 'Margin amounts cannot be negative' });
+      const m = { cash: numOrNull(req.body.cash), pledged: numOrNull(req.body.pledged) };
+      // Cash can be a debit balance; pledged margin can't be negative.
+      if (m.pledged !== null && m.pledged < 0) return res.status(400).json({ error: 'Pledged margin cannot be negative' });
       await setMarginEntry(account, m, by);
       return res.status(200).json({ success: true });
     }

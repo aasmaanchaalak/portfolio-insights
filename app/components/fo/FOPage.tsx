@@ -283,7 +283,6 @@ function Margin({ data }: { data: FoDashboard }) {
   const m = data.margin;
   const util = m.available > 0 ? (m.used / m.available) * 100 : null;
   const base = m.available > 0 ? m.available : m.used || 1;
-  const hasSplit = m.span != null && m.exposure != null;
   const need = m.used * 0.5;
   const ok = m.cashForRule >= need;
 
@@ -295,7 +294,7 @@ function Margin({ data }: { data: FoDashboard }) {
   return (
     <div className="fo-two-col">
       <div>
-        <SectionHead title="Margin" note={m.isEstimate ? 'Estimated from NSE VaR rates · enter Nuvama\'s figure on F&O Data' : 'Used against available collateral'} />
+        <SectionHead title="Margin" note={`SPAN + exposure + MTM loss, against cash + collateral${m.spanAsOf ? ` · NSE SPAN of ${shortDate(m.spanAsOf)}` : ''}`} />
         <div className="fo-m-head">
           <div className="n">
             <span className="serif fo-m-used">{rsAbs(m.used)}</span>
@@ -304,14 +303,8 @@ function Margin({ data }: { data: FoDashboard }) {
           {util != null && <span className="n fo-m-util" style={{ color: utilColor(util) }}>{util.toFixed(1)}% utilised</span>}
         </div>
         <div className="fo-m-bar">
-          {hasSplit ? (
-            <>
-              <div title="SPAN" style={{ width: `${Math.min((m.span! / base) * 100, 100)}%`, background: 'oklch(0.5 0.1 27)' }} />
-              <div title="Exposure" style={{ width: `${Math.min((m.exposure! / base) * 100, 100)}%`, background: 'oklch(0.7 0.07 27)' }} />
-            </>
-          ) : (
-            <div title="Used" style={{ width: `${Math.min((m.used / base) * 100, 100)}%`, background: 'oklch(0.5 0.1 27)' }} />
-          )}
+          <div title="SPAN + exposure" style={{ width: `${Math.min((m.spanExposure / base) * 100, 100)}%`, background: 'oklch(0.5 0.1 27)' }} />
+          {m.mtmLoss > 0 && <div title="MTM loss" style={{ width: `${Math.min((m.mtmLoss / base) * 100, 100)}%`, background: 'oklch(0.7 0.07 27)' }} />}
           {m.available > 0 && [60, 80].map(t => <div key={t} className="fo-m-tick" style={{ left: `${t}%` }} />)}
         </div>
         {m.available > 0 && (
@@ -321,14 +314,8 @@ function Margin({ data }: { data: FoDashboard }) {
           </div>
         )}
         <div className="fo-m-legend">
-          {hasSplit ? (
-            <>
-              <span><i style={{ background: 'oklch(0.5 0.1 27)' }} /><span className="n">SPAN {rsAbs(m.span!)}</span></span>
-              <span><i style={{ background: 'oklch(0.7 0.07 27)' }} /><span className="n">Exposure {rsAbs(m.exposure!)}</span></span>
-            </>
-          ) : (
-            <span><i style={{ background: 'oklch(0.5 0.1 27)' }} /><span className="n">Used {rsAbs(m.used)}</span></span>
-          )}
+          <span><i style={{ background: 'oklch(0.5 0.1 27)' }} /><span className="n">SPAN + exposure {rsAbs(m.spanExposure)}</span></span>
+          {m.mtmLoss > 0 && <span><i style={{ background: 'oklch(0.7 0.07 27)' }} /><span className="n">MTM loss {rsAbs(m.mtmLoss)}</span></span>}
           {m.available > 0 && <span><i className="free" /><span className="n">Free {rsAbs(Math.max(m.available - m.used, 0))}</span></span>}
         </div>
 
@@ -337,12 +324,26 @@ function Margin({ data }: { data: FoDashboard }) {
           <span>Source</span><span className="fo-r">Market value</span><span className="fo-r">Haircut</span><span className="fo-r">Counts as</span>
         </div>
         <div className="fo-c-row">
-          <div><div className="fo-c-name b">Cash</div><div className="n fo-c-sub">{m.cash < 0 ? 'Ledger debit balance' : m.cash > 0 ? 'Ledger balance, entered on F&O Data' : 'Not entered yet'}</div></div>
+          <div><div className="fo-c-name b">Cash</div><div className="n fo-c-sub">{m.cash < 0 ? 'Debit balance' : m.cash > 0 ? 'Cash available' : 'Not entered yet'}</div></div>
           <span className="n fo-r fo-ink2">{m.cash !== 0 ? cashRs(m.cash) : '—'}</span>
           <span className="n fo-r fo-ink2">0%</span>
           <span className="n fo-r fo-b6">{m.cash !== 0 ? cashRs(m.cash) : '—'}</span>
         </div>
-        {m.collateral.map(c => (
+        {m.pledged != null && (
+          <div className="fo-c-row">
+            <div><div className="fo-c-name b">Pledged holdings</div><div className="n fo-c-sub">Nuvama's margin, after its haircuts</div></div>
+            <span className="n fo-r fo-ink2">{m.holdingsValue > 0 ? rsAbs(m.holdingsValue) : '—'}</span>
+            <span className="n fo-r fo-ink2">{m.holdingsValue > 0 ? `${Math.max(0, (1 - m.pledged / m.holdingsValue) * 100).toFixed(0)}%` : '—'}</span>
+            <span className="n fo-r fo-b6">{rsAbs(m.pledged)}</span>
+          </div>
+        )}
+        {m.pledged != null ? m.collateral.map(c => (
+          <div key={c.name} className="fo-c-row fo-c-sub-row">
+            <div><div className="fo-c-name">{c.name}</div><div className="n fo-c-sub">{c.sub}</div></div>
+            <span className="n fo-r fo-ink2">{rsAbs(c.marketValue)}</span>
+            <span /><span />
+          </div>
+        )) : m.collateral.map(c => (
           <div key={c.name} className="fo-c-row">
             <div><div className="fo-c-name">{c.name}</div><div className="n fo-c-sub">{c.sub}{c.cashLike ? ' · counts as cash' : ''}</div></div>
             <span className="n fo-r fo-ink2">{rsAbs(c.marketValue)}</span>
@@ -366,7 +367,11 @@ function Margin({ data }: { data: FoDashboard }) {
             </div>
           </div>
         )}
-        <div className="fo-foot">Haircuts are NSE's VaR + ELM rates; Nuvama may apply more.</div>
+        <div className="fo-foot">
+          {m.pledged != null
+            ? 'Haircut on pledged holdings is implied from Nuvama\'s figure and today\'s prices.'
+            : 'Collateral estimated with NSE\'s VaR + ELM haircuts; Nuvama applies more. Enter its pledged margin on F&O Data.'}
+        </div>
       </div>
       <div>
         <SectionHead title="Margin by underlying" note="Share of margin used" />
@@ -381,7 +386,10 @@ function Margin({ data }: { data: FoDashboard }) {
               <div className="fo-mu-track"><div style={{ width: `${(v / mMax) * 100}%` }} /></div>
             </div>
           ))}
-          <div className="fo-foot">Long options need no margin; premium is paid upfront. Split by underlying is estimated from NSE VaR rates.</div>
+          <div className="fo-foot">
+            Futures: quantity × price × (NSE SPAN % + exposure %), within a few % of Nuvama.
+            {m.isEstimate && ' Some legs have no SPAN rate yet and are estimated from VaR rates.'} Long options need no margin; premium is paid upfront.
+          </div>
         </div>
       </div>
     </div>

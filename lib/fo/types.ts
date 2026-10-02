@@ -80,14 +80,17 @@ export interface DashUnderlying {
 }
 
 export interface DashMargin {
-  used: number;
-  span: number | null;
-  exposure: number | null;
-  isEstimate: boolean;    // no figure entered: estimated from NSE VaR rates
+  used: number;           // limits utilised: SPAN + exposure + the day's MTM loss
+  spanExposure: number;   // Σ leg margins
+  mtmLoss: number;        // unsettled MTM loss on futures today (0 when in profit)
+  isEstimate: boolean;    // some leg had no SPAN rate (options, or NSE file unavailable)
+  spanAsOf: string | null; // date of the NSE SPAN file used
   enteredOn: string | null;
-  cash: number;           // ledger cash entered by hand
+  cash: number;           // Cash Available (negative = debit balance)
+  pledged: number | null; // Nuvama's Margin from Pledged Holdings; null = estimated from holdings
+  holdingsValue: number;  // market value of the account's holdings
   collateral: { name: string; sub: string; marketValue: number; haircutPct: number; value: number; cashLike: boolean }[];
-  available: number;
+  available: number;      // cash + pledged (Nuvama's Net Cash Value)
   cashForRule: number;    // cash + liquid funds after haircut
 }
 

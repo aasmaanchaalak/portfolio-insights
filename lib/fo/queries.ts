@@ -45,6 +45,9 @@ async function ensureTables(): Promise<void> {
       updated_by VARCHAR(255),
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     );
+    -- pledged = Nuvama's "Margin from Pledged Holdings". span / exposure / total
+    -- are no longer entered: margin is calculated from NSE's SPAN file.
+    ALTER TABLE fo_margin ADD COLUMN IF NOT EXISTS pledged NUMERIC;
     CREATE TABLE IF NOT EXISTS fo_holdings (
       portfolio  VARCHAR(255) PRIMARY KEY,
       holdings   JSONB NOT NULL,
@@ -124,23 +127,29 @@ export async function setPurpose(account: string, contract: string, purpose: Pur
   `, [account, contract, purpose, by]);
 }
 
-export interface MarginEntry { span: number | null; exposure: number | null; total: number | null; cash: number | null; updatedAt: string; updatedBy: string | null }
+/** Figures copied from Nuvama's Margin screen. */
+export interface MarginEntry {
+  cash: number | null;     // Cash Available (negative = debit balance)
+  pledged: number | null;  // Margin from Pledged Holdings (after Nuvama's haircuts)
+  updatedAt: string;
+  updatedBy: string | null;
+}
 
 export async function getMarginEntries(): Promise<Record<string, MarginEntry>> {
   await ensureTables();
   const rows = await query<any>(`SELECT * FROM fo_margin`);
   const n = (v: any) => (v == null ? null : Number(v));
   return Object.fromEntries(rows.map(r => [r.account, {
-    span: n(r.span), exposure: n(r.exposure), total: n(r.total), cash: n(r.cash), updatedAt: r.updated_at, updatedBy: r.updated_by,
+    cash: n(r.cash), pledged: n(r.pledged), updatedAt: r.updated_at, updatedBy: r.updated_by,
   }]));
 }
 
-export async function setMarginEntry(account: string, m: { span: number | null; exposure: number | null; total: number | null; cash: number | null }, by: string): Promise<void> {
+export async function setMarginEntry(account: string, m: { cash: number | null; pledged: number | null }, by: string): Promise<void> {
   await ensureTables();
   await query(`
-    INSERT INTO fo_margin (account, span, exposure, total, cash, updated_by, updated_at) VALUES ($1, $2, $3, $4, $5, $6, NOW())
-    ON CONFLICT (account) DO UPDATE SET span = $2, exposure = $3, total = $4, cash = $5, updated_by = $6, updated_at = NOW()
-  `, [account, m.span, m.exposure, m.total, m.cash, by]);
+    INSERT INTO fo_margin (account, cash, pledged, updated_by, updated_at) VALUES ($1, $2, $3, $4, NOW())
+    ON CONFLICT (account) DO UPDATE SET cash = $2, pledged = $3, updated_by = $4, updated_at = NOW()
+  `, [account, m.cash, m.pledged, by]);
 }
 
 /** A GridKey portfolio's holdings, saved by the GridKey upload. */

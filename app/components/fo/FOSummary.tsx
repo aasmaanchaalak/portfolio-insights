@@ -33,7 +33,7 @@ export function foSummaryCells(d: FoDashboard) {
       note: (d.book ? `${pctSigned((delta / d.book) * 100, 1)} of book · ` : '') + (delta < 0 ? 'net short' : 'net long'),
     },
     {
-      label: m.isEstimate ? 'Margin used (est.)' : 'Margin used',
+      label: 'Margin used',
       value: rsAbs(m.used),
       color: 'var(--ink)',
       note: m.available > 0 ? `of ${rsAbs(m.available)} · ${util!.toFixed(1)}%` : 'collateral not set',

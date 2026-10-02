@@ -4,6 +4,7 @@ import { getGridKeyData } from '../../../lib/queries';
 import { isIndianMarketOpen } from '../../../lib/livePrices';
 import { getCachedPrices, isFresh, refreshPrices } from '../../../lib/livePriceCache';
 import { evaluateAlerts, notifyAlerts } from '../../../lib/stockAlerts';
+import { getSpanRates } from '../../../lib/fo/span';
 
 // Called every 10 minutes during market hours by .github/workflows/alerts.yml.
 // Auth: "Authorization: Bearer <CRON_SECRET>" (no user session).
@@ -38,6 +39,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     const alerts = await evaluateAlerts(payload.prices, dryRun);
     const delivery = dryRun ? null : await notifyAlerts(alerts);
+    // Keep the F&O page's SPAN rates fresh (a no-op unless a newer NSE file may be out).
+    await getSpanRates().catch(e => console.warn('[fo] SPAN refresh failed:', e?.message));
     return res.status(200).json({
       pricesAsOf: payload.asOf,
       alerts: alerts.map(a => ({ code: a.code, kind: a.kind, title: a.title, body: a.body })),

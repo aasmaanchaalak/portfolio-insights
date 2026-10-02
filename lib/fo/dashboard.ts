@@ -14,13 +14,16 @@ import { getCache, setCache, getGridKeyData, getPortfolioData } from '../queries
 import { fetchHoldingQuote, fetchYahooQuote, mapWithLimit, LiveQuote } from '../livePrices';
 import { getCachedPrices } from '../livePriceCache';
 import { getLotSizes, lotSizeFor, getVarRates } from './nse';
+import { getSpanRates } from './span';
 import { getReportsSince, getTradesBetween, getPurposes, getMarginEntries, getHoldings, StoredReport } from './queries';
 import { FoDashboard, DashLeg, DashUnderlying, ReportLeg, Purpose, FO_PORTFOLIO } from './types';
 
 const INDEX_TICKERS: Record<string, string> = {
   NIFTY: '^NSEI', BANKNIFTY: '^NSEBANK', FINNIFTY: 'NIFTY_FIN_SERVICE.NS', MIDCPNIFTY: 'NIFTY_MID_SELECT.NS', NIFTYNXT50: '^NSMIDCP',
 };
-// Margin rate when NSE's VaR file has no entry (indices aren't in it).
+// Exposure margin on top of SPAN, as a share of notional (matched Nuvama within ~2%).
+const EXPOSURE = { index: 0.02, stock: 0.05 };
+// Margin rate when neither SPAN nor VaR rates are available.
 const FALLBACK_RATE = { index: 0.12, stock: 0.2 };
 const RISK_FREE = 0.065;
 const SPOT_MAX_AGE_MS = 2 * 60 * 1000;
@@ -116,8 +119,9 @@ async function publicBookValue(): Promise<number | null> {
 export async function buildDashboard(now = Date.now()): Promise<FoDashboard> {
   const today = istDate(now);
   const since = istDate(now - 70 * 86400e3);
-  const [reports, purposes, margins, foHoldings, lots, varRates, book] = await Promise.all([
+  const [reports, purposes, margins, foHoldings, lots, varRates, book, span] = await Promise.all([
     getReportsSince(since), getPurposes(), getMarginEntries(), getHoldings(FO_PORTFOLIO), getLotSizes(), getVarRates(), publicBookValue(),
+    getSpanRates().catch(() => null),
   ]);
 
   const byAccount = new Map<string, StoredReport[]>();
@@ -139,15 +143,25 @@ export async function buildDashboard(now = Date.now()): Promise<FoDashboard> {
     ...holdings.map(x => ({ nse: x.h.nseCode, bse: x.h.bseCode })),
   ]);
 
-  const rateFor = (sym: string) => {
+  // Futures: |qty| × price × (SPAN % + exposure %). Options (and futures with no
+  // SPAN rate) fall back to an NSE VaR estimate and mark margin as estimated.
+  const fallbackRate = (sym: string) => {
     const r = varRates?.[sym]?.applicable;
     return r ? r / 100 : INDEX_TICKERS[sym] ? FALLBACK_RATE.index : FALLBACK_RATE.stock;
+  };
+  let marginEstimated = false;
+  const legMargin = (leg: ReportLeg, price: number) => {
+    if (leg.type !== 'FUT' && leg.qty > 0) return 0; // long options: premium paid upfront
+    const spanPct = leg.type === 'FUT' ? span?.rates[leg.underlying] : undefined;
+    if (spanPct == null) marginEstimated = true;
+    const rate = spanPct != null ? spanPct + (INDEX_TICKERS[leg.underlying] ? EXPOSURE.index : EXPOSURE.stock) : fallbackRate(leg.underlying);
+    return Math.abs(leg.qty) * price * rate;
   };
 
   // ---- legs ----
   let pricedAt: number | null = null;
   const reportDayPnl = dailyPnl(byAccount); // date → account|contract → pnl
-  const legs: (DashLeg & { marginEst: number })[] = openLegs.map(({ account, report, leg }) => {
+  const legs: DashLeg[] = openLegs.map(({ account, report, leg }) => {
     const q = quotes[leg.underlying];
     const atUpload = report.spots?.[leg.underlying];
     // Spot at the report's close, and whether the market has traded since.
@@ -172,7 +186,6 @@ export async function buildDashboard(now = Date.now()): Promise<FoDashboard> {
       : reportDayPnl.get(report.asOf)?.get(key) ?? leg.dayPnl;
     const held = heldQty(account, leg.underlying);
     const lot = lotSizeFor(lots, leg.underlying, leg.expiry);
-    const needsMargin = leg.type === 'FUT' || leg.qty < 0;
     return {
       account,
       contract: leg.contract, underlying: leg.underlying, type: leg.type, expiry: leg.expiry, strike: leg.strike,
@@ -185,28 +198,25 @@ export async function buildDashboard(now = Date.now()): Promise<FoDashboard> {
       today: dayPnl ?? null,
       openPnl: (ltp - leg.avg) * leg.qty,
       deltaRs: delta * leg.qty * (leg.type === 'FUT' ? ltp : (s1 ?? leg.strike ?? 0)),
-      margin: 0,
-      marginEst: needsMargin ? Math.abs(leg.qty) * (s1 ?? ltp) * rateFor(leg.underlying) : 0,
+      margin: legMargin(leg, leg.type === 'FUT' ? ltp : (s1 ?? ltp)),
     };
   });
 
-  // ---- margin: entered figures, split across legs by their estimated share ----
-  let used = 0, span: number | null = 0, exposure: number | null = 0, cash = 0, isEstimate = false;
-  let enteredMs = 0;
+  // ---- margin ----
+  // Limits utilised, as Nuvama counts it: SPAN + exposure, plus the day's
+  // unsettled MTM loss (futures settle daily; a profit isn't credited).
+  const spanExposure = legs.reduce((s, l) => s + l.margin, 0);
+  const mtm = legs.filter(l => l.type === 'FUT').reduce((s, l) => s + (l.today ?? 0), 0);
+  const mtmLoss = Math.max(0, -mtm);
+  const used = spanExposure + mtmLoss;
+  let cash = 0, pledgedSum = 0, pledgedMissing = false, enteredMs = 0;
   for (const account of accounts) {
     const m = margins[account];
-    const est = legs.filter(l => l.account === account).reduce((s, l) => s + l.marginEst, 0);
-    const entered = m?.total ?? (m?.span != null && m?.exposure != null ? m.span + m.exposure : null);
-    const accUsed = entered ?? est;
-    if (entered == null) isEstimate = true;
-    used += accUsed;
-    span = span != null && m?.span != null ? span + m.span : null;
-    exposure = exposure != null && m?.exposure != null ? exposure + m.exposure : null;
     cash += m?.cash ?? 0;
+    if (m?.pledged != null) pledgedSum += m.pledged; else pledgedMissing = true;
     if (m?.updatedAt) enteredMs = Math.max(enteredMs, new Date(m.updatedAt).getTime());
-    for (const l of legs) if (l.account === account) l.margin = est > 0 ? l.marginEst / est * accUsed : 0;
   }
-  if (accounts.length === 0) { span = null; exposure = null; }
+  const pledged = accounts.length && !pledgedMissing ? pledgedSum : null;
 
   const collateral = holdings.flatMap(({ h }) => {
     const q = quotes[(h.nseCode || h.bseCode || '').toUpperCase()];
@@ -220,7 +230,8 @@ export async function buildDashboard(now = Date.now()): Promise<FoDashboard> {
       cashLike: /liquid/i.test(`${h.name} ${h.nseCode ?? ''}`),
     }];
   }).sort((a, b) => b.value - a.value);
-  const available = cash + collateral.reduce((s, c) => s + c.value, 0);
+  // Nuvama applies its own haircuts, so its pledged figure wins; NSE haircuts are the fallback.
+  const available = cash + (pledged ?? collateral.reduce((s, c) => s + c.value, 0));
   const cashForRule = cash + collateral.filter(c => c.cashLike).reduce((s, c) => s + c.value, 0);
 
   // ---- underlyings ----
@@ -302,11 +313,14 @@ export async function buildDashboard(now = Date.now()): Promise<FoDashboard> {
     accounts,
     asOf,
     pricedAt: pricedAt ? new Date(pricedAt).toISOString() : null,
-    legs: legs.map(({ marginEst: _m, ...l }) => l),
+    legs,
     underlyings,
     book,
     month,
-    margin: { used, span, exposure, isEstimate, enteredOn: enteredMs ? new Date(enteredMs).toISOString() : null, cash, collateral, available, cashForRule },
+    margin: {
+      used, spanExposure, mtmLoss, isEstimate: marginEstimated, spanAsOf: span?.fileDate ?? null, enteredOn: enteredMs ? new Date(enteredMs).toISOString() : null, cash, pledged,
+      holdingsValue: collateral.reduce((s, c) => s + c.marketValue, 0), collateral, available, cashForRule,
+    },
     nextExpiry,
   };
 }
