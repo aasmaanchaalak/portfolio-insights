@@ -3,8 +3,7 @@ import { withAuth, authUser } from '../../../lib/authMiddleware';
 import { buildDashboard } from '../../../lib/fo/dashboard';
 import { canViewFo } from '../../../lib/fo/access';
 
-// GET: the F&O dashboard (positions, month P&L, margin). Hidden from analysts:
-// every figure on it is an amount.
+// GET: the F&O dashboard (positions, month P&L, margin), for any signed-in user.
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET']);

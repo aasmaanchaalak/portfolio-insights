@@ -13,6 +13,7 @@ import {
 } from '../../types/positioning';
 import './positioning/positioning.css';
 import { FOOverviewSection } from './fo/FOOverviewSection';
+import { useFoDashboard } from './fo/FOPage';
 
 interface PrivateInvestments {
     totalInvested: number;
@@ -181,9 +182,28 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         });
     }, [gridKeyData, stocks]);
 
-    // Compute current technical states
+    // F&O. Its underlyings that aren't holdings join Technical Alerts, with
+    // levels computed server-side from daily prices.
+    const foEnabled = !!onOpenFo;
+    const fo = useFoDashboard(foEnabled);
+    const foReady = !foEnabled || fo.data !== null || fo.error !== null;
+    const foCodes = useMemo(() => new Set((fo.data?.technicals || []).map(t => t.symbol)), [fo.data]);
+    const alertItems = useMemo(() => {
+        const held = new Set(enrichedData.filter(i => (i.quantity || 0) > 0).map(i => i.nseCode || i.bseCode));
+        const extra = (fo.data?.technicals || [])
+            .filter(t => !held.has(t.symbol))
+            .map(t => ({
+                scripName: t.symbol, nseCode: t.symbol, bseCode: null, quantity: 1, averageBuyPrice: null,
+                currentPrice: t.price, dma50: t.dma50, dma200: t.dma200,
+                downFrom52WeekHigh: t.downFrom52WeekHigh, upFrom52WeekLow: t.upFrom52WeekLow,
+                return1D: t.return1D, rsi: t.rsi, yoyQuarterlyProfitGrowth: null, yoyQuarterlySalesGrowth: null,
+            })) as unknown as typeof enrichedData;
+        return [...enrichedData, ...extra];
+    }, [enrichedData, fo.data]);
+
+    // Compute current technical states (holdings + F&O underlyings)
     const currentStates = useMemo((): TechnicalState[] => {
-        return enrichedData
+        return alertItems
             // Only actively-held stocks — exited holdings (quantity 0/null) must
             // not generate technical alerts.
             .filter(item => item.currentPrice !== null && item.quantity != null && item.quantity > 0)
@@ -212,7 +232,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                     timestamp: new Date().toISOString(),
                 };
             });
-    }, [enrichedData]);
+    }, [alertItems]);
 
     // Load previous states from Redis on mount
     useEffect(() => {
@@ -305,7 +325,8 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
 
     // Generate transition alerts and save current states (runs only once)
     useEffect(() => {
-        if (!statesLoaded || !alertsLoaded || currentStates.length === 0 || hasProcessedStates.current) return;
+        // Waits for F&O too, so its underlyings are in the one comparison run.
+        if (!statesLoaded || !alertsLoaded || !foReady || currentStates.length === 0 || hasProcessedStates.current) return;
         hasProcessedStates.current = true;
 
         const newTransitionAlerts: Alert[] = [];
@@ -315,7 +336,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             const previous = previousStates.find(p => p.stockCode === current.stockCode);
             if (!previous) return; // No previous state to compare
 
-            const enrichedItem = enrichedData.find(
+            const enrichedItem = alertItems.find(
                 item => (item.nseCode || item.bseCode) === current.stockCode
             );
             const currentPrice = enrichedItem?.currentPrice || 0;
@@ -517,7 +538,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             };
             saveAlerts();
         }
-    }, [statesLoaded, alertsLoaded, currentStates, previousStates, enrichedData, storedAlerts]);
+    }, [statesLoaded, alertsLoaded, foReady, currentStates, previousStates, alertItems, storedAlerts]);
 
     // Countdown to next alerts refresh — based on newest alert's createdAt + 24h
     useEffect(() => {
@@ -953,9 +974,9 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         const CHIP_ORDER: Record<string, number> = {
             DEATH_CROSS: 0, CROSSED_BELOW_200DMA: 1, CROSSED_BELOW_50DMA: 2, NEAR_52W_LOW: 3, CROSSED_BELOW_COST: 4,
         };
-        const rsiByCode = new Map(enrichedData.map(i => [(i.nseCode || i.bseCode || ''), i.rsi]));
-        const nseByCode = new Map(enrichedData.map(i => [(i.nseCode || i.bseCode || ''), i.nseCode || '']));
-        const ret1DByCode = new Map(enrichedData.map(i => [(i.nseCode || i.bseCode || ''), i.return1D]));
+        const rsiByCode = new Map(alertItems.map(i => [(i.nseCode || i.bseCode || ''), i.rsi]));
+        const nseByCode = new Map(alertItems.map(i => [(i.nseCode || i.bseCode || ''), i.nseCode || '']));
+        const ret1DByCode = new Map(alertItems.map(i => [(i.nseCode || i.bseCode || ''), i.return1D]));
         // Prefer the NSE ticker when the full name is long or the row carries more
         // than one alert (keeps the row from overflowing). Falls back to the full
         // name (CSS ellipsis trims it) when no NSE ticker exists.
@@ -977,6 +998,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 .filter(Boolean);
             const rsi = rsiByCode.get(g.code);
             if (rsi != null && rsi < 30) chips.push(`RSI ${Math.round(rsi)}`);
+            if (foCodes.has(g.code)) chips.push('F&O');
             const value = ret1DByCode.get(g.code) ?? null;
             return { code: g.code, name: displayName(g.code, g.name, g.types.length), fullName: g.name, value, chips };
         }).sort((a, b) => (a.value ?? 0) - (b.value ?? 0)); // weakest day first
@@ -1004,12 +1026,13 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 .filter(Boolean);
             const rsi = rsiByCode.get(g.code);
             if (rsi != null && rsi > 70) chips.push(`RSI ${Math.round(rsi)}`);
+            if (foCodes.has(g.code)) chips.push('F&O');
             const value = ret1DByCode.get(g.code) ?? null;
             return { code: g.code, name: displayName(g.code, g.name, g.types.length), fullName: g.name, value, chips };
         }).sort((a, b) => (b.value ?? 0) - (a.value ?? 0)); // strongest day first
 
         return { weakTechnicals, weakGroups, goodTechnicals, goodGroups };
-    }, [transitionAlerts, currentStates, enrichedData]);
+    }, [transitionAlerts, currentStates, alertItems, foCodes]);
 
     // Helper to get short indicator label
     const getIndicatorLabel = (alertType: string): string => {
@@ -1386,7 +1409,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
             {/* Left: F&O, then Technical Alerts · Right: Return Drivers */}
             <div className="dashboard-two-col">
             <div className="dashboard-col">
-            {!isAnalyst && onOpenFo && <FOOverviewSection onOpen={onOpenFo} />}
+            {foEnabled && <FOOverviewSection data={fo.data} onOpen={onOpenFo!} />}
             {/* Technical Alerts */}
             <section className="dashboard-section">
                 <h2 className="section-title">

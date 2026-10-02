@@ -996,15 +996,19 @@ export async function getTechnicalStates(): Promise<TechnicalState[]> {
 }
 
 export async function saveTechnicalStates(states: TechnicalState[]): Promise<void> {
-  // Clear existing states and insert new ones
-  await query(`DELETE FROM technical_states`);
-
+  // Upsert only what the caller sent, so a visit that didn't load everything
+  // (e.g. F&O data failed) can't erase other states. Rows for exited stocks
+  // are harmless — alerts only show for codes currently tracked.
   for (const state of states) {
     await query(`
       INSERT INTO technical_states (
         stock_code, stock_name, above_50dma, above_200dma, dma50_above_200,
         near_52week_high, near_52week_low, profit_growth_above_15, sales_growth_above_15
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      ON CONFLICT (stock_code) DO UPDATE SET
+        stock_name = $2, above_50dma = $3, above_200dma = $4, dma50_above_200 = $5,
+        near_52week_high = $6, near_52week_low = $7, profit_growth_above_15 = $8,
+        sales_growth_above_15 = $9, recorded_at = NOW()
     `, [
       state.stockCode,
       state.stockName,

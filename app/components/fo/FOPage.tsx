@@ -15,10 +15,11 @@ const COLS = 'minmax(230px,2fr) 92px 92px 88px 88px 96px 100px 104px 90px';
 const cashRs = (v: number) => (v < 0 ? '\u2212' : '') + rsAbs(v);
 const REFRESH_MS = 2 * 60 * 1000;
 
-export function useFoDashboard() {
+export function useFoDashboard(enabled = true) {
   const [data, setData] = useState<FoDashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
+    if (!enabled) return;
     try {
       const res = await fetch('/api/fo');
       if (!res.ok) throw new Error(res.status === 403 ? 'You don\'t have access to F&O.' : 'Could not load F&O data.');
@@ -27,7 +28,7 @@ export function useFoDashboard() {
     } catch (e: any) {
       setError(e.message);
     }
-  }, []);
+  }, [enabled]);
   useEffect(() => {
     load();
     const id = setInterval(() => { if (isIndianMarketOpen() && document.visibilityState === 'visible') load(); }, REFRESH_MS);

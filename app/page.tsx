@@ -4767,8 +4767,7 @@ const App: React.FC = () => {
             { id: 'fodata', label: 'F&O Data' },
         ] : []),
         { id: 'pe', label: 'PE Tracker' },
-        // F&O is all amounts, so analysts don't get it.
-        ...(!isAnalyst ? [{ id: 'fo', label: 'F&O' }] : []),
+        { id: 'fo', label: 'F&O' },
         { id: 'pipeline', label: 'Pipeline' },
         ...(isAdmin ? [{ id: 'admin', label: 'Admin' }] : []),
     ];
@@ -4889,7 +4888,7 @@ const App: React.FC = () => {
                 {page === 'gridkey' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}
                 {page === 'entrydata' && <EntryDataPage gridKeyData={gridKeyData} stocks={liveStocks} />}
                 {page === 'pe' && <PETracker />}
-                {page === 'fo' && !isAnalyst && <FOPage canEdit={isManager} onOpenData={() => setPage('fodata')} />}
+                {page === 'fo' && <FOPage canEdit={isManager} onOpenData={() => setPage('fodata')} />}
                 {page === 'fodata' && isManager && <FODataPage />}
                 {page === 'pipeline' && <PipelinePage teamMembers={teamMembers} />}
                 {page === 'admin' && <AdminPanel />}

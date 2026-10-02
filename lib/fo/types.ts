@@ -94,6 +94,20 @@ export interface DashMargin {
   cashForRule: number;    // cash + liquid funds after haircut
 }
 
+/** Technical levels of an F&O underlying, for the Overview's Technical Alerts. */
+export interface FoTechnical {
+  symbol: string;
+  price: number;
+  return1D: number | null;
+  dma50: number;
+  dma200: number | null;
+  high52: number;
+  low52: number;
+  rsi: number | null;
+  downFrom52WeekHigh: number | null;
+  upFrom52WeekLow: number | null;
+}
+
 export interface FoDashboard {
   accounts: string[];
   asOf: string | null;            // latest report date
@@ -105,4 +119,5 @@ export interface FoDashboard {
            byUnderlying: { name: string; pnl: number }[]; closed: number; byPurpose: Record<Purpose, number> } | null;
   margin: DashMargin;
   nextExpiry: { date: string; legs: number; days: number } | null;
+  technicals: FoTechnical[];
 }

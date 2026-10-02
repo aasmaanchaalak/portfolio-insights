@@ -55,6 +55,25 @@ export async function fetchYahooQuote(symbol: string): Promise<LiveQuote | null>
   }
 }
 
+/** About a year of daily bars from Yahoo (oldest first), for DMAs and 52-week range. */
+export async function fetchYahooDaily(symbol: string): Promise<{ close: number; high: number; low: number }[] | null> {
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1y`;
+    const res = await fetch(url, { headers: YAHOO_HEADERS, signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    const r = (await res.json())?.chart?.result?.[0];
+    const q = r?.indicators?.quote?.[0];
+    if (!q?.close) return null;
+    const bars: { close: number; high: number; low: number }[] = [];
+    q.close.forEach((c: number | null, i: number) => {
+      if (c != null && c > 0) bars.push({ close: c, high: q.high?.[i] ?? c, low: q.low?.[i] ?? c });
+    });
+    return bars.length ? bars : null;
+  } catch {
+    return null;
+  }
+}
+
 const BSE_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
   // BSE's CDN rejects requests that don't look like a browser's.

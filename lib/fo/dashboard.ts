@@ -15,6 +15,7 @@ import { fetchHoldingQuote, fetchYahooQuote, mapWithLimit, LiveQuote } from '../
 import { getCachedPrices } from '../livePriceCache';
 import { getLotSizes, lotSizeFor, getVarRates } from './nse';
 import { getSpanRates } from './span';
+import { getUnderlyingTechnicals } from './technicals';
 import { getReportsSince, getTradesBetween, getPurposes, getMarginEntries, getHoldings, StoredReport } from './queries';
 import { FoDashboard, DashLeg, DashUnderlying, ReportLeg, Purpose, FO_PORTFOLIO } from './types';
 
@@ -309,6 +310,11 @@ export async function buildDashboard(now = Date.now()): Promise<FoDashboard> {
     ? { date: expiries[0], legs: legs.filter(l => l.expiry === expiries[0]).length, days: daysBetween(today, expiries[0]) }
     : null;
 
+  // ---- technicals for the Overview's alerts ----
+  const technicals = await getUnderlyingTechnicals(
+    Object.fromEntries(underlyingSyms.map(sym => [sym, INDEX_TICKERS[sym] ?? `${sym}.NS`])), quotes, today,
+  ).catch(() => []);
+
   return {
     accounts,
     asOf,
@@ -322,6 +328,7 @@ export async function buildDashboard(now = Date.now()): Promise<FoDashboard> {
       holdingsValue: collateral.reduce((s, c) => s + c.marketValue, 0), collateral, available, cashForRule,
     },
     nextExpiry,
+    technicals,
   };
 }
 
