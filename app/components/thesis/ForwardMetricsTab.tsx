@@ -4,6 +4,9 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ValuationTableData, ValuationRow, ValuationColumn } from '../../../types/pe';
 import { computeCurrentFY, fyLabel, parseFYLabel, deriveForwardTargetDetails, findMetricRow, computeForwardIRR, fyEndDate } from '../../../lib/fiscalYear';
 import { uuid } from '../../../lib/uuid';
+// The valuation grid is styled by the PE tracker's sheet; import it here so it
+// loads even when the (lazy) PE pages haven't been opened yet.
+import '../pe/pe.css';
 
 interface ForwardMetricsTabProps {
   stockCode: string;
