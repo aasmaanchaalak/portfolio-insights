@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { withAuth, authUser } from '../../../lib/authMiddleware';
-import { getAllUsers, updateUserRole, getUserByEmail, deleteUser, deleteUserSessions, clearUserDevice, setUserAdmin, UserRole } from '../../../lib/queries';
+import { getAllUsers, updateUserRole, getUserByEmail, deleteUser, deleteUserSessions, clearUserDevice, setUserAdmin, setUserDeviceLockExempt, UserRole } from '../../../lib/queries';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -36,6 +36,22 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           await clearUserDevice(email);
           await deleteUserSessions(email);
           return res.status(200).json({ success: true, message: 'Device lock reset' });
+        }
+
+        // Exempt an account from device locking (or lock it again). Logs the
+        // user out so their next login follows the new setting.
+        if (action === 'set-device-lock-exempt') {
+          const { exempt } = req.body;
+          if (!email || typeof exempt !== 'boolean') {
+            return res.status(400).json({ error: 'Email and exempt are required' });
+          }
+          const target = await getUserByEmail(email);
+          if (!target) {
+            return res.status(404).json({ error: 'User not found' });
+          }
+          await setUserDeviceLockExempt(email, exempt);
+          await deleteUserSessions(email);
+          return res.status(200).json({ success: true });
         }
 
         // Grant or revoke admin. You can't revoke your own, so there's always one admin left.

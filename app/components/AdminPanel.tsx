@@ -18,6 +18,7 @@ interface UserSummary {
   deviceBound: boolean;
   deviceLabel: string | null;
   deviceBoundAt: string | null;
+  deviceLockExempt: boolean;
 }
 
 interface AllowedEmail {
@@ -414,6 +415,37 @@ export default function AdminPanel() {
     }
   };
 
+  const setDeviceLockExempt = async (email: string, exempt: boolean) => {
+    const prompt = exempt
+      ? `Remove device lock for ${email}? They'll be logged out and can then log in from any device.`
+      : `Turn device lock back on for ${email}? They'll be logged out and the next device they log in from becomes their locked device.`;
+    if (!confirm(prompt)) return;
+
+    try {
+      setUpdating(email);
+      const res = await fetch('/api/admin/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, action: 'set-device-lock-exempt', exempt }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to update device lock');
+      }
+
+      setUsers(prev => prev.map(user =>
+        user.email === email
+          ? { ...user, deviceLockExempt: exempt, deviceBound: false, deviceLabel: null, deviceBoundAt: null }
+          : user
+      ));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update device lock');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   const setAdmin = async (email: string, makeAdmin: boolean) => {
     const prompt = makeAdmin
       ? `Make ${email} an admin? They'll get the Admin panel, manager access, and won't be device-locked.`
@@ -788,6 +820,8 @@ export default function AdminPanel() {
                   <td>
                     {user.isAdmin ? (
                       <span style={{ fontSize: '0.75rem', color: 'var(--secondary-text-color)' }}>Not locked</span>
+                    ) : user.deviceLockExempt ? (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--secondary-text-color)' }}>🔓 Lock removed</span>
                     ) : user.deviceBound ? (
                       <span
                         title={user.deviceBoundAt ? `Locked ${formatDate(user.deviceBoundAt)}` : 'Locked'}
@@ -825,7 +859,19 @@ export default function AdminPanel() {
                         >
                           {user.isAdmin ? 'Remove admin' : 'Make admin'}
                         </button>
-                        {user.deviceBound && !user.isAdmin && (
+                        {!user.isAdmin && (
+                          <button
+                            onClick={() => setDeviceLockExempt(user.email, !user.deviceLockExempt)}
+                            disabled={updating === user.email}
+                            className="reset-device-btn"
+                            title={user.deviceLockExempt
+                              ? 'Lock this account to one device again'
+                              : 'Let this account log in from any device'}
+                          >
+                            {user.deviceLockExempt ? 'Lock device' : 'Remove device lock'}
+                          </button>
+                        )}
+                        {user.deviceBound && !user.isAdmin && !user.deviceLockExempt && (
                           <button
                             onClick={() => resetDevice(user.email)}
                             disabled={updating === user.email}

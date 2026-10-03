@@ -5,6 +5,18 @@ import { computeCurrentFY } from './fiscalYear';
 
 // ============ Users ============
 
+// Same statement as scripts/migrations/030_device_lock_exempt.sql, applied once
+// per process so login keeps working where the migration hasn't been run.
+let userSchemaReady: Promise<void> | null = null;
+function ensureUserSchema(): Promise<void> {
+  if (!userSchemaReady) {
+    userSchemaReady = query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS device_lock_exempt BOOLEAN NOT NULL DEFAULT FALSE
+    `).then(() => undefined, err => { userSchemaReady = null; throw err; });
+  }
+  return userSchemaReady;
+}
+
 export type UserRole = 'portfolio' | 'analyst' | 'manager';
 
 export interface User {
@@ -19,12 +31,14 @@ export interface User {
   deviceIdHash: string | null;
   deviceLabel: string | null;
   deviceBoundAt: string | null;
+  deviceLockExempt: boolean;
 }
 
 export async function getUserByEmail(email: string): Promise<User | null> {
+  await ensureUserSchema();
   const row = await queryOne<any>(`
     SELECT id, email, password_hash, name, role, is_admin, created_at, last_login_at,
-           device_id_hash, device_label, device_bound_at
+           device_id_hash, device_label, device_bound_at, device_lock_exempt
     FROM users WHERE email = $1
   `, [email]);
 
@@ -42,6 +56,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     deviceIdHash: row.device_id_hash ?? null,
     deviceLabel: row.device_label ?? null,
     deviceBoundAt: row.device_bound_at ?? null,
+    deviceLockExempt: !!row.device_lock_exempt,
   };
 }
 
@@ -61,6 +76,17 @@ export async function clearUserDevice(email: string): Promise<void> {
     SET device_id_hash = NULL, device_label = NULL, device_bound_at = NULL
     WHERE email = $1
   `, [email]);
+}
+
+// Exempt an account from (or return it to) device locking. Either way the old
+// binding is cleared, so re-enabling the lock binds the next device used.
+export async function setUserDeviceLockExempt(email: string, exempt: boolean): Promise<void> {
+  await ensureUserSchema();
+  await query(`
+    UPDATE users
+    SET device_lock_exempt = $1, device_id_hash = NULL, device_label = NULL, device_bound_at = NULL
+    WHERE email = $2
+  `, [exempt, email]);
 }
 
 export async function createUser(email: string, passwordHash: string, name?: string, role: UserRole = 'analyst', isAdmin = false): Promise<User> {
@@ -84,6 +110,7 @@ export async function createUser(email: string, passwordHash: string, name?: str
     deviceIdHash: row.device_id_hash ?? null,
     deviceLabel: row.device_label ?? null,
     deviceBoundAt: row.device_bound_at ?? null,
+    deviceLockExempt: false,
   };
 }
 
@@ -112,12 +139,14 @@ export interface UserSummary {
   deviceBound: boolean;
   deviceLabel: string | null;
   deviceBoundAt: string | null;
+  deviceLockExempt: boolean;
 }
 
 export async function getAllUsers(): Promise<UserSummary[]> {
+  await ensureUserSchema();
   const rows = await query<any>(`
     SELECT id, email, name, role, is_admin, created_at, last_login_at,
-           device_id_hash, device_label, device_bound_at
+           device_id_hash, device_label, device_bound_at, device_lock_exempt
     FROM users
     ORDER BY created_at DESC
   `);
@@ -133,6 +162,7 @@ export async function getAllUsers(): Promise<UserSummary[]> {
     deviceBound: !!row.device_id_hash,
     deviceLabel: row.device_label ?? null,
     deviceBoundAt: row.device_bound_at ?? null,
+    deviceLockExempt: !!row.device_lock_exempt,
   }));
 }
 
@@ -821,6 +851,18 @@ export async function setPositioning(stockCode: string, positioning: StockPositi
       time_horizon = $5,
       updated_at = NOW()
   `, [stockCode, positioning.conviction, positioning.strategyType, positioning.actionIntent, positioning.timeHorizon || null]);
+}
+
+// Set the action (add / hold / trim / exit) for many stocks at once. Stocks with
+// no positioning row yet get one with the default conviction and strategy.
+export async function setActionIntentBulk(stockCodes: string[], actionIntent: string): Promise<void> {
+  await query(`
+    INSERT INTO stock_positioning (stock_code, conviction, strategy_type, action_intent)
+    SELECT code, 'medium', 'core_compounder', $2 FROM UNNEST($1::text[]) AS code
+    ON CONFLICT (stock_code) DO UPDATE SET
+      action_intent = $2,
+      updated_at = NOW()
+  `, [stockCodes, actionIntent]);
 }
 
 export async function deletePositioning(stockCode: string): Promise<void> {

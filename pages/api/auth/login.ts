@@ -63,14 +63,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Admins are exempt from device locking and single-session enforcement.
-    const isAdmin = user.isAdmin;
+    // Admins, and accounts an admin has exempted, skip device locking and
+    // single-session enforcement.
+    const isLocked = !user.isAdmin && !user.deviceLockExempt;
 
     // Cookies to write on a successful response.
     const cookies: string[] = [];
 
-    // ---- Device lock (non-admin only) ----
-    if (!isAdmin) {
+    // ---- Device lock (locked accounts only) ----
+    if (isLocked) {
       const incomingToken = req.cookies[DEVICE_COOKIE_NAME];
 
       if (user.deviceIdHash) {

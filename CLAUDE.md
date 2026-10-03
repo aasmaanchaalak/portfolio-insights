@@ -164,7 +164,7 @@ Combined Data → Calculate Amounts → Calculate Weightages → Calculate Portf
 
 ### Admin Panel
 - **URL**: Admin tab in navigation (only visible to admin)
-- **Admin**: any user with `users.is_admin = TRUE` (separate from role; gets manager access, exempt from device lock). First user to register on a fresh deployment becomes admin. Admins can grant/revoke admin for others.
+- **Admin**: any user with `users.is_admin = TRUE` (separate from role; gets manager access, exempt from device lock). First user to register on a fresh deployment becomes admin. Admins can grant/revoke admin for others. Admins can also remove the device lock for specific users (`users.device_lock_exempt`, migration 030) — exempt users can log in from any device and keep multiple sessions.
 - **Features**: View all users, change user roles, firm settings (name, logo, benchmark)
 
 ### Auth Flow

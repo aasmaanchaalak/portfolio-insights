@@ -1548,9 +1548,10 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     // ===== Phone list lenses =====
     // On phones the table is replaced by a list: each lens picks a headline
     // number (right), a secondary number under it, and a few fields under the
-    // name. Picking a lens sorts by its headline, high → low.
+    // name. Picking a lens sorts by its headline, high → low. Exit and Add also
+    // narrow the list to stocks in that positioning bucket.
     interface MField { key: string; label: string; render: (it: any) => React.ReactNode }
-    interface MLens { id: string; label: string; main: MField; sub: MField; below: MField[] }
+    interface MLens { id: string; label: string; main: MField; sub: MField; below: MField[]; action?: ActionIntent }
     const mobileLenses: MLens[] = useMemo(() => {
         const f = (key: string, label: string, render: (it: any) => React.ReactNode): MField => ({ key, label, render });
         const pct = (key: string, label: string) => f(key, label, it => <PctColored v={it[key]} />);
@@ -1564,17 +1565,22 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                 if (v == null) return <PPDash />;
                 return <span style={{ color: it.absoluteGain >= 0 ? 'var(--positive)' : 'var(--negative)' }}>{it.absoluteGain > 0 ? '+' : ''}{v}</span>;
             });
+        const weight = f('weightage', 'Weight', it => (it.weightage == null || isNaN(it.weightage)) ? <PPDash /> : `${it.weightage.toFixed(2)}%`);
         const lenses: MLens[] = [
             { id: 'stock', label: 'Stock', main: absGain, sub: f('calculatedAmount', 'Value', it => fmtIndianCompact(it.calculatedAmount) ?? <PPDash />),
               below: [f('investedAmount', 'Inv', it => fmtIndianCompact(it.investedAmount) ?? <PPDash />), pct('irr', 'IRR')] },
             { id: 'today', label: 'Today', main: pct('return1D', 'Today'), sub: f('currentPrice', 'Price', it => fmtUnitPrice(it.currentPrice) ?? <PPDash />),
               below: [f('averageBuyPrice', 'Avg', it => (it.averageBuyPrice > 0 ? fmtUnitPrice(it.averageBuyPrice) : null) ?? <PPDash />), f('quantity', 'Qty', it => qtyStr(it.quantity, 0) ?? <PPDash />)] },
-            { id: 'fundamentals', label: 'Growth', main: pct('roce', 'ROCE'), sub: f('priceToEarning', 'P/E', it => <PlainNum v={it.priceToEarning} digits={1} />),
-              below: [pct('yoyQuarterlySalesGrowth', 'Sales'), pct('yoyQuarterlyProfitGrowth', 'Profit')] },
-            { id: 'technicals', label: 'Technicals', main: pct('dma200ChangePercent', 'vs 200 DMA'), sub: pct('dma50ChangePercent', 'vs 50 DMA'),
-              below: [f('downFrom52WeekHigh', 'From 52W high', it => <OffPct v={it.downFrom52WeekHigh} dir="down" />)] },
             { id: 'forward', label: 'Forward', main: pct('fwdIrr1', `${fy1} IRR`), sub: pct('fwdIrr0', fy0),
               below: [pct('fwdIrr2', fy2)] },
+            { id: 'exit', label: 'Exit', action: 'exit', main: pct('gainPercentage', 'Gain'), sub: weight,
+              below: [pct('irr', 'IRR'), pct('fwdIrr1', `${fy1} IRR`)] },
+            { id: 'add', label: 'Add', action: 'add', main: pct('fwdIrr1', `${fy1} IRR`), sub: weight,
+              below: [f('downFrom52WeekHigh', 'From 52W high', it => <OffPct v={it.downFrom52WeekHigh} dir="down" />), pct('dma200ChangePercent', 'vs 200 DMA')] },
+            { id: 'technicals', label: 'Technicals', main: pct('dma200ChangePercent', 'vs 200 DMA'), sub: pct('dma50ChangePercent', 'vs 50 DMA'),
+              below: [f('downFrom52WeekHigh', 'From 52W high', it => <OffPct v={it.downFrom52WeekHigh} dir="down" />)] },
+            { id: 'fundamentals', label: 'Growth', main: pct('roce', 'ROCE'), sub: f('priceToEarning', 'P/E', it => <PlainNum v={it.priceToEarning} digits={1} />),
+              below: [pct('yoyQuarterlySalesGrowth', 'Sales'), pct('yoyQuarterlyProfitGrowth', 'Profit')] },
         ];
         // Analysts never see position sizes: drop those fields.
         if (!isAnalyst) return lenses;
@@ -1592,6 +1598,75 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         try { localStorage.setItem(MOBILE_LENS_KEY, l.id); } catch {}
         setSortConfig({ key: l.main.key, direction: 'descending' });
     };
+    // Rows for the phone list: the Exit / Add lenses keep only that bucket.
+    const mobileRows = useMemo(() => (
+        mobileLens.action
+            ? filteredAndSortedData.filter(it => (it as any).positioning?.actionIntent === mobileLens.action)
+            : filteredAndSortedData
+    ), [filteredAndSortedData, mobileLens]);
+    const actionCounts = useMemo(() => {
+        const counts: Partial<Record<ActionIntent, number>> = {};
+        filteredAndSortedData.forEach(it => {
+            const a = (it as any).positioning?.actionIntent as ActionIntent | undefined;
+            if (a) counts[a] = (counts[a] || 0) + 1;
+        });
+        return counts;
+    }, [filteredAndSortedData]);
+
+    // Bulk select on the desktop table: tick rows, then move them all into a
+    // positioning bucket (Add / Exit, or back to Hold) in one go.
+    const [selectedCodes, setSelectedCodes] = useState<Set<string>>(() => new Set());
+    const [bulkSaving, setBulkSaving] = useState(false);
+    const clearSelection = () => setSelectedCodes(new Set());
+    const visibleCodes = useMemo(() => (
+        filteredAndSortedData.map(it => (it as any).nseCode || (it as any).bseCode).filter(Boolean) as string[]
+    ), [filteredAndSortedData]);
+    const allVisibleSelected = visibleCodes.length > 0 && visibleCodes.every(c => selectedCodes.has(c));
+    const someVisibleSelected = visibleCodes.some(c => selectedCodes.has(c));
+    const toggleAllVisible = () => {
+        setSelectedCodes(prev => {
+            const next = new Set(prev);
+            if (allVisibleSelected) visibleCodes.forEach(c => next.delete(c));
+            else visibleCodes.forEach(c => next.add(c));
+            return next;
+        });
+    };
+    const toggleSelected = (code: string) => {
+        setSelectedCodes(prev => {
+            const next = new Set(prev);
+            if (next.has(code)) next.delete(code); else next.add(code);
+            return next;
+        });
+    };
+    const applyBulkAction = async (actionIntent: ActionIntent) => {
+        const codes = Array.from(selectedCodes);
+        if (codes.length === 0 || bulkSaving) return;
+        setBulkSaving(true);
+        try {
+            const res = await fetch('/api/positioning', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ codes, actionIntent }),
+            });
+            if (!res.ok) throw new Error('Failed to update positioning');
+            const picked = new Set(codes);
+            onStocksUpdate(stocks.map(s => {
+                if (!(s.nseCode && picked.has(s.nseCode)) && !(s.bseCode && picked.has(s.bseCode))) return s;
+                const prev = (s as any).positioning as StockPositioning | null | undefined;
+                return {
+                    ...s,
+                    positioning: { ...(prev || { conviction: 'medium', strategyType: 'core_compounder' }), actionIntent },
+                } as Stock;
+            }));
+            clearSelection();
+        } catch (error) {
+            console.error('Error bulk-updating positioning:', error);
+            alert('Could not update positioning. Please try again.');
+        } finally {
+            setBulkSaving(false);
+        }
+    };
+
     // Sort options: the lens's own fields, plus whatever is currently sorted
     // (e.g. the default weight sort) so the picker always reflects reality.
     const mobileSortOptions = useMemo(() => {
@@ -2086,6 +2161,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         onClick={() => selectMobileLens(l)}
                                     >
                                         {l.label}
+                                        {l.action && <span className="pp-mlens-count">{actionCounts[l.action] || 0}</span>}
                                     </button>
                                 ))}
                             </div>
@@ -2111,8 +2187,14 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                 </button>
                             </div>
                         </div>
-                        {filteredAndSortedData.length === 0 && <div className="pp-mempty">No holdings match.</div>}
-                        {filteredAndSortedData.map((item, index) => {
+                        {mobileRows.length === 0 && (
+                            <div className="pp-mempty">
+                                {mobileLens.action
+                                    ? `No holdings in ${mobileLens.label}.`
+                                    : 'No holdings match.'}
+                            </div>
+                        )}
+                        {mobileRows.map((item, index) => {
                             const it = item as any;
                             const ticker = it.nseCode || it.bseCode || '';
                             const { main, sub, below } = mobileLens;
@@ -2148,6 +2230,15 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                     <table className="pp-table">
                         <thead>
                             <tr>
+                                <th className="pp-th pp-th-select">
+                                    <input
+                                        type="checkbox"
+                                        aria-label="Select all shown holdings"
+                                        checked={allVisibleSelected}
+                                        ref={el => { if (el) el.indeterminate = someVisibleSelected && !allVisibleSelected; }}
+                                        onChange={toggleAllVisible}
+                                    />
+                                </th>
                                 <th className="pp-th pp-th-rank">#</th>
                                 <PPTh k="scripName" label="Holding" align="left" sticky />
                                 {visibleOptional.map(c => <PPTh key={c.key} k={c.key} label={c.short || c.label} align={c.align} />)}
@@ -2162,7 +2253,17 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                 const ticker = it.nseCode || it.bseCode || '';
                                 const pledged = !isAnalyst && it.pledgedQty != null && it.pledgedQty > 0;
                                 return (
-                                    <tr key={`${item.scripName}-${index}`} className="pp-row" onClick={() => handleStockNameClick(item)}>
+                                    <tr key={`${item.scripName}-${index}`} className={`pp-row ${ticker && selectedCodes.has(ticker) ? 'pp-row-selected' : ''}`} onClick={() => handleStockNameClick(item)}>
+                                        <td className="pp-select" onClick={e => e.stopPropagation()}>
+                                            {ticker && (
+                                                <input
+                                                    type="checkbox"
+                                                    aria-label={`Select ${item.scripName}`}
+                                                    checked={selectedCodes.has(ticker)}
+                                                    onChange={() => toggleSelected(ticker)}
+                                                />
+                                            )}
+                                        </td>
                                         <td className="pp-rank">{index + 1}</td>
                                         <td className="pp-id-col" title={item.scripName}>
                                             <span className="pp-spine" data-conviction={conviction} />
@@ -2185,6 +2286,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                         </tbody>
                         <tfoot>
                             <tr className="pp-total-row">
+                                <td className="pp-select"></td>
                                 <td className="pp-rank"></td>
                                 <td className="pp-id-col pp-total-label">Total · {summary.count} holdings</td>
                                 {visibleOptional.map(c => (
@@ -2195,6 +2297,26 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                         </tfoot>
                     </table>
                 </div>
+                {selectedCodes.size > 0 && (
+                    <div className="pp-select-bar" role="toolbar" aria-label="Bulk positioning">
+                        <span className="pp-select-count">{selectedCodes.size} selected</span>
+                        <span className="pp-select-label">Move to</span>
+                        {(['add', 'exit', 'hold'] as ActionIntent[]).map(a => (
+                            <button
+                                key={a}
+                                type="button"
+                                className={`pp-select-btn pp-action-${a}`}
+                                disabled={bulkSaving}
+                                onClick={() => applyBulkAction(a)}
+                            >
+                                {a === 'add' ? 'Add' : a === 'exit' ? 'Exit' : 'Hold'}
+                            </button>
+                        ))}
+                        <button type="button" className="pp-select-clear" onClick={clearSelection} disabled={bulkSaving}>
+                            Clear
+                        </button>
+                    </div>
+                )}
                 </>
                 ) : (
                     <div className="stock-grid">
