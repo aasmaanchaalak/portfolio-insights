@@ -2276,7 +2276,22 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                                 </div>
                                             </div>
                                         </td>
-                                        {visibleOptional.map(c => (
+                                        {visibleOptional.map(c => c.key === 'assignedTo' ? (
+                                            <td key={c.key} className="pp-opt-text" onClick={e => e.stopPropagation()}>
+                                                <select
+                                                    className="pp-assign-select"
+                                                    aria-label={`Assign ${item.scripName}`}
+                                                    value={it.assignedTo || ''}
+                                                    onChange={e => handleAssignmentChange(item, e.target.value)}
+                                                >
+                                                    <option value="">—</option>
+                                                    {it.assignedTo && !teamMembers.includes(it.assignedTo) && (
+                                                        <option value={it.assignedTo}>{it.assignedTo}</option>
+                                                    )}
+                                                    {teamMembers.map(m => <option key={m} value={m}>{m}</option>)}
+                                                </select>
+                                            </td>
+                                        ) : (
                                             <td key={c.key} className={c.align === 'left' ? 'pp-opt-text' : c.align === 'center' ? 'pp-action-col' : 'pp-num'}>{c.cell(it)}</td>
                                         ))}
                                         <td className="pp-chevron" aria-hidden="true">›</td>

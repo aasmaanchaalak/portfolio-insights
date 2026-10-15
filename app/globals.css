@@ -5286,6 +5286,21 @@ a:hover {
   max-width: 170px;
 }
 
+/* inline "Assigned to" editor */
+.pp-assign-select {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2px 4px;
+  max-width: 160px;
+  cursor: pointer;
+}
+.pp-assign-select:hover,
+.pp-assign-select:focus { border-color: oklch(0.85 0.003 0); }
+
 /* ── Gain: signed percentage, semantic colour (no bar) ── */
 .pp-gain-label {
   font-variant-numeric: tabular-nums lining-nums;
