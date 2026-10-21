@@ -1826,9 +1826,16 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             'Gain %',
             'Weightage %',
             'Portfolio Contribution %',
+            'Entry Date',
+            'Entry Price',
+            'IRR %',
+            ...forwardIrrColumns.map(c => `${c.label} %`),
             'Industry Group',
             'Industry',
             'P/E',
+            'Market Cap (Cr)',
+            '% of Mcap',
+            'ROCE %',
             'Profit Growth %',
             'Sales Growth %',
             'DMA 50',
@@ -1837,6 +1844,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             'Change % from DMA 200',
             'Down from 52W High %',
             'Up from 52W Low %',
+            'RSI',
             'Trend',
             '1D %',
             '1W %',
@@ -1847,6 +1855,10 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             'Remarks',
             'Assigned To',
             'Bucket',
+            'Positioning',
+            'Pledged Qty',
+            'Free Qty',
+            'Pledged Where',
         ];
 
         // Helper to escape CSV values
@@ -1879,9 +1891,16 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             formatNum(item.gainPercentage),
             formatNum(item.weightage),
             formatNum(item.portfolioContribution),
+            escapeCSV(item.entryDate),
+            formatNum(item.entryPrice),
+            formatNum(item.irr),
+            ...forwardIrrColumns.map(c => formatNum(item[c.key])),
             escapeCSV(item.industryGroup),
             escapeCSV(item.industry),
             formatNum(item.priceToEarning),
+            formatNum(item.marketCap),
+            formatNum(item.positionPctOfMarketCap, 4),
+            formatNum(item.roce),
             formatNum(item.yoyQuarterlyProfitGrowth),
             formatNum(item.yoyQuarterlySalesGrowth),
             formatNum(item.dma50),
@@ -1890,6 +1909,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             formatNum(item.dma200ChangePercent),
             formatNum(item.downFrom52WeekHigh),
             formatNum(item.upFrom52WeekLow),
+            formatNum(item.rsi),
             escapeCSV(item.trend),
             formatNum(item.return1D),
             formatNum(item.return1W),
@@ -1900,6 +1920,10 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             escapeCSV(item.remarks),
             escapeCSV(item.assignedTo),
             escapeCSV(item.bucket),
+            escapeCSV(item.positioning?.actionIntent),
+            item.pledgedQty ?? '',
+            item.freeQty ?? '',
+            escapeCSV(item.pledgedWhere),
         ]);
 
         // Combine headers and rows
@@ -2473,6 +2497,8 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                 stockCode={selectedStock?.code || null}
                 stockName={selectedStock?.name || ''}
                 positioning={selectedStock?.positioning}
+                holding={selectedStock ? enrichedDataWithWeightage.find((it: any) => (it.nseCode || it.bseCode) === selectedStock.code) || null : null}
+                forwardIrrLabels={forwardIrrColumns.map(c => c.label)}
                 isAnalyst={isAnalyst}
             />
         </>

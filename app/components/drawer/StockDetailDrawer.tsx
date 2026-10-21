@@ -16,6 +16,9 @@ interface StockDetailDrawerProps {
   stockCode: string | null;
   stockName: string;
   positioning?: { conviction?: Conviction; strategyType?: StrategyType; actionIntent?: ActionIntent } | null;
+  // The table's computed row for this stock (weightage, IRR, % of mcap, …).
+  holding?: any;
+  forwardIrrLabels?: string[];
   isAnalyst?: boolean;
 }
 
@@ -32,6 +35,8 @@ export function StockDetailDrawer({
   stockCode,
   stockName,
   positioning,
+  holding,
+  forwardIrrLabels = [],
   isAnalyst = false,
 }: StockDetailDrawerProps) {
   const [activeTab, setActiveTab] = useState('details');
@@ -55,7 +60,7 @@ export function StockDetailDrawer({
 
   const renderContent = () => {
     if (activeTab === 'details') {
-      return <StockDetailsTab stockCode={stockCode} stockName={stockName} isAnalyst={isAnalyst} />;
+      return <StockDetailsTab stockCode={stockCode} stockName={stockName} holding={holding} forwardIrrLabels={forwardIrrLabels} isAnalyst={isAnalyst} />;
     }
     if (activeTab === 'positioning') {
       return <PositioningSection stockCode={stockCode} />;

@@ -4,6 +4,10 @@ import React from 'react';
 interface StockDetailsTabProps {
   stockCode: string | null;
   stockName: string;
+  // Computed row from the Portfolio Insights table. When present it's used as-is,
+  // since /api/portfolio only has the raw Screener fields.
+  holding?: any;
+  forwardIrrLabels?: string[];
   isAnalyst: boolean;
 }
 
@@ -40,12 +44,13 @@ interface Section {
   rows: Row[];
 }
 
-export function StockDetailsTab({ stockCode, stockName, isAnalyst }: StockDetailsTabProps) {
-  const [data, setData] = React.useState<any>(null);
-  const [loading, setLoading] = React.useState(true);
+export function StockDetailsTab({ stockCode, stockName, holding, forwardIrrLabels = [], isAnalyst }: StockDetailsTabProps) {
+  const [fetched, setFetched] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(!holding);
+  const data = holding || fetched;
 
   React.useEffect(() => {
-    if (!stockCode) return;
+    if (!stockCode || holding) return;
     setLoading(true);
     // Re-use the main portfolio endpoint and find this stock
     fetch('/api/portfolio')
@@ -55,11 +60,11 @@ export function StockDetailsTab({ stockCode, stockName, isAnalyst }: StockDetail
         const match = stocks.find((s: any) =>
           s.nseCode === stockCode || s.bseCode === stockCode
         );
-        setData(match || null);
+        setFetched(match || null);
       })
-      .catch(() => setData(null))
+      .catch(() => setFetched(null))
       .finally(() => setLoading(false));
-  }, [stockCode]);
+  }, [stockCode, !!holding]);
 
   if (loading) return <div className="stock-details-loading">Loading...</div>;
   if (!data) return <div className="stock-details-loading">No data found for {stockName}.</div>;
@@ -76,7 +81,12 @@ export function StockDetailsTab({ stockCode, stockName, isAnalyst }: StockDetail
         { label: 'Absolute Gain', value: fmt(data.absoluteGain, '₹'), color: color(data.absoluteGain), analystHidden: true },
         { label: 'Gain %', value: pct(data.gainPercentage), color: color(data.gainPercentage) },
         { label: 'Weightage %', value: pct(data.weightage) },
-        { label: 'Portfolio Contribution %', value: pct(data.portfolioContribution) },
+        { label: 'Portfolio Contribution %', value: pct(data.portfolioContribution), color: color(data.portfolioContribution) },
+        { label: 'Entry Date', value: data.entryDate ? new Date(data.entryDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A' },
+        { label: 'Entry Price', value: fmt(data.entryPrice, '₹') },
+        { label: 'Pledged Qty', value: fmt(data.pledgedQty, '', '', 0), analystHidden: true },
+        { label: 'Free Qty', value: fmt(data.freeQty, '', '', 0), analystHidden: true },
+        { label: 'Pledged Where', value: data.pledgedWhere || 'N/A', analystHidden: true },
       ],
     },
     {
@@ -88,6 +98,8 @@ export function StockDetailsTab({ stockCode, stockName, isAnalyst }: StockDetail
         { label: '3 Months', value: pct(data.return3M), color: color(data.return3M) },
         { label: '6 Months', value: pct(data.return6M), color: color(data.return6M) },
         { label: '1 Year', value: pct(data.return1Y), color: color(data.return1Y) },
+        { label: 'IRR', value: pct(data.irr), color: color(data.irr) },
+        ...forwardIrrLabels.map((label, i) => ({ label, value: pct(data[`fwdIrr${i}`]), color: color(data[`fwdIrr${i}`]) })),
       ],
     },
     {
@@ -96,6 +108,7 @@ export function StockDetailsTab({ stockCode, stockName, isAnalyst }: StockDetail
         { label: 'Industry', value: data.industry || 'N/A' },
         { label: 'Industry Group', value: data.industryGroup || 'N/A' },
         { label: 'Market Cap', value: fmt(data.marketCap, '₹', ' Cr', 0) },
+        { label: '% of Mcap', value: data.positionPctOfMarketCap == null ? 'N/A' : `${data.positionPctOfMarketCap.toFixed(data.positionPctOfMarketCap < 0.01 ? 4 : 2)}%` },
         { label: 'P/E', value: fmt(data.priceToEarning) },
         { label: 'ROCE %', value: pct(data.roce) },
         { label: 'Profit Growth %', value: pct(data.yoyQuarterlyProfitGrowth), color: color(data.yoyQuarterlyProfitGrowth) },
@@ -110,6 +123,16 @@ export function StockDetailsTab({ stockCode, stockName, isAnalyst }: StockDetail
         { label: 'vs 200 DMA', value: pct(data.dma200ChangePercent), color: color(data.dma200ChangePercent) },
         { label: 'Down from 52W High', value: pct(data.downFrom52WeekHigh), color: color(data.downFrom52WeekHigh) },
         { label: 'Up from 52W Low', value: pct(data.upFrom52WeekLow), color: color(data.upFrom52WeekLow) },
+        { label: 'Trend', value: data.trend || 'N/A' },
+      ],
+    },
+    {
+      title: 'Workflow',
+      rows: [
+        { label: 'Positioning', value: data.positioning?.actionIntent || 'N/A' },
+        { label: 'Bucket', value: data.bucket || 'N/A' },
+        { label: 'Assigned To', value: data.assignedTo || 'N/A' },
+        { label: 'Remarks', value: data.remarks || 'N/A' },
       ],
     },
   ];
