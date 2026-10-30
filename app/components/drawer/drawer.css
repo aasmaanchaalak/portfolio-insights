@@ -248,3 +248,71 @@
   margin: 0.75rem 0;
 }
 
+
+/* Alerts tab */
+.stock-alerts-form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.stock-alerts-input {
+  width: 8rem;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  background-color: var(--background-color);
+  color: var(--primary-text-color);
+  box-sizing: border-box;
+}
+.stock-alerts-input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+.stock-alerts-note {
+  flex: 1;
+  min-width: 8rem;
+}
+.stock-alerts-add {
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 5px;
+  cursor: pointer;
+  background-color: var(--accent-color);
+  color: white;
+  border: none;
+  white-space: nowrap;
+}
+.stock-alerts-add:hover {
+  background-color: var(--accent-hover-color);
+}
+.stock-alerts-add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.stock-alerts-hint,
+.stock-alerts-empty,
+.stock-alerts-meta {
+  font-size: 0.75rem;
+  color: var(--secondary-text-color);
+}
+.stock-alerts-error {
+  font-size: 0.75rem;
+  color: var(--negative);
+}
+.stock-alerts-item .stock-details-label {
+  white-space: normal;
+  color: var(--primary-text-color);
+}
+.stock-alerts-remove {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.75rem;
+  color: var(--secondary-text-color);
+  cursor: pointer;
+}
+.stock-alerts-remove:hover {
+  color: var(--negative);
+}

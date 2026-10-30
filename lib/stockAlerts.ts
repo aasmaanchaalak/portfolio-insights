@@ -1,13 +1,20 @@
 // Portfolio alerts for push notifications:
 // - a holding crossing below its 50 or 200 DMA
 // - a holding at its upper or lower circuit
-// Each event fires once: a DMA alert re-arms only after the price recovers
-// above the DMA, and a circuit alert fires at most once per stock per day.
+// - a holding falling STOP_LOSS_PCT below its average buy price (stop loss)
+// - a user-set price alert reaching its target (see lib/priceAlerts.ts)
+// Each event fires once: a DMA or stop-loss alert re-arms only after the price
+// recovers above the line, a circuit alert fires at most once per stock per
+// day, and a price alert is done once it fires.
 
 import { query } from './db';
 import { getCache, setCache, getGridKeyData, getPortfolioData, getAnalystOverrides, isVisibleToAnalyst } from './queries';
 import { LiveQuote } from './livePrices';
 import { getSubscribers, sendPush, PushMessage } from './push';
+import { getActivePriceAlerts, markPriceAlertTriggered, priceAlertHit } from './priceAlerts';
+
+// Stop loss: alert when the price is this many percent below the average buy price.
+export const STOP_LOSS_PCT = 20;
 
 // Re-arm a DMA alert only once the price is this far back above the DMA, so a
 // stock hovering at the line doesn't alert every 10 minutes.
@@ -84,6 +91,17 @@ export function circuitStatus(q: LiveQuote, band: number | null | undefined): 'U
 }
 
 /**
+ * Stop-loss state step. Unlike the DMA alerts, a holding already past its stop
+ * when first seen alerts once, so existing breaches aren't silently skipped.
+ */
+export function stopLossTransition(was: boolean | null, price: number, stop: number): { below: boolean; alert: boolean } {
+  const below = price < stop;
+  if (!was && below) return { below: true, alert: true };
+  if (was && price > stop * REARM_ABOVE) return { below: false, alert: false };
+  return { below: was ?? below, alert: false };
+}
+
+/**
  * DMA state step. `was` is the recorded below-DMA flag (null = never seen).
  * Alerts only on a fresh cross below; re-arms once back above by REARM_ABOVE.
  */
@@ -110,12 +128,14 @@ async function ensureStateTable(): Promise<void> {
       updated_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     )
   `);
+  await query(`ALTER TABLE stock_alert_state ADD COLUMN IF NOT EXISTS below_stop_loss BOOLEAN`);
   stateTableReady = true;
 }
 
 interface AlertState {
   below50: boolean | null;
   below200: boolean | null;
+  belowStop: boolean | null;
   circuit: string | null;
   circuitDate: string | null;
 }
@@ -129,7 +149,7 @@ function istToday(): string {
 export interface StockAlert {
   code: string;         // holding's NSE or BSE code
   name: string;
-  kind: 'below50' | 'below200' | 'UC' | 'LC';
+  kind: 'below50' | 'below200' | 'UC' | 'LC' | 'stopLoss' | `price${number}`;
   title: string;
   body: string;
   investedAmount: number; // for analyst visibility
@@ -144,15 +164,22 @@ const fmtPct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`;
  */
 export async function evaluateAlerts(prices: Record<string, LiveQuote>, dryRun = false): Promise<StockAlert[]> {
   await ensureStateTable();
-  const [holdings, screener, bands, stateRows] = await Promise.all([
+  const [holdings, screener, bands, stateRows, priceAlerts] = await Promise.all([
     getGridKeyData(),
     getPortfolioData(),
     getNseBands(),
-    query<any>(`SELECT stock_code, below_50dma, below_200dma, circuit, to_char(circuit_date, 'YYYY-MM-DD') circuit_date FROM stock_alert_state`),
+    query<any>(`SELECT stock_code, below_50dma, below_200dma, below_stop_loss, circuit, to_char(circuit_date, 'YYYY-MM-DD') circuit_date FROM stock_alert_state`),
+    getActivePriceAlerts(),
   ]);
   const states = new Map<string, AlertState>(stateRows.map(r => [r.stock_code, {
-    below50: r.below_50dma, below200: r.below_200dma, circuit: r.circuit, circuitDate: r.circuit_date,
+    below50: r.below_50dma, below200: r.below_200dma, belowStop: r.below_stop_loss, circuit: r.circuit, circuitDate: r.circuit_date,
   }]));
+  const priceAlertsByCode = new Map<string, typeof priceAlerts>();
+  for (const a of priceAlerts) {
+    const k = a.stockCode.toLowerCase();
+    priceAlertsByCode.set(k, [...(priceAlertsByCode.get(k) || []), a]);
+  }
+  const triggered: [number, number][] = [];
   const screenerByCode = new Map<string, any>();
   for (const s of screener || []) {
     if (s.nseCode) screenerByCode.set(String(s.nseCode).toLowerCase(), s);
@@ -161,12 +188,15 @@ export async function evaluateAlerts(prices: Record<string, LiveQuote>, dryRun =
 
   const today = istToday();
   const alerts: StockAlert[] = [];
-  const updates: [string, boolean | null, boolean | null, string | null, string | null][] = [];
+  const updates: [string, boolean | null, boolean | null, boolean | null, string | null, string | null][] = [];
+  // The upload can list a stock once per portfolio; evaluate each stock once.
+  const seen = new Set<string>();
 
   for (const h of holdings || []) {
     if (!(Number(h.quantity) > 0)) continue;
     const code = String(h.nseCode || h.bseCode || '');
-    if (!code) continue;
+    if (!code || seen.has(code)) continue;
+    seen.add(code);
     const key = code.toLowerCase();
     const q = prices[key] ?? (h.bseCode ? prices[String(h.bseCode).toLowerCase()] : undefined);
     if (!q) continue;
@@ -174,7 +204,7 @@ export async function evaluateAlerts(prices: Record<string, LiveQuote>, dryRun =
     const name = h.nseCode || s?.name || h.scripName || code;
     const invested = (Number(h.quantity) || 0) * (Number(h.averageBuyPrice) || 0);
     const prev = states.get(code);
-    const next: AlertState = { below50: prev?.below50 ?? null, below200: prev?.below200 ?? null, circuit: prev?.circuit ?? null, circuitDate: prev?.circuitDate ?? null };
+    const next: AlertState = { below50: prev?.below50 ?? null, below200: prev?.below200 ?? null, belowStop: prev?.belowStop ?? null, circuit: prev?.circuit ?? null, circuitDate: prev?.circuitDate ?? null };
 
     for (const [period, field] of [[50, 'below50'], [200, 'below200']] as const) {
       const dma = Number(s?.[`dma${period}`]);
@@ -191,6 +221,30 @@ export async function evaluateAlerts(prices: Record<string, LiveQuote>, dryRun =
       }
     }
 
+    const avgBuy = Number(h.averageBuyPrice);
+    if (avgBuy > 0) {
+      const stop = avgBuy * (1 - STOP_LOSS_PCT / 100);
+      const step = stopLossTransition(next.belowStop, q.price, stop);
+      next.belowStop = step.below;
+      if (step.alert) {
+        alerts.push({
+          code, name, kind: 'stopLoss', investedAmount: invested,
+          title: `${name} hit stop loss`,
+          body: `${fmtRs(q.price)} is ${fmtPct(((q.price - avgBuy) / avgBuy) * 100)} vs avg buy ${fmtRs(avgBuy)} (stop ${fmtRs(stop)})`,
+        });
+      }
+    }
+
+    for (const a of priceAlertsByCode.get(key) || []) {
+      if (!priceAlertHit(a, q.price)) continue;
+      triggered.push([a.id, q.price]);
+      alerts.push({
+        code, name, kind: `price${a.id}`, investedAmount: invested,
+        title: `${name} ${a.direction === 'above' ? 'rose to' : 'fell to'} ${fmtRs(a.targetPrice)}`,
+        body: `Now ${fmtRs(q.price)}${q.changePct != null ? ` · today ${fmtPct(q.changePct)}` : ''}${a.note ? ` · ${a.note}` : ''}`,
+      });
+    }
+
     const band = h.nseCode ? (bands ? bands[String(h.nseCode).toUpperCase()] : undefined) : undefined;
     const circuit = circuitStatus(q, band);
     if (circuit && !(next.circuit === circuit && next.circuitDate === today)) {
@@ -203,19 +257,20 @@ export async function evaluateAlerts(prices: Record<string, LiveQuote>, dryRun =
       });
     }
 
-    if (!prev || prev.below50 !== next.below50 || prev.below200 !== next.below200 || prev.circuit !== next.circuit || prev.circuitDate !== next.circuitDate) {
-      updates.push([code, next.below50, next.below200, next.circuit, next.circuitDate]);
+    if (!prev || prev.below50 !== next.below50 || prev.below200 !== next.below200 || prev.belowStop !== next.belowStop || prev.circuit !== next.circuit || prev.circuitDate !== next.circuitDate) {
+      updates.push([code, next.below50, next.below200, next.belowStop, next.circuit, next.circuitDate]);
     }
   }
 
   if (!dryRun) {
     for (const u of updates) {
       await query(`
-        INSERT INTO stock_alert_state (stock_code, below_50dma, below_200dma, circuit, circuit_date, updated_at)
-        VALUES ($1, $2, $3, $4, $5, NOW())
-        ON CONFLICT (stock_code) DO UPDATE SET below_50dma = $2, below_200dma = $3, circuit = $4, circuit_date = $5, updated_at = NOW()
+        INSERT INTO stock_alert_state (stock_code, below_50dma, below_200dma, below_stop_loss, circuit, circuit_date, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        ON CONFLICT (stock_code) DO UPDATE SET below_50dma = $2, below_200dma = $3, below_stop_loss = $4, circuit = $5, circuit_date = $6, updated_at = NOW()
       `, u);
     }
+    for (const [id, price] of triggered) await markPriceAlertTriggered(id, price);
   }
   return alerts;
 }

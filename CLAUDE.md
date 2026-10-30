@@ -1,6 +1,7 @@
 # Portfolio Insights - Claude Documentation
 
 ## 🧹 Latest Changes
+- **NEW**: Stop-loss and price alerts (push, via the 10-min `/api/cron/alerts` run). Stop loss = 20% below avg buy (`STOP_LOSS_PCT` in `lib/stockAlerts.ts`; holdings already past it alert once). Price alerts are set in the stock drawer's Alerts tab (`app/components/drawer/AlertsTab.tsx`, `/api/price-alerts`, `lib/priceAlerts.ts`); direction is fixed from the live price at creation, and each fires once.
 - **NEW**: F&O dashboard (`app/components/fo/`, `lib/fo/`) per `design_handoff_portfolio_insights/FO_BRIEF.md`. Data: Nuvama's single-day P&L report (xlsx, parsed in the browser on the F&O Data page — client details never uploaded), margin/cash typed in, and the F&O account's holdings from the "UMA AGARWAL" rows of the GridKey upload (`FO_PORTFOLIO`; the upload now sums per-portfolio rows per stock for the main holdings). Between uploads legs are re-priced from live spot (futures ∝ spot, options by delta). Lot sizes and VaR haircuts come from NSE files. Visible to all roles, analysts included; uploads/purpose edits are manager/admin only. F&O section also shows on the Dashboard, and F&O underlyings join its Technical Alerts (levels from `lib/fo/technicals.ts`).
 - **NEW**: Migrated from Redis to PostgreSQL for all data storage
 - **NEW**: Admin Panel for user management (accessible to users with the admin flag)

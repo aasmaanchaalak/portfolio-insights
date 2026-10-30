@@ -6,6 +6,7 @@ import { DrawerTabs, DrawerTab } from './DrawerTabs';
 import { ThesisTab } from '../thesis/ThesisTab';
 import { ForwardMetricsTab } from '../thesis/ForwardMetricsTab';
 import { StockDetailsTab } from './StockDetailsTab';
+import { AlertsTab } from './AlertsTab';
 import { PositioningSection } from '../positioning/PositioningSection';
 import { Conviction, StrategyType, ActionIntent } from '../../../types/positioning';
 import './drawer.css';
@@ -27,6 +28,7 @@ const TABS: DrawerTab[] = [
   { id: 'thesis', label: 'Thesis', enabled: true },
   { id: 'forward-metrics', label: 'Forward Metrics', enabled: true },
   { id: 'positioning', label: 'Positioning', enabled: true },
+  { id: 'alerts', label: 'Alerts', enabled: true },
 ];
 
 export function StockDetailDrawer({
@@ -67,6 +69,9 @@ export function StockDetailDrawer({
     }
     if (activeTab === 'thesis' && stockCode) {
       return <ThesisTab stockCode={stockCode} stockName={stockName} />;
+    }
+    if (activeTab === 'alerts' && stockCode) {
+      return <AlertsTab stockCode={stockCode} holding={holding} />;
     }
     if (activeTab === 'forward-metrics' && stockCode) {
       return <ForwardMetricsTab stockCode={stockCode} stockName={stockName} />;
