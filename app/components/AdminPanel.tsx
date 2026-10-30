@@ -52,8 +52,15 @@ export default function AdminPanel() {
   const [firmShortName, setFirmShortName] = useState('');
   const [firmBenchmark, setFirmBenchmark] = useState('');
   const [firmLogo, setFirmLogo] = useState<string | null | undefined>(undefined);
+  const [firmIcon, setFirmIcon] = useState<string | null | undefined>(undefined);
   const [firmSaving, setFirmSaving] = useState(false);
   const [firmMsg, setFirmMsg] = useState('');
+
+  // Operations settings (F&O portfolio, analyst visibility threshold in ₹ lakh)
+  const [opsFoPortfolio, setOpsFoPortfolio] = useState('');
+  const [opsAnalystLakh, setOpsAnalystLakh] = useState('');
+  const [opsSaving, setOpsSaving] = useState(false);
+  const [opsMsg, setOpsMsg] = useState('');
 
   // Fiscal year (admin-controlled current FY that drives forward windows)
   const [currentFY, setCurrentFY] = useState<number | null>(null);
@@ -85,6 +92,7 @@ export default function AdminPanel() {
       fetchTeamMembers();
       fetchAnalystVisibility();
       fetchFiscalYear();
+      fetchOpsSettings();
     }
   }, [isAdmin]);
 
@@ -94,17 +102,60 @@ export default function AdminPanel() {
     setFirmShortName(firm.shortName === firm.name ? '' : firm.shortName);
     setFirmBenchmark(firm.benchmark.symbol);
     setFirmLogo(undefined);
+    setFirmIcon(undefined);
   }, [firm, firmLoaded]);
 
-  const pickLogo = (file: File | undefined) => {
+  const pickImage = (file: File | undefined, set: (v: string) => void, label: string) => {
     if (!file) return;
     if (file.size > MAX_LOGO_BYTES) {
-      setFirmMsg('Logo must be under 500 KB');
+      setFirmMsg(`${label} must be under 500 KB`);
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => { setFirmLogo(reader.result as string); setFirmMsg(''); };
+    reader.onload = () => { set(reader.result as string); setFirmMsg(''); };
     reader.readAsDataURL(file);
+  };
+  const pickLogo = (file: File | undefined) => pickImage(file, setFirmLogo, 'Logo');
+  const pickIcon = (file: File | undefined) => pickImage(file, setFirmIcon, 'App icon');
+
+  const fetchOpsSettings = async () => {
+    try {
+      const res = await fetch('/api/settings/operations');
+      if (!res.ok) return;
+      const data = await res.json();
+      setOpsFoPortfolio(data.foPortfolio || '');
+      setOpsAnalystLakh(String(data.analystMinInvested / 100000));
+    } catch {}
+  };
+
+  const saveOpsSettings = async () => {
+    const lakh = Number(opsAnalystLakh);
+    if (opsAnalystLakh.trim() === '' || !Number.isFinite(lakh) || lakh < 0) {
+      setOpsMsg('Enter the analyst threshold in lakh (0 or more)');
+      return;
+    }
+    setOpsSaving(true);
+    setOpsMsg('');
+    try {
+      const res = await fetch('/api/settings/operations', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ foPortfolio: opsFoPortfolio, analystMinInvested: Math.round(lakh * 100000) }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to save');
+      }
+      const saved = await res.json();
+      setOpsFoPortfolio(saved.foPortfolio || '');
+      setOpsAnalystLakh(String(saved.analystMinInvested / 100000));
+      fetchAnalystVisibility();
+      setOpsMsg('Saved ✓');
+    } catch (err) {
+      setOpsMsg(err instanceof Error ? err.message : 'Failed to save');
+    } finally {
+      setOpsSaving(false);
+    }
   };
 
   const saveFirmSettings = async () => {
@@ -123,6 +174,7 @@ export default function AdminPanel() {
           shortName: firmShortName,
           benchmark: firmBenchmark,
           ...(firmLogo !== undefined ? { logo: firmLogo } : {}),
+          ...(firmIcon !== undefined ? { icon: firmIcon } : {}),
         }),
       });
       if (!res.ok) {
@@ -577,6 +629,27 @@ export default function AdminPanel() {
             )}
           </div>
         </div>
+        <div className="firm-field" style={{ marginBottom: '1rem' }}>
+          <span>App icon <em>(square PNG or JPEG, under 500 KB; browser tab, home screen and notifications)</em></span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            {(() => {
+              const preview = firmIcon === undefined ? firm.iconUrl : firmIcon;
+              return preview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={preview} alt="App icon preview" style={{ width: 48, height: 48, objectFit: 'contain', padding: 4, background: '#fff', border: '1px solid var(--border-color)', borderRadius: 8 }} />
+              ) : (
+                <span style={{ fontSize: '0.8125rem', color: 'var(--secondary-text-color)' }}>No icon: the first letter of the short name is used</span>
+              );
+            })()}
+            <label className="reset-device-btn" style={{ cursor: 'pointer' }}>
+              {(firmIcon === undefined ? firm.iconUrl : firmIcon) ? 'Replace' : 'Upload'}
+              <input type="file" accept="image/png,image/jpeg" style={{ display: 'none' }} onChange={e => { pickIcon(e.target.files?.[0]); e.target.value = ''; }} />
+            </label>
+            {(firmIcon === undefined ? firm.iconUrl : firmIcon) && (
+              <button type="button" className="remove-btn" onClick={() => setFirmIcon(null)}>Remove</button>
+            )}
+          </div>
+        </div>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
           <button
             onClick={saveFirmSettings}
@@ -588,6 +661,38 @@ export default function AdminPanel() {
           {firmMsg && (
             <span style={{ fontSize: '0.875rem', color: firmMsg.includes('✓') ? 'var(--success-color)' : 'var(--error-color)' }}>
               {firmMsg}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Operations Settings */}
+      <div className="admin-section" style={{ marginBottom: '2rem', padding: '1.25rem', background: 'var(--surface-color)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+        <h3 style={{ margin: '0 0 0.75rem', fontSize: '1rem', fontWeight: 600 }}>Operations Settings</h3>
+        <p style={{ margin: '0 0 1rem', fontSize: '0.875rem', color: 'var(--secondary-text-color)' }}>
+          Visible to admins only.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+          <label className="firm-field">
+            <span>F&amp;O portfolio <em>(the PF Data &quot;Portfolio&quot; whose holdings sit in the F&amp;O account; blank = none)</em></span>
+            <input type="text" value={opsFoPortfolio} onChange={e => setOpsFoPortfolio(e.target.value)} maxLength={100} placeholder="Portfolio name as in the PF upload" />
+          </label>
+          <label className="firm-field">
+            <span>Analyst visibility threshold <em>(₹ lakh invested; smaller holdings are hidden from analysts)</em></span>
+            <input type="number" min="0" step="any" value={opsAnalystLakh} onChange={e => setOpsAnalystLakh(e.target.value)} placeholder="20" />
+          </label>
+        </div>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <button
+            onClick={saveOpsSettings}
+            disabled={opsSaving}
+            style={{ padding: '0.4375rem 1rem', background: 'var(--accent-color)', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', opacity: opsSaving ? 0.6 : 1 }}
+          >
+            {opsSaving ? 'Saving…' : 'Save operations settings'}
+          </button>
+          {opsMsg && (
+            <span style={{ fontSize: '0.875rem', color: opsMsg.includes('✓') ? 'var(--success-color)' : 'var(--error-color)' }}>
+              {opsMsg}
             </span>
           )}
         </div>
@@ -774,7 +879,7 @@ export default function AdminPanel() {
         </div>
         <div className="legend-item">
           <span className="role-badge manager">Manager</span>
-          <span>Full access + can upload Screener/GridKey data and manage entry prices</span>
+          <span>Full access + can upload Screener/PF data and manage entry prices</span>
         </div>
         <div className="legend-item">
           <span className="role-badge portfolio">Portfolio</span>

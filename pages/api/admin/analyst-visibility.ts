@@ -5,7 +5,7 @@ import {
   getAnalystOverrides,
   setAnalystOverride,
   clearAnalystOverride,
-  ANALYST_VISIBILITY_THRESHOLD,
+  getAnalystThreshold,
 } from '../../../lib/queries';
 
 interface SmallCompany {
@@ -23,9 +23,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   try {
     if (req.method === 'GET') {
-      const [gridKey, overrides] = await Promise.all([
+      const [gridKey, overrides, threshold] = await Promise.all([
         getGridKeyData(),
         getAnalystOverrides(),
+        getAnalystThreshold(),
       ]);
 
       const items: SmallCompany[] = [];
@@ -35,7 +36,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         const qty = Number(item.quantity) || 0;
         const avg = Number(item.averageBuyPrice) || 0;
         const investedAmount = qty * avg;
-        if (investedAmount >= ANALYST_VISIBILITY_THRESHOLD) continue;
+        if (investedAmount >= threshold) continue;
 
         const overridden = code in overrides;
         const visibleToAnalyst = overridden ? overrides[code] : false;
@@ -50,7 +51,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
       items.sort((a, b) => b.investedAmount - a.investedAmount);
       return res.status(200).json({
-        threshold: ANALYST_VISIBILITY_THRESHOLD,
+        threshold,
         companies: items,
       });
     }

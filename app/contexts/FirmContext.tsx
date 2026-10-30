@@ -9,6 +9,7 @@ export interface Firm {
   name: string;
   shortName: string;
   logoUrl: string | null;
+  iconUrl: string | null;
   benchmark: Benchmark;
 }
 
@@ -22,6 +23,7 @@ const FALLBACK: Firm = {
   name: 'Portfolio Insights',
   shortName: 'Portfolio Insights',
   logoUrl: null,
+  iconUrl: null,
   benchmark: findBenchmark(DEFAULT_BENCHMARK),
 };
 

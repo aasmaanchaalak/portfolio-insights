@@ -29,7 +29,7 @@ import { PipelinePage } from './components/pipeline/PipelinePage';
 import { NotificationToggle } from './components/NotificationToggle';
 import { FOPage } from './components/fo/FOPage';
 import { FODataPage } from './components/fo/FODataPage';
-import { FoHolding, FO_PORTFOLIO } from '../lib/fo/types';
+import { FoHolding } from '../lib/fo/types';
 
 type SortKey = keyof Stock;
 type SortDirection = 'ascending' | 'descending';
@@ -129,6 +129,38 @@ const ActionChip: React.FC<{ action: string | null | undefined }> = ({ action })
     if (!action) return <PPDash />;
     return <span className={`pp-action pp-action-${action.toLowerCase()}`}>{action}</span>;
 };
+
+// Downloads a CSV with just the header row and one example row, so a new user
+// can see the exact column names an upload expects.
+const downloadTemplate = (filename: string, headers: string[], example: string[]) => {
+    const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+    const csv = [headers, example].map(r => r.map(esc).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+};
+
+const SCREENER_REQUIRED = [
+    'Name', 'BSE Code', 'NSE Code', 'Industry Group', 'Industry',
+    'Current Price', 'Price to Earning',
+    'YOY Quarterly profit growth', 'YOY Quarterly sales growth',
+    'Return over 1day', 'Return over 1week', 'Return over 1month',
+    'Return over 3months', 'Return over 6months', 'Return over 1year',
+];
+const SCREENER_OPTIONAL = ['DMA 50', 'DMA 200', 'Down from 52w high', 'Up from 52w low', 'Market Capitalization', 'RSI', 'Return on capital employed'];
+const SCREENER_EXAMPLE = [
+    'Reliance Industries', '500325', 'RELIANCE', 'Energy', 'Refineries & Marketing',
+    '1420.50', '24.10', '12.40', '8.20', '0.85', '-1.20', '3.40', '6.10', '9.80', '14.20',
+    '1385.20', '1342.70', '8.40', '21.60', '1922000', '58.2', '9.70',
+];
+const PF_REQUIRED = ['Asset name', 'Bse', 'Nse', 'Quantity', 'Average buy price'];
+const PF_OPTIONAL = ['Portfolio'];
+const PF_EXAMPLE = ['Reliance Industries Ltd.', '500325', 'RELIANCE', '1000', '1250.75', 'Main Portfolio'];
 
 // ── Optional analytical columns (opt-in via the Columns picker) ──
 const fmtMarketCapCr = (v: number | null | undefined): string | null =>
@@ -509,15 +541,7 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                     'Return on Capital Employed': 'roce'
                 };
 
-                const requiredCsvHeaders = [
-                    'Name', 'BSE Code', 'NSE Code', 'Industry Group', 'Industry',
-                    'Current Price', 'Price to Earning',
-                    'YOY Quarterly profit growth', 'YOY Quarterly sales growth',
-                    'Return over 1day', 'Return over 1week', 'Return over 1month',
-                    'Return over 3months', 'Return over 6months', 'Return over 1year'
-                ];
-
-                const missingHeaders = requiredCsvHeaders.filter(h => !header.includes(h));
+                const missingHeaders = SCREENER_REQUIRED.filter(h => !header.includes(h));
                 if (missingHeaders.length > 0) {
                     throw new Error(`Missing required CSV columns: ${missingHeaders.join(', ')}`);
                 }
@@ -591,11 +615,20 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                 <div className="upload-instructions">
                     <h3>File Requirements</h3>
                     <ul>
-                        <li>Must be a valid CSV file exported from Screener.in</li>
-                        <li>Required columns: <code>Name, BSE Code, NSE Code, Industry Group, Industry, Current Price, Price to Earning, YOY Quarterly profit growth, YOY Quarterly sales growth, Return over 1day, Return over 1week, Return over 1month, Return over 3months, Return over 6months, Return over 1year</code></li>
-                        <li>Optional columns (for Trend & Momentum Dashboard): <code>DMA 50, DMA 200, Down from 52w high, Up from 52w low</code></li>
+                        <li>A CSV exported from a Screener.in screen, or any CSV with these exact column names</li>
+                        <li>Required columns: <code>{SCREENER_REQUIRED.join(', ')}</code></li>
+                        <li>Optional columns (DMA, 52-week, market cap, RSI and ROCE views stay blank without them): <code>{SCREENER_OPTIONAL.join(', ')}</code></li>
                         <li>Numeric columns can be empty for N/A values</li>
+                        <li>Optional separately: <strong>1 April prices</strong> (top right) — a CSV of <code>ticker,price</code> used as the exact financial-year-start baseline for YTD returns</li>
                     </ul>
+                    <button
+                        type="button"
+                        className="process-btn"
+                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', marginBottom: '1rem' }}
+                        onClick={() => downloadTemplate('screener_template.csv', [...SCREENER_REQUIRED, ...SCREENER_OPTIONAL], SCREENER_EXAMPLE)}
+                    >
+                        ↓ Download template
+                    </button>
                     <h3>What Happens After Upload</h3>
                     <ul>
                         <li>Your portfolio data will be updated in the app immediately.</li>
@@ -680,8 +713,7 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateIn
                 const header = parseCSVLine(lines[0]);
                 const dataLines = lines.slice(1);
 
-                const requiredHeaders = ['Asset name', 'Bse', 'Nse', 'Quantity', 'Average buy price'];
-                const missingHeaders = requiredHeaders.filter(h => {
+                const missingHeaders = PF_REQUIRED.filter(h => {
                     if (h === 'Quantity') {
                         return !header.some(col => col === 'Quantity' || col === 'quantity' || col.toLowerCase().includes('quantity'));
                     }
@@ -736,8 +768,8 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateIn
                 });
 
                 // Combined-holdings exports have one row per portfolio: sum them per
-                // stock (quantity-weighted average price), and keep the F&O
-                // account's own rows for the F&O page.
+                // stock (quantity-weighted average price), and send every row with its
+                // portfolio so the server can keep the F&O account's own rows.
                 let data: GridKeyData[] = perRow;
                 let foHoldings: FoHolding[] | null = null;
                 if (portfolioCol >= 0) {
@@ -760,9 +792,8 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateIn
                         averageBuyPrice: item.quantity ? cost / item.quantity : item.averageBuyPrice,
                     }));
                     foHoldings = perRow
-                        .filter((item, i) => rowPortfolios[i].toLowerCase() === FO_PORTFOLIO.toLowerCase()
-                            && (item.quantity || 0) > 0 && (item.nseCode || item.bseCode))
-                        .map(item => ({ name: item.scripName, nseCode: item.nseCode, bseCode: item.bseCode, quantity: item.quantity || 0 }));
+                        .map((item, i) => ({ portfolio: rowPortfolios[i], name: item.scripName, nseCode: item.nseCode, bseCode: item.bseCode, quantity: item.quantity || 0 }))
+                        .filter(h => h.portfolio && h.quantity > 0 && (h.nseCode || h.bseCode));
                 }
 
                 // Filter out stocks with no BSE or NSE code, and stocks with only 1 share
@@ -785,7 +816,7 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateIn
                 };
 
                 onGridKeyUploaded(filtered, privateInvestments, foHoldings);
-                setStatus(`GridKey data uploaded successfully! ${filtered.length} stocks processed${privateInvestments.count > 0 ? ` + ${privateInvestments.count} private investments` : ''} (1-share holdings excluded). View Portfolio View to see current amounts.`);
+                setStatus(`PF data uploaded successfully! ${filtered.length} stocks processed${privateInvestments.count > 0 ? ` + ${privateInvestments.count} private investments` : ''} (1-share holdings excluded). View Portfolio View to see current amounts.`);
                 setError('');
             } catch (err) {
                 setError('Error parsing CSV file: ' + (err as Error).message);
@@ -798,19 +829,28 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateIn
     return (
         <div className="upload-container">
             <header className="main-header">
-                <h1>GridKey Data Upload</h1>
-                <p>Upload your GridKey CSV file to add quantity and buy price data to your portfolio.</p>
+                <h1>PF Data Upload</h1>
+                <p>Upload your holdings CSV to add quantity and buy price data to your portfolio.</p>
             </header>
 
             <div className="upload-content">
                 <div className="upload-instructions">
                     <h3>File Requirements</h3>
                     <ul>
-                        <li>Must be a valid CSV file from GridKey</li>
-                        <li>Required columns: <code>Scrip name, Quantity, Average buy price</code></li>
-                        <li>Optional columns: <code>BSE Code, NSE Code</code></li>
-                        <li>File should be exported directly from GridKey platform</li>
+                        <li>A holdings CSV (e.g. a GridKey export), one row per stock</li>
+                        <li>Required columns: <code>{PF_REQUIRED.join(', ')}</code></li>
+                        <li><code>Bse</code> and <code>Nse</code> may be blank per row, but a listed stock needs at least one. Rows with neither are counted as private investments.</li>
+                        <li>Optional column: <code>Portfolio</code> — when several portfolios hold the same stock, their rows are summed (quantity-weighted average price). Rows of the F&amp;O account's portfolio also feed the F&amp;O page.</li>
+                        <li>Holdings of 1 share or less are skipped</li>
                     </ul>
+                    <button
+                        type="button"
+                        className="process-btn"
+                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', marginBottom: '1rem' }}
+                        onClick={() => downloadTemplate('pf_data_template.csv', [...PF_REQUIRED, ...PF_OPTIONAL], PF_EXAMPLE)}
+                    >
+                        ↓ Download template
+                    </button>
                     <h3>What Happens After Upload</h3>
                     <ul>
                         <li>Your holdings data will be combined with stock data from Screener</li>
@@ -822,7 +862,7 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateIn
 
                 <div className="upload-action-area">
                     <div className="filter-group">
-                        <label htmlFor="file-upload">GridKey CSV File</label>
+                        <label htmlFor="file-upload">PF CSV File</label>
                         <input type="file" id="file-upload" accept=".csv" onChange={handleFileChange} />
                     </div>
                     <button className="process-btn" onClick={processFile} disabled={!file}>
@@ -1951,7 +1991,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
 
             {gridKeyData.length === 0 ? (
                 <div className="empty-state">
-                    <p>No holdings data available. Please upload GridKey data first.</p>
+                    <p>No holdings data available. Please upload PF data first.</p>
                 </div>
             ) : (
                 <>
@@ -3447,7 +3487,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
                     <h3>Portfolio Value Over Time</h3>
                     <p className="chart-subtitle">Track your portfolio's total value daily</p>
                     <div className="empty-chart-state">
-                        <p>No historical data available yet. Upload screener or GridKey data to start tracking.</p>
+                        <p>No historical data available yet. Upload Screener or PF data to start tracking.</p>
                     </div>
                 </div>
             );
@@ -3643,7 +3683,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
                     <h3>Portfolio Quality Trends</h3>
                     <p className="chart-subtitle">Track weighted-average quality metrics over time</p>
                     <div className="empty-chart-state">
-                        <p>No metric history yet. Each time you upload Screener or GridKey data, a snapshot of these metrics is saved — the trend will build up from there.</p>
+                        <p>No metric history yet. Each time you upload Screener or PF data, a snapshot of these metrics is saved — the trend will build up from there.</p>
                     </div>
                 </div>
             );
@@ -4221,7 +4261,7 @@ const AnalysisPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; isAn
                     <p>Visual insights into your portfolio performance and allocation</p>
                 </header>
                 <div className="empty-state">
-                    <p>No data available. Please upload both GridKey data and Screener data first.</p>
+                    <p>No data available. Please upload both PF data and Screener data first.</p>
                 </div>
             </div>
         );
@@ -4925,7 +4965,7 @@ const App: React.FC = () => {
         { id: 'analysis', label: 'Analysis' },
         ...(isManager ? [
             { id: 'upload', label: 'Screener Data' },
-            { id: 'gridkey', label: 'GridKey Data' },
+            { id: 'gridkey', label: 'PF Data' },
             { id: 'entrydata', label: 'Entry Data' },
             { id: 'fodata', label: 'F&O Data' },
         ] : []),

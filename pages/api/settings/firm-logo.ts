@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getFirmLogoImage } from '../../../lib/firmSettings';
 
-// Serves the uploaded firm logo. Public, like the logo in /public it replaces.
+// Serves the uploaded firm logo (?kind=icon: the app icon). Public, like the logo in /public it replaces.
 // URLs carry a content hash (?v=), so responses can be cached for a long time.
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -10,7 +10,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const image = await getFirmLogoImage();
+    const image = await getFirmLogoImage(req.query.kind === 'icon' ? 'icon' : 'logo');
     if (!image) return res.status(404).end();
 
     res.setHeader('Content-Type', image.type);

@@ -12,6 +12,14 @@ const s3 = new S3Client({
 
 const BUCKET = process.env.CLOUDFLARE_R2_BUCKET_NAME!;
 
+// Optional folder per firm (R2_KEY_PREFIX, e.g. "acme") so deployments that
+// share one bucket keep their files apart. Unset = keys start at the module.
+const KEY_PREFIX = (process.env.R2_KEY_PREFIX || '').replace(/^\/+|\/+$/g, '');
+
+export function attachmentKeyPrefix(module: string, entityId: string): string {
+  return `${KEY_PREFIX ? `${KEY_PREFIX}/` : ''}${module}/${entityId}/`;
+}
+
 export async function uploadToR2(key: string, buffer: Buffer, mimeType: string): Promise<void> {
   await s3.send(new PutObjectCommand({
     Bucket: BUCKET,

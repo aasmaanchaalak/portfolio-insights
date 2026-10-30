@@ -3,7 +3,7 @@ import formidable from 'formidable';
 import { readFile } from 'fs/promises';
 import path from 'path';
 import { withAuth, AuthenticatedRequest } from '../../../lib/authMiddleware';
-import { uploadToR2, getPresignedUrl } from '../../../lib/storage';
+import { uploadToR2, getPresignedUrl, attachmentKeyPrefix } from '../../../lib/storage';
 import { query } from '../../../lib/db';
 
 export const config = {
@@ -54,7 +54,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   const safeName = path.basename(fileName).replace(/[^a-zA-Z0-9._-]/g, '_');
-  const storageKey = `${module}/${entityId}/${Date.now()}-${safeName}`;
+  const storageKey = `${attachmentKeyPrefix(module, entityId)}${Date.now()}-${safeName}`;
 
   const buffer = await readFile(file.filepath);
   await uploadToR2(storageKey, buffer, fileType);

@@ -1205,11 +1205,32 @@ export async function deleteTeamMember(id: string): Promise<boolean> {
 // Analysts cannot see companies whose invested amount is below the threshold
 // unless an admin has flipped visibility for that specific company. The
 // override table stores the explicit overrides; absence falls back to the
-// default rule.
+// default rule. The threshold is set in Admin → Operations settings.
 
-export const ANALYST_VISIBILITY_THRESHOLD = 2_000_000; // 20 lakhs
+export const ANALYST_MIN_INVESTED_KEY = 'analyst_min_invested';
+export const DEFAULT_ANALYST_MIN_INVESTED = 2_000_000; // ₹20 lakh
+
+// Loaded by getAnalystOverrides(), which every caller awaits before using
+// isVisibleToAnalyst(), so the sync check always sees the current setting.
+let analystThreshold = DEFAULT_ANALYST_MIN_INVESTED;
+let analystThresholdAt = 0;
+
+export function clearAnalystThresholdCache(): void {
+  analystThresholdAt = 0;
+}
+
+export async function getAnalystThreshold(): Promise<number> {
+  if (Date.now() - analystThresholdAt > 60_000) {
+    const raw = await getSetting(ANALYST_MIN_INVESTED_KEY);
+    const n = raw != null && raw !== '' ? Number(raw) : NaN;
+    analystThreshold = Number.isFinite(n) && n >= 0 ? n : DEFAULT_ANALYST_MIN_INVESTED;
+    analystThresholdAt = Date.now();
+  }
+  return analystThreshold;
+}
 
 export async function getAnalystOverrides(): Promise<Record<string, boolean>> {
+  await getAnalystThreshold();
   const rows = await query<{ code: string; visible: boolean }>(
     `SELECT code, visible FROM analyst_company_overrides`
   );
@@ -1237,5 +1258,5 @@ export function isVisibleToAnalyst(
   overrides: Record<string, boolean>
 ): boolean {
   if (code && code in overrides) return overrides[code];
-  return investedAmount >= ANALYST_VISIBILITY_THRESHOLD;
+  return investedAmount >= analystThreshold;
 }

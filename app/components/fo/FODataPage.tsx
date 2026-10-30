@@ -167,10 +167,10 @@ export function FODataPage() {
 
           <section className="fo-data-sec">
             <div className="fo-sec-head"><h2 className="serif">Holdings in this account</h2>
-              <span className="fo-sec-note">{state?.holdings.updatedAt ? `${state.holdings.count} holdings · from the GridKey upload of ${when(state.holdings.updatedAt)}` : 'None yet'}</span>
+              <span className="fo-sec-note">{state?.holdings.updatedAt ? `${state.holdings.count} holdings · from the PF Data upload of ${when(state.holdings.updatedAt)}` : 'None yet'}</span>
             </div>
             <ul className="fo-steps">
-              <li>Taken from the "{state?.holdings.portfolio}" rows of each GridKey upload, so there's nothing to upload here.</li>
+              <li>Taken from the "{state?.holdings.portfolio}" rows of each PF Data upload, so there's nothing to upload here.</li>
               <li>All of them count as pledged collateral (after NSE haircuts) and give the "% of shares held hedged" on F&amp;O positions.</li>
             </ul>
           </section>

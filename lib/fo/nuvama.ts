@@ -62,7 +62,7 @@ export function parseNuvamaPnlReport(sheets: SheetRows[]): FoReport {
   const summary = sheet(sheets, 'Summary');
   if (!summary) throw new Error('No "Summary" sheet. Is this Nuvama\'s Profit & Loss Report?');
 
-  // Header block: "Name : UMA AGARWAL (60072941)" and "Period as on : 01-Oct-2026 to 01-Oct-2026".
+  // Header block: "Name : <CLIENT NAME> (<client code>)" and "Period as on : 01-Oct-2026 to 01-Oct-2026".
   let clientCode: string | null = null;
   let from: string | null = null, to: string | null = null;
   for (const row of summary.slice(0, 30)) {

@@ -17,7 +17,8 @@ import { getLotSizes, lotSizeFor, getVarRates } from './nse';
 import { getSpanRates } from './span';
 import { getUnderlyingTechnicals } from './technicals';
 import { getReportsSince, getTradesBetween, getPurposes, getMarginEntries, getHoldings, StoredReport } from './queries';
-import { FoDashboard, DashLeg, DashUnderlying, ReportLeg, Purpose, FO_PORTFOLIO } from './types';
+import { FoDashboard, DashLeg, DashUnderlying, ReportLeg, Purpose } from './types';
+import { getOpsSettings } from '../firmSettings';
 
 const INDEX_TICKERS: Record<string, string> = {
   NIFTY: '^NSEI', BANKNIFTY: '^NSEBANK', FINNIFTY: 'NIFTY_FIN_SERVICE.NS', MIDCPNIFTY: 'NIFTY_MID_SELECT.NS', NIFTYNXT50: '^NSMIDCP',
@@ -120,8 +121,9 @@ async function publicBookValue(): Promise<number | null> {
 export async function buildDashboard(now = Date.now()): Promise<FoDashboard> {
   const today = istDate(now);
   const since = istDate(now - 70 * 86400e3);
+  const { foPortfolio } = await getOpsSettings();
   const [reports, purposes, margins, foHoldings, lots, varRates, book, span] = await Promise.all([
-    getReportsSince(since), getPurposes(), getMarginEntries(), getHoldings(FO_PORTFOLIO), getLotSizes(), getVarRates(), publicBookValue(),
+    getReportsSince(since), getPurposes(), getMarginEntries(), foPortfolio ? getHoldings(foPortfolio) : null, getLotSizes(), getVarRates(), publicBookValue(),
     getSpanRates().catch(() => null),
   ]);
 
@@ -131,7 +133,7 @@ export async function buildDashboard(now = Date.now()): Promise<FoDashboard> {
   const latest = accounts.map(a => byAccount.get(a)!.at(-1)!);
   const asOf = latest.length ? latest.map(r => r.asOf).sort().at(-1)! : null;
 
-  // One F&O account for now, holding FO_PORTFOLIO's shares; all of them count as pledged.
+  // One F&O account for now, holding the F&O portfolio's shares (Operations settings); all of them count as pledged.
   const holdings = (foHoldings?.holdings || []).map(h => ({ h }));
   const heldQty = (_account: string, sym: string) => holdings
     .filter(x => x.h.nseCode?.toUpperCase() === sym)

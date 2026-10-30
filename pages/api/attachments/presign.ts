@@ -1,7 +1,7 @@
 import { NextApiResponse } from 'next';
 import path from 'path';
 import { withAuth, AuthenticatedRequest } from '../../../lib/authMiddleware';
-import { getPresignedPutUrl } from '../../../lib/storage';
+import { getPresignedPutUrl, attachmentKeyPrefix } from '../../../lib/storage';
 
 const ALLOWED_TYPES = [
   'application/pdf',
@@ -36,7 +36,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   const safeName = path.basename(fileName).replace(/[^a-zA-Z0-9._-]/g, '_');
-  const storageKey = `${module}/${entityId}/${Date.now()}-${safeName}`;
+  const storageKey = `${attachmentKeyPrefix(module, entityId)}${Date.now()}-${safeName}`;
 
   const uploadUrl = await getPresignedPutUrl(storageKey, fileType);
 

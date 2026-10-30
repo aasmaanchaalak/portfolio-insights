@@ -5,7 +5,8 @@ import { getSpotQuotes } from '../../../lib/fo/dashboard';
 import {
   saveReport, listReportDates, getMarginEntries, setMarginEntry, getHoldings, setPurpose, getAccounts, SpotsAtUpload,
 } from '../../../lib/fo/queries';
-import { FoReport, PURPOSES, Purpose, FO_PORTFOLIO } from '../../../lib/fo/types';
+import { FoReport, PURPOSES, Purpose } from '../../../lib/fo/types';
+import { getOpsSettings } from '../../../lib/firmSettings';
 
 // F&O Data page.
 // GET                       → uploaded report dates, margin entries, holdings summary
@@ -31,12 +32,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   const by = user.name || user.email;
   try {
     if (req.method === 'GET') {
-      const [reports, margins, holdings, accounts] = await Promise.all([listReportDates(), getMarginEntries(), getHoldings(FO_PORTFOLIO), getAccounts()]);
+      const { foPortfolio } = await getOpsSettings();
+      const [reports, margins, holdings, accounts] = await Promise.all([listReportDates(), getMarginEntries(), foPortfolio ? getHoldings(foPortfolio) : null, getAccounts()]);
       return res.status(200).json({
         accounts,
         reports,
         margins,
-        holdings: { portfolio: FO_PORTFOLIO, count: holdings?.holdings.length ?? 0, updatedAt: holdings?.updatedAt ?? null },
+        holdings: { portfolio: foPortfolio, count: holdings?.holdings.length ?? 0, updatedAt: holdings?.updatedAt ?? null },
       });
     }
     if (req.method !== 'POST') {

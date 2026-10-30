@@ -6,19 +6,20 @@ import {
   updateFirmSettings,
   FirmSettingsUpdate,
   LOGO_TYPES,
+  ICON_TYPES,
   MAX_LOGO_BYTES,
 } from '../../../lib/firmSettings';
 
 export const config = { api: { bodyParser: { sizeLimit: '1mb' } } };
 
 // GET → firm name, logo URL, benchmark   (public: the login screen and manifest need it)
-// PUT → { name?, shortName?, benchmark?, logo?: dataURL | null }   (admin only)
+// PUT → { name?, shortName?, benchmark?, logo?: dataURL | null, icon?: dataURL | null }   (admin only)
 async function update(req: NextApiRequest, res: NextApiResponse) {
   if (!authUser(req).isAdmin) {
     return res.status(403).json({ error: 'Access denied. Admin only.' });
   }
 
-  const { name, shortName, benchmark, logo } = req.body || {};
+  const { name, shortName, benchmark, logo, icon } = req.body || {};
   const patch: FirmSettingsUpdate = {};
 
   if (name !== undefined) {
@@ -50,6 +51,18 @@ async function update(req: NextApiRequest, res: NextApiResponse) {
       }
     }
     patch.logo = logo;
+  }
+  if (icon !== undefined) {
+    if (icon !== null) {
+      const m = typeof icon === 'string' ? icon.match(/^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/) : null;
+      if (!m || !ICON_TYPES.includes(m[1])) {
+        return res.status(400).json({ error: 'App icon must be a PNG or JPEG image' });
+      }
+      if (Buffer.byteLength(m[2], 'base64') > MAX_LOGO_BYTES) {
+        return res.status(400).json({ error: 'App icon must be under 500 KB' });
+      }
+    }
+    patch.icon = icon;
   }
 
   const saved = await updateFirmSettings(patch);

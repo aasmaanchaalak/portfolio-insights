@@ -1,8 +1,8 @@
 // F&O data shared by the upload parser (browser), the API and the pages.
 
-// GridKey portfolio whose holdings sit in the F&O (Nuvama) account. Its rows in
-// the GridKey upload become the account's collateral and hedge cover.
-export const FO_PORTFOLIO = 'UMA AGARWAL';
+// The PF Data portfolio whose holdings sit in the F&O (Nuvama) account is set in
+// Admin → Operations settings (getOpsSettings().foPortfolio). Its rows in the
+// PF Data upload become the account's collateral and hedge cover.
 
 export type LegType = 'FUT' | 'CE' | 'PE';
 export type Purpose = 'Hedge' | 'Income' | 'Directional';
@@ -42,6 +42,7 @@ export interface FoReport {
 }
 
 export interface FoHolding {
+  portfolio?: string;   // set on upload rows; the server keeps the F&O portfolio's
   name: string;
   nseCode: string | null;
   bseCode: string | null;

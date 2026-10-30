@@ -13,7 +13,7 @@ import {
 import { upsertExitedWatchIdea } from '../../lib/pipeline/queries';
 import { getGridKeyResponse } from '../../lib/portfolioResponse';
 import { setHoldings } from '../../lib/fo/queries';
-import { FO_PORTFOLIO } from '../../lib/fo/types';
+import { getOpsSettings } from '../../lib/firmSettings';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -174,17 +174,20 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           )
         ]);
 
-        // The F&O account's holdings (only in combined exports, which name each row's portfolio).
-        if (Array.isArray(foHoldings)) {
+        // The F&O account's holdings (only in combined exports, which name each
+        // row's portfolio): the rows of the portfolio set in Operations settings.
+        const { foPortfolio } = await getOpsSettings();
+        if (Array.isArray(foHoldings) && foPortfolio) {
           const clean = foHoldings
-            .filter((h: any) => h && typeof h.name === 'string' && Number(h.quantity) > 0 && (h.nseCode || h.bseCode))
+            .filter((h: any) => h && typeof h.name === 'string' && Number(h.quantity) > 0 && (h.nseCode || h.bseCode)
+              && String(h.portfolio || '').trim().toLowerCase() === foPortfolio.toLowerCase())
             .map((h: any) => ({ name: h.name, nseCode: h.nseCode || null, bseCode: h.bseCode || null, quantity: Number(h.quantity) }));
-          await setHoldings(FO_PORTFOLIO, clean, authUser(req).name || authUser(req).email);
+          await setHoldings(foPortfolio, clean, authUser(req).name || authUser(req).email);
         }
 
         res.status(200).json({
           success: true,
-          message: 'GridKey data saved successfully',
+          message: 'PF data saved successfully',
           newStocksDetected: newStockCodes.length,
           newStocks,
           exitedStocksDetected: exitedStocks.length,

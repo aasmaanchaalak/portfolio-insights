@@ -1,7 +1,7 @@
 import { NextApiResponse } from 'next';
 import { withAuth, AuthenticatedRequest } from '../../../lib/authMiddleware';
 import { query } from '../../../lib/db';
-import { getPresignedUrl } from '../../../lib/storage';
+import { getPresignedUrl, attachmentKeyPrefix } from '../../../lib/storage';
 
 const ALLOWED_TYPES = [
   'application/pdf',
@@ -56,7 +56,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     if (fileSize <= 0 || fileSize > MAX_SIZE) {
       return res.status(400).json({ error: `File must be between 1 byte and ${MAX_SIZE / (1024 * 1024)} MB` });
     }
-    const expectedPrefix = `${module}/${entityId}/`;
+    const expectedPrefix = attachmentKeyPrefix(module, entityId);
     if (!storageKey.startsWith(expectedPrefix)) {
       return res.status(400).json({ error: 'storageKey does not match module/entityId' });
     }
