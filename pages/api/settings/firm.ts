@@ -10,7 +10,8 @@ import {
   MAX_LOGO_BYTES,
 } from '../../../lib/firmSettings';
 
-export const config = { api: { bodyParser: { sizeLimit: '1mb' } } };
+// Logo and app icon can arrive together, each up to 500 KB (~670 KB as base64).
+export const config = { api: { bodyParser: { sizeLimit: '2mb' } } };
 
 // GET → firm name, logo URL, benchmark   (public: the login screen and manifest need it)
 // PUT → { name?, shortName?, benchmark?, logo?: dataURL | null, icon?: dataURL | null }   (admin only)
