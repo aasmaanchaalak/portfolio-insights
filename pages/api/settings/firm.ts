@@ -14,13 +14,13 @@ import {
 export const config = { api: { bodyParser: { sizeLimit: '2mb' } } };
 
 // GET → firm name, logo URL, benchmark   (public: the login screen and manifest need it)
-// PUT → { name?, shortName?, benchmark?, logo?: dataURL | null, icon?: dataURL | null }   (admin only)
+// PUT → { name?, shortName?, benchmark?, logo?: dataURL | null, icon?: dataURL | null, showNameWithLogo?: boolean }   (admin only)
 async function update(req: NextApiRequest, res: NextApiResponse) {
   if (!authUser(req).isAdmin) {
     return res.status(403).json({ error: 'Access denied. Admin only.' });
   }
 
-  const { name, shortName, benchmark, logo, icon } = req.body || {};
+  const { name, shortName, benchmark, logo, icon, showNameWithLogo } = req.body || {};
   const patch: FirmSettingsUpdate = {};
 
   if (name !== undefined) {
@@ -34,6 +34,12 @@ async function update(req: NextApiRequest, res: NextApiResponse) {
       return res.status(400).json({ error: 'Short name must be at most 30 characters' });
     }
     patch.shortName = shortName;
+  }
+  if (showNameWithLogo !== undefined) {
+    if (typeof showNameWithLogo !== 'boolean') {
+      return res.status(400).json({ error: 'showNameWithLogo must be true or false' });
+    }
+    patch.showNameWithLogo = showNameWithLogo;
   }
   if (benchmark !== undefined) {
     if (!BENCHMARKS.some(b => b.symbol === benchmark)) {

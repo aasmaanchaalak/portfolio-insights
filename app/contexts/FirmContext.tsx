@@ -10,6 +10,7 @@ export interface Firm {
   shortName: string;
   logoUrl: string | null;
   iconUrl: string | null;
+  showNameWithLogo: boolean;
   benchmark: Benchmark;
 }
 
@@ -24,6 +25,7 @@ const FALLBACK: Firm = {
   shortName: 'Portfolio Insights',
   logoUrl: null,
   iconUrl: null,
+  showNameWithLogo: false,
   benchmark: findBenchmark(DEFAULT_BENCHMARK),
 };
 
@@ -63,10 +65,22 @@ export function useFirm() {
   return context;
 }
 
-/** The firm's logo, or its name as a text wordmark when no logo is set. */
+/**
+ * The firm's logo, or its name as a text wordmark when no logo is set. With
+ * "show name with logo" on (Admin → Firm settings) the name follows the logo.
+ */
 export function FirmLogo({ className, style }: { className?: string; style?: React.CSSProperties }) {
   const { firm, loaded } = useFirm();
   if (!loaded) return <span className={className} style={style} />;
+  if (firm.logoUrl && firm.showNameWithLogo) {
+    return (
+      <span className="firm-lockup">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className={className} style={style} src={firm.logoUrl} alt="" />
+        <span className="firm-wordmark">{firm.name}</span>
+      </span>
+    );
+  }
   if (firm.logoUrl) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img className={className} style={style} src={firm.logoUrl} alt={firm.name} />;

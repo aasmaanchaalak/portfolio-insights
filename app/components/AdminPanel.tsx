@@ -54,6 +54,7 @@ export default function AdminPanel() {
   const [firmShortName, setFirmShortName] = useState('');
   const [firmBenchmark, setFirmBenchmark] = useState('');
   const [firmLogo, setFirmLogo] = useState<string | null | undefined>(undefined);
+  const [firmShowName, setFirmShowName] = useState(false);
   const [firmIcon, setFirmIcon] = useState<string | null | undefined>(undefined);
   const [firmSaving, setFirmSaving] = useState(false);
   const [firmMsg, setFirmMsg] = useState('');
@@ -105,6 +106,7 @@ export default function AdminPanel() {
     setFirmBenchmark(firm.benchmark.symbol);
     setFirmLogo(undefined);
     setFirmIcon(undefined);
+    setFirmShowName(firm.showNameWithLogo);
   }, [firm, firmLoaded]);
 
   const pickImage = (file: File | undefined, set: (v: string) => void, label: string) => {
@@ -175,6 +177,7 @@ export default function AdminPanel() {
           name: firmName,
           shortName: firmShortName,
           benchmark: firmBenchmark,
+          showNameWithLogo: firmShowName,
           ...(firmLogo !== undefined ? { logo: firmLogo } : {}),
           ...(firmIcon !== undefined ? { icon: firmIcon } : {}),
         }),
@@ -647,6 +650,10 @@ export default function AdminPanel() {
               <button type="button" className="remove-btn" onClick={() => setFirmLogo(null)}>Remove</button>
             )}
           </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
+            <input type="checkbox" checked={firmShowName} onChange={e => setFirmShowName(e.target.checked)} />
+            Show firm name next to the logo in the top bar
+          </label>
         </div>
         <div className="firm-field" style={{ marginBottom: '1rem' }}>
           <span>App icon <em>(square PNG or JPEG, under 500 KB; browser tab, home screen and notifications)</em></span>

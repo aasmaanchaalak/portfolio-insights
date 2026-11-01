@@ -10,6 +10,7 @@ const KEYS = {
   name: 'firm_name',
   shortName: 'firm_short_name',
   logo: 'firm_logo',          // data: URL of an uploaded image, or a /public path
+  showName: 'firm_show_name', // '1' = show the firm name next to the logo
   icon: 'firm_icon',          // data: URL of the square app / home-screen / notification icon
   benchmark: 'benchmark_index',
   foPortfolio: 'fo_portfolio',
@@ -27,6 +28,7 @@ export interface FirmSettings {
   shortName: string;
   logoUrl: string | null;     // what an <img src> should point at
   iconUrl: string | null;
+  showNameWithLogo: boolean;  // name text beside the logo in the top bar
   benchmark: Benchmark;
 }
 
@@ -35,6 +37,7 @@ interface Raw {
   shortName: string | null;
   logo: string | null;
   icon: string | null;
+  showName: string | null;
   benchmark: string | null;
 }
 
@@ -43,14 +46,15 @@ let cache: { raw: Raw; at: number } | null = null;
 
 async function loadRaw(): Promise<Raw> {
   if (cache && Date.now() - cache.at < CACHE_MS) return cache.raw;
-  const [name, shortName, logo, icon, benchmark] = await Promise.all([
+  const [name, shortName, logo, icon, showName, benchmark] = await Promise.all([
     getSetting(KEYS.name),
     getSetting(KEYS.shortName),
     getSetting(KEYS.logo),
     getSetting(KEYS.icon),
+    getSetting(KEYS.showName),
     getSetting(KEYS.benchmark),
   ]);
-  const raw = { name, shortName, logo, icon, benchmark };
+  const raw = { name, shortName, logo, icon, showName, benchmark };
   cache = { raw, at: Date.now() };
   return raw;
 }
@@ -82,6 +86,7 @@ export async function getFirmSettings(): Promise<FirmSettings> {
     shortName: raw.shortName?.trim() || name,
     logoUrl: imageUrlFor(raw.logo, 'logo'),
     iconUrl: imageUrlFor(raw.icon, 'icon'),
+    showNameWithLogo: raw.showName === '1',
     benchmark: findBenchmark(raw.benchmark),
   };
 }
@@ -92,7 +97,7 @@ export async function getFirmSettingsSafe(): Promise<FirmSettings> {
     return await getFirmSettings();
   } catch (error) {
     console.error('Failed to load firm settings:', error);
-    return { name: DEFAULT_FIRM_NAME, shortName: DEFAULT_FIRM_NAME, logoUrl: null, iconUrl: null, benchmark: findBenchmark(DEFAULT_BENCHMARK) };
+    return { name: DEFAULT_FIRM_NAME, shortName: DEFAULT_FIRM_NAME, logoUrl: null, iconUrl: null, showNameWithLogo: false, benchmark: findBenchmark(DEFAULT_BENCHMARK) };
   }
 }
 
@@ -110,6 +115,7 @@ export interface FirmSettingsUpdate {
   benchmark?: string;
   logo?: string | null;       // data: URL to replace, null to remove
   icon?: string | null;
+  showNameWithLogo?: boolean;
 }
 
 export async function updateFirmSettings(update: FirmSettingsUpdate): Promise<FirmSettings> {
@@ -119,6 +125,7 @@ export async function updateFirmSettings(update: FirmSettingsUpdate): Promise<Fi
   if (update.benchmark !== undefined) writes.push(setSetting(KEYS.benchmark, update.benchmark));
   if (update.logo !== undefined) writes.push(setSetting(KEYS.logo, update.logo ?? ''));
   if (update.icon !== undefined) writes.push(setSetting(KEYS.icon, update.icon ?? ''));
+  if (update.showNameWithLogo !== undefined) writes.push(setSetting(KEYS.showName, update.showNameWithLogo ? '1' : '0'));
   await Promise.all(writes);
   cache = null;
   return getFirmSettings();

@@ -137,6 +137,8 @@ body {
 .topnav-logo { height: 30px; width: auto; display: block; }
 /* No logo uploaded → firm name as text, sized to the logo slot. */
 .firm-wordmark { font-family: var(--font-serif); font-weight: 700; font-size: 20px; line-height: 30px; color: var(--ink); white-space: nowrap; }
+.firm-lockup { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.firm-lockup .firm-wordmark { overflow: hidden; text-overflow: ellipsis; }
 .topnav-links {
   display: flex;
   align-items: stretch;
@@ -376,6 +378,8 @@ body {
     padding: 0 8px 0 16px;
   }
   .topnav-logo { height: 26px; }
+  /* No room for the firm name beside the logo here; the slide-out menu shows it. */
+  .topnav-brand .firm-lockup .firm-wordmark { display: none; }
   .topnav-links, .topnav-right { display: none; }
   .topnav-current {
     display: block;
@@ -5050,6 +5054,10 @@ a:hover {
 /* ── Data page section switch ── */
 .data-tabs {
   display: inline-flex;
+  /* .app-content is a fixed-height flex column; as a scroll container this
+     would otherwise shrink to zero height above a tall section. */
+  flex-shrink: 0;
+  align-self: flex-start;
   max-width: 100%;
   overflow-x: auto;
   margin-bottom: 16px;
