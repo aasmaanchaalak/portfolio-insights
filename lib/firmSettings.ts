@@ -63,6 +63,17 @@ function imageUrlFor(image: string | null, kind: 'logo' | 'icon'): string | null
   return `/api/settings/firm-logo?${kind === 'icon' ? 'kind=icon&' : ''}v=${v}`;
 }
 
+/**
+ * URL of the rendered app icon (favicon, home screen, manifest, push). The
+ * version changes with the uploaded icon, or with the short name when the
+ * icon is the fallback letter, so browsers fetch the new one.
+ */
+export function appIconUrl(firm: FirmSettings, px: 180 | 512): string {
+  const v = firm.iconUrl?.match(/[?&]v=([^&]+)/)?.[1]
+    ?? createHash('sha1').update(firm.shortName || firm.name).digest('hex').slice(0, 10);
+  return `/firm-icon?size=${px}&v=${v}`;
+}
+
 export async function getFirmSettings(): Promise<FirmSettings> {
   const raw = await loadRaw();
   const name = raw.name?.trim() || DEFAULT_FIRM_NAME;

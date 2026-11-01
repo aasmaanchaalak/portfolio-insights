@@ -10,8 +10,8 @@ self.addEventListener('push', event => {
   event.waitUntil(self.registration.showNotification(msg.title || 'Portfolio alert', {
     body: msg.body || '',
     tag: msg.tag,
-    icon: '/icon',
-    badge: '/icon',
+    icon: '/firm-icon',
+    badge: '/firm-icon',
     data: { url: msg.url || '/' },
   }));
 });

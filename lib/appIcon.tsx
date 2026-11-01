@@ -4,7 +4,7 @@ import { getFirmLogoImage, getFirmSettingsSafe } from './firmSettings';
 // Renders the firm's app icon (Admin → Firm settings) as a square PNG on white,
 // for the favicon, home-screen icon, PWA manifest and push notifications.
 // Without an uploaded icon it draws the first letter of the firm's short name.
-export async function renderAppIcon(px: number): Promise<ImageResponse> {
+export async function renderAppIcon(px: number, cacheControl: string): Promise<ImageResponse> {
   const [image, firm] = await Promise.all([
     getFirmLogoImage('icon').catch(() => null),
     getFirmSettingsSafe(),
@@ -24,6 +24,6 @@ export async function renderAppIcon(px: number): Promise<ImageResponse> {
         )}
       </div>
     ),
-    { width: px, height: px },
+    { width: px, height: px, headers: { 'Cache-Control': cacheControl } },
   );
 }

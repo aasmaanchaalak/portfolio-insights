@@ -4647,11 +4647,13 @@ function writeAppCache(email: string, patch: Partial<CachedAppData>) {
 const App: React.FC = () => {
     const { user, loading: authLoading, logout, isAdmin, isAnalyst, isManager } = useAuth();
     const { firm } = useFirm();
-    const [page, setPage] = useState<'dashboard' | 'insights' | 'upload' | 'gridkey' | 'analysis' | 'entrydata' | 'fodata' | 'pe' | 'fo' | 'pipeline' | 'admin'>(
+    const [page, setPage] = useState<'dashboard' | 'insights' | 'analysis' | 'data' | 'pe' | 'fo' | 'pipeline' | 'admin'>(
         // Phones land on Public Portfolio; desktop keeps Pipeline. Safe to read
         // window here: nothing page-specific renders until auth has loaded.
         () => (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 'insights' : 'pipeline')
     );
+    // Sections of the Data page (manager-only uploads and entry data).
+    const [dataTab, setDataTab] = useState<'pf' | 'screener' | 'entry' | 'fo'>('pf');
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [privateInvestments, setPrivateInvestments] = useState<PrivateInvestments>({ totalInvested: 0, count: 0 });
@@ -4963,12 +4965,7 @@ const App: React.FC = () => {
         { id: 'dashboard', label: 'Dashboard' },
         { id: 'insights', label: 'Public Portfolio' },
         { id: 'analysis', label: 'Analysis' },
-        ...(isManager ? [
-            { id: 'upload', label: 'Screener Data' },
-            { id: 'gridkey', label: 'PF Data' },
-            { id: 'entrydata', label: 'Entry Data' },
-            { id: 'fodata', label: 'F&O Data' },
-        ] : []),
+        ...(isManager ? [{ id: 'data', label: 'Data' }] : []),
         { id: 'pe', label: 'PE Tracker' },
         { id: 'fo', label: 'F&O' },
         { id: 'pipeline', label: 'Pipeline' },
@@ -4978,7 +4975,7 @@ const App: React.FC = () => {
     // Only pages built on portfolio data wait for it, and only on a first
     // visit with nothing cached — Pipeline, PE, uploads and Admin render at once.
     const waitingForData = loading && stocks.length === 0
-        && (page === 'dashboard' || page === 'insights' || page === 'analysis' || page === 'entrydata');
+        && (page === 'dashboard' || page === 'insights' || page === 'analysis' || (page === 'data' && dataTab === 'entry'));
 
     return (
         <div className="app-root">
@@ -5087,12 +5084,30 @@ const App: React.FC = () => {
                 {page === 'dashboard' && <Dashboard gridKeyData={gridKeyData} stocks={liveStocks} privateInvestments={privateInvestments} isAnalyst={isAnalyst} portfolioHistory={portfolioHistory} onOpenFo={() => setPage('fo')} />}
                 {page === 'insights' && <PortfolioInsightsPage gridKeyData={gridKeyData} stocks={liveStocks} onStocksUpdate={setStocks} isAnalyst={isAnalyst} teamMembers={teamMembers} searchOpen={mobileSearchOpen} onSearchOpenChange={setMobileSearchOpen} />}
                 {page === 'analysis' && <AnalysisPage gridKeyData={gridKeyData} stocks={liveStocks} isAnalyst={isAnalyst} />}
-                {page === 'upload' && <UploadPage onDataUploaded={handleDataUploaded} />}
-                {page === 'gridkey' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}
-                {page === 'entrydata' && <EntryDataPage gridKeyData={gridKeyData} stocks={liveStocks} />}
+                {page === 'data' && isManager && (
+                    <>
+                        <div className="data-tabs" role="tablist" aria-label="Data">
+                            {([['pf', 'PF Data'], ['screener', 'Screener Data'], ['entry', 'Entry Data'], ['fo', 'F&O Data']] as const).map(([id, label]) => (
+                                <button
+                                    key={id}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={dataTab === id}
+                                    className={dataTab === id ? 'active' : ''}
+                                    onClick={() => setDataTab(id)}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                        {dataTab === 'pf' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}
+                        {dataTab === 'screener' && <UploadPage onDataUploaded={handleDataUploaded} />}
+                        {dataTab === 'entry' && <EntryDataPage gridKeyData={gridKeyData} stocks={liveStocks} />}
+                        {dataTab === 'fo' && <FODataPage />}
+                    </>
+                )}
                 {page === 'pe' && <PETracker />}
-                {page === 'fo' && <FOPage canEdit={isManager} onOpenData={() => setPage('fodata')} />}
-                {page === 'fodata' && isManager && <FODataPage />}
+                {page === 'fo' && <FOPage canEdit={isManager} onOpenData={() => { setDataTab('fo'); setPage('data'); }} />}
                 {page === 'pipeline' && <PipelinePage teamMembers={teamMembers} />}
                 {page === 'admin' && <AdminPanel />}
                 </>}

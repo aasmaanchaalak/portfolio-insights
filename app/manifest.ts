@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next';
-import { getFirmSettingsSafe } from '../lib/firmSettings';
+import { getFirmSettingsSafe, appIconUrl } from '../lib/firmSettings';
 
 // Firm name is admin-editable, so don't bake it in at build time.
 export const dynamic = 'force-dynamic';
@@ -14,6 +14,6 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     display: 'standalone',
     background_color: '#ffffff',
     theme_color: '#ffffff',
-    icons: [{ src: '/icon', sizes: '512x512', type: 'image/png' }],
+    icons: [{ src: appIconUrl(firm, 512), sizes: '512x512', type: 'image/png' }],
   };
 }

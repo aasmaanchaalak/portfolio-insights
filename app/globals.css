@@ -5047,6 +5047,34 @@ a:hover {
 .dashboard-page .technical-table tbody tr:hover { background: var(--surface-faint); }
 .dashboard-page .technical-table tbody tr:last-child td { border-bottom: 0; }
 
+/* ── Data page section switch ── */
+.data-tabs {
+  display: inline-flex;
+  max-width: 100%;
+  overflow-x: auto;
+  margin-bottom: 16px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-control);
+}
+.data-tabs button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 500;
+  background: var(--page);
+  color: var(--ink-2);
+}
+.data-tabs button + button { border-left: 1px solid var(--rule); }
+.data-tabs button:hover { background: var(--surface-sunk); color: var(--ink); }
+.data-tabs button.active {
+  background: var(--crimson-wash);
+  color: var(--crimson-ink);
+  font-weight: 600;
+}
+
 /* ── Period switch (segmented control) ── */
 .dashboard-page .period-toggle button {
   border: none;

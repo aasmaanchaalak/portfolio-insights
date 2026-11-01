@@ -1,7 +1,7 @@
 import './globals.css'
 import type { Metadata } from 'next'
 import { Providers } from './providers'
-import { getFirmSettingsSafe } from '../lib/firmSettings'
+import { getFirmSettingsSafe, appIconUrl } from '../lib/firmSettings'
 
 // Firm name comes from Admin → Firm settings, so metadata is resolved per request.
 export async function generateMetadata(): Promise<Metadata> {
@@ -9,6 +9,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: firm.name,
     description: 'Analyze stock performance with advanced sorting and filtering',
+    // Versioned so a newly uploaded icon replaces the browser's cached favicon.
+    icons: {
+      icon: [{ url: appIconUrl(firm, 512), type: 'image/png', sizes: '512x512' }],
+      apple: [{ url: appIconUrl(firm, 180), type: 'image/png', sizes: '180x180' }],
+    },
     // iOS "Add to Home Screen" → opens as a standalone app, not in Safari.
     appleWebApp: {
       capable: true,
