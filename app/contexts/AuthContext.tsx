@@ -107,13 +107,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (email: string, password: string, name: string) => {
-    const res = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, name }),
+    // TEMP debug: registration on a new deployment fails with no server logs.
+    const t0 = Date.now();
+    console.log('[register] sending', { email, origin: window.location.origin });
+    let res: Response;
+    try {
+      res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name }),
+      });
+    } catch (err) {
+      console.error('[register] request never got a response after', Date.now() - t0, 'ms', err);
+      throw err;
+    }
+    const text = await res.text();
+    console.log('[register] response', res.status, res.statusText, 'after', Date.now() - t0, 'ms', {
+      url: res.url,
+      redirected: res.redirected,
+      contentType: res.headers.get('content-type'),
+      server: res.headers.get('server'),
+      vercelId: res.headers.get('x-vercel-id'),
+      body: text.slice(0, 500),
     });
 
-    const data = await res.json();
+    let data: any = {};
+    try { data = JSON.parse(text); } catch {}
 
     if (!res.ok) {
       throw new Error(data.error || 'Registration failed');
