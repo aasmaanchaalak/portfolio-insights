@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { withAuth, AuthenticatedRequest } from '../../../lib/authMiddleware';
-import { getAllowedEmails, addAllowedEmail, removeAllowedEmail, getUserByEmail } from '../../../lib/queries';
+import { getAllowedEmails, addAllowedEmail, removeAllowedEmail, getUserByEmail, setAllowedEmailRole, isUserRole } from '../../../lib/queries';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const userEmail = (req as AuthenticatedRequest).user.email;
@@ -17,10 +17,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     if (req.method === 'POST') {
-      const { email } = req.body;
+      const { email, role = 'analyst' } = req.body;
 
       if (!email || typeof email !== 'string') {
         return res.status(400).json({ error: 'Email is required' });
+      }
+      if (!isUserRole(role)) {
+        return res.status(400).json({ error: 'Invalid role' });
       }
 
       // Basic email validation
@@ -30,7 +33,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       }
 
       try {
-        const allowedEmail = await addAllowedEmail(email, userEmail);
+        const allowedEmail = await addAllowedEmail(email, userEmail, role);
         return res.status(201).json(allowedEmail);
       } catch (err) {
         if (err instanceof Error && err.message === 'Email already in allowlist') {
@@ -38,6 +41,22 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         }
         throw err;
       }
+    }
+
+    // Change the role a pending email will register with.
+    if (req.method === 'PATCH') {
+      const { email, role } = req.body;
+      if (!email || typeof email !== 'string') {
+        return res.status(400).json({ error: 'Email is required' });
+      }
+      if (!isUserRole(role)) {
+        return res.status(400).json({ error: 'Invalid role' });
+      }
+      const updated = await setAllowedEmailRole(email, role);
+      if (!updated) {
+        return res.status(404).json({ error: 'Email not found in allowlist' });
+      }
+      return res.status(200).json({ success: true });
     }
 
     if (req.method === 'DELETE') {
@@ -61,7 +80,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(200).json({ success: true });
     }
 
-    res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
+    res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
     return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
   } catch (error) {
     console.error('Allowed emails API error:', error);

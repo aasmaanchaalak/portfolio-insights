@@ -8,6 +8,7 @@ CREATE TABLE allowed_emails (
   email character varying(255) NOT NULL,
   added_by character varying(255),
   created_at timestamp with time zone DEFAULT now(),
+  role character varying(50) DEFAULT 'analyst'::character varying NOT NULL,
   CONSTRAINT allowed_emails_pkey PRIMARY KEY (id),
   CONSTRAINT allowed_emails_email_key UNIQUE (email)
 );

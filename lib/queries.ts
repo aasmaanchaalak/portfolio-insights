@@ -190,58 +190,81 @@ export async function deleteUser(email: string): Promise<void> {
 export interface AllowedEmail {
   id: string;
   email: string;
+  role: UserRole;
   addedBy: string | null;
   createdAt: string;
 }
 
-export async function isEmailAllowed(email: string): Promise<boolean> {
-  const row = await queryOne<any>(`
-    SELECT id FROM allowed_emails WHERE email = $1
-  `, [email.toLowerCase().trim()]);
-  return !!row;
+const USER_ROLES: UserRole[] = ['portfolio', 'analyst', 'manager'];
+export const isUserRole = (r: unknown): r is UserRole => USER_ROLES.includes(r as UserRole);
+
+// The role a person gets when they register (migration 032; added here too so
+// older databases pick it up without a manual step).
+let allowlistRoleReady = false;
+async function ensureAllowlistRole(): Promise<void> {
+  if (allowlistRoleReady) return;
+  await query(`ALTER TABLE allowed_emails ADD COLUMN IF NOT EXISTS role VARCHAR(50) NOT NULL DEFAULT 'analyst'`);
+  allowlistRoleReady = true;
 }
 
-export async function getAllowedEmails(): Promise<AllowedEmail[]> {
-  const rows = await query<any>(`
-    SELECT id, email, added_by, created_at
-    FROM allowed_emails
-    ORDER BY created_at DESC
-  `);
-
-  return rows.map(row => ({
-    id: row.id,
-    email: row.email,
-    addedBy: row.added_by,
-    createdAt: row.created_at,
-  }));
-}
-
-export async function addAllowedEmail(email: string, addedBy: string): Promise<AllowedEmail> {
-  const rows = await query<any>(`
-    INSERT INTO allowed_emails (email, added_by)
-    VALUES ($1, $2)
-    ON CONFLICT (email) DO NOTHING
-    RETURNING id, email, added_by, created_at
-  `, [email.toLowerCase().trim(), addedBy]);
-
-  if (rows.length === 0) {
-    throw new Error('Email already in allowlist');
-  }
-
-  const row = rows[0];
+function toAllowedEmail(row: any): AllowedEmail {
   return {
     id: row.id,
     email: row.email,
+    role: isUserRole(row.role) ? row.role : 'analyst',
     addedBy: row.added_by,
     createdAt: row.created_at,
   };
 }
 
-export async function removeAllowedEmail(email: string): Promise<boolean> {
-  const result = await query(`
-    DELETE FROM allowed_emails WHERE email = $1
+/** The role set for this email in the allowlist, or null when it isn't allowed. */
+export async function getAllowlistRole(email: string): Promise<UserRole | null> {
+  await ensureAllowlistRole();
+  const row = await queryOne<any>(`
+    SELECT role FROM allowed_emails WHERE email = $1
   `, [email.toLowerCase().trim()]);
-  return (result as any).rowCount > 0;
+  if (!row) return null;
+  return isUserRole(row.role) ? row.role : 'analyst';
+}
+
+export async function getAllowedEmails(): Promise<AllowedEmail[]> {
+  await ensureAllowlistRole();
+  const rows = await query<any>(`
+    SELECT id, email, role, added_by, created_at
+    FROM allowed_emails
+    ORDER BY created_at DESC
+  `);
+  return rows.map(toAllowedEmail);
+}
+
+export async function addAllowedEmail(email: string, addedBy: string, role: UserRole = 'analyst'): Promise<AllowedEmail> {
+  await ensureAllowlistRole();
+  const rows = await query<any>(`
+    INSERT INTO allowed_emails (email, added_by, role)
+    VALUES ($1, $2, $3)
+    ON CONFLICT (email) DO NOTHING
+    RETURNING id, email, role, added_by, created_at
+  `, [email.toLowerCase().trim(), addedBy, role]);
+
+  if (rows.length === 0) {
+    throw new Error('Email already in allowlist');
+  }
+  return toAllowedEmail(rows[0]);
+}
+
+export async function setAllowedEmailRole(email: string, role: UserRole): Promise<boolean> {
+  await ensureAllowlistRole();
+  const rows = await query(`
+    UPDATE allowed_emails SET role = $2 WHERE email = $1 RETURNING id
+  `, [email.toLowerCase().trim(), role]);
+  return rows.length > 0;
+}
+
+export async function removeAllowedEmail(email: string): Promise<boolean> {
+  const rows = await query(`
+    DELETE FROM allowed_emails WHERE email = $1 RETURNING id
+  `, [email.toLowerCase().trim()]);
+  return rows.length > 0;
 }
 
 // ============ Sessions ============

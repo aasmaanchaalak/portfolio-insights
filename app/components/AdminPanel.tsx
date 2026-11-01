@@ -24,6 +24,7 @@ interface UserSummary {
 interface AllowedEmail {
   id: string;
   email: string;
+  role: 'portfolio' | 'analyst' | 'manager';
   addedBy: string | null;
   createdAt: string;
 }
@@ -37,6 +38,7 @@ export default function AdminPanel() {
   const [error, setError] = useState('');
   const [updating, setUpdating] = useState<string | null>(null);
   const [newEmail, setNewEmail] = useState('');
+  const [newEmailRole, setNewEmailRole] = useState<'portfolio' | 'analyst' | 'manager'>('analyst');
   const [addingEmail, setAddingEmail] = useState(false);
 
   // Portfolio value entry
@@ -378,7 +380,7 @@ export default function AdminPanel() {
       const res = await fetch('/api/admin/allowed-emails', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: newEmail.trim() }),
+        body: JSON.stringify({ email: newEmail.trim(), role: newEmailRole }),
       });
 
       if (!res.ok) {
@@ -393,6 +395,23 @@ export default function AdminPanel() {
       setError(err instanceof Error ? err.message : 'Failed to add email');
     } finally {
       setAddingEmail(false);
+    }
+  };
+
+  const setAllowedEmailRole = async (email: string, role: 'portfolio' | 'analyst' | 'manager') => {
+    try {
+      const res = await fetch('/api/admin/allowed-emails', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, role }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to update role');
+      }
+      setAllowedEmails(prev => prev.map(e => (e.email === email ? { ...e, role } : e)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update role');
     }
   };
 
@@ -1008,7 +1027,7 @@ export default function AdminPanel() {
       {/* Allowed Emails Section */}
       <div className="admin-header" style={{ marginTop: '2.5rem' }}>
         <h2>Registration Allowlist</h2>
-        <p className="admin-subtitle">Manage which emails can register for an account</p>
+        <p className="admin-subtitle">Manage which emails can register for an account, and the role each gets on registering</p>
       </div>
 
       <form onSubmit={addAllowedEmail} className="add-email-form">
@@ -1020,6 +1039,17 @@ export default function AdminPanel() {
           className="email-input"
           disabled={addingEmail}
         />
+        <select
+          value={newEmailRole}
+          onChange={(e) => setNewEmailRole(e.target.value as 'portfolio' | 'analyst' | 'manager')}
+          disabled={addingEmail}
+          className="role-select"
+          aria-label="Role on registration"
+        >
+          <option value="analyst">Analyst</option>
+          <option value="portfolio">Portfolio</option>
+          <option value="manager">Manager</option>
+        </select>
         <button type="submit" className="add-email-btn" disabled={addingEmail || !newEmail.trim()}>
           {addingEmail ? 'Adding...' : 'Add Email'}
         </button>
@@ -1030,6 +1060,7 @@ export default function AdminPanel() {
           <thead>
             <tr>
               <th>Email</th>
+              <th>Role</th>
               <th>Status</th>
               <th>Added</th>
               <th>Actions</th>
@@ -1042,6 +1073,23 @@ export default function AdminPanel() {
               return (
                 <tr key={item.id}>
                   <td>{item.email}</td>
+                  <td>
+                    {isRegistered ? (
+                      <span className="admin-protected" title="Change it in the users table above">
+                        {account.role.charAt(0).toUpperCase() + account.role.slice(1)}
+                      </span>
+                    ) : (
+                      <select
+                        value={item.role}
+                        onChange={(e) => setAllowedEmailRole(item.email, e.target.value as 'portfolio' | 'analyst' | 'manager')}
+                        className="role-select"
+                      >
+                        <option value="analyst">Analyst</option>
+                        <option value="portfolio">Portfolio</option>
+                        <option value="manager">Manager</option>
+                      </select>
+                    )}
+                  </td>
                   <td>
                     <span className={`status-badge ${isRegistered ? 'registered' : 'pending'}`}>
                       {isRegistered ? 'Registered' : 'Pending'}
@@ -1065,7 +1113,7 @@ export default function AdminPanel() {
             })}
             {allowedEmails.length === 0 && (
               <tr>
-                <td colSpan={4} style={{ textAlign: 'center', color: 'var(--secondary-text-color)' }}>
+                <td colSpan={5} style={{ textAlign: 'center', color: 'var(--secondary-text-color)' }}>
                   No allowed emails configured
                 </td>
               </tr>
