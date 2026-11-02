@@ -17,6 +17,9 @@
     },
     "pages/api/fo/data.ts": {
       "maxDuration": 30
+    },
+    "pages/api/mcp.ts": {
+      "maxDuration": 60
     }
   }
 }
