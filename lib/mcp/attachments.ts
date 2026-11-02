@@ -72,7 +72,7 @@ async function assertPublicUrl(raw: string): Promise<URL> {
   let url: URL;
   try { url = new URL(raw); } catch { throw new ToolError('source_url is not a valid URL'); }
   if (url.protocol !== 'https:') throw new ToolError('source_url must be https');
-  const addrs = await lookup(url.hostname, { all: true }).catch(() => []);
+  const addrs = await lookup(url.hostname, { all: true }).catch((): { address: string }[] => []);
   if (addrs.length === 0) throw new ToolError(`Could not resolve ${url.hostname}`);
   if (addrs.some(a => isPrivateAddress(a.address))) throw new ToolError('source_url points to a private address');
   return url;
