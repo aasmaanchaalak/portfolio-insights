@@ -80,7 +80,8 @@ export function fyDescription(fy: number): string {
 // Forward target-price derivation from a Forward Metrics grid.
 //
 // For each year column:
-//   1. P/E method        target = EPS × target P/E            (when both are set)
+//   1. P/E method        target = EPS × target P/E            (when both are set;
+//                        a blank EPS uses PAT ÷ shares, see deriveEpsFromPat)
 //   2. EV/EBITDA method  target = (EBITDA × target EV/EBITDA − net debt) ÷ shares
 //                        used when P/E is blank. EBITDA and net debt are in ₹ Cr,
 //                        shares in crore, so the result is ₹ per share. A blank
@@ -114,22 +115,16 @@ export function findMetricRow(data: ValuationTableData, metric: Metric) {
     ?? data.rows.find(r => !r.metric && METRIC_LABELS[metric].test(r.label || ''));
 }
 
-export function deriveForwardTargetDetails(
-  data: ValuationTableData | null | undefined,
-): Record<number, ForwardTarget> {
-  const out: Record<number, ForwardTarget> = {};
-  if (!data || !Array.isArray(data.rows) || !Array.isArray(data.columns)) return out;
+// PAT isn't a tagged row; find it by label.
+const PAT_LABEL = /^\s*(pat|net\s*profit|profit\s*after\s*tax)\b/i;
 
+// Year columns in FY order plus cell readers shared by the derivations below.
+function gridReader(data: ValuationTableData) {
   const cells = data.cells || {};
   const cols = data.columns
     .map(c => ({ id: c.id, fy: parseFYLabel(c.year) }))
     .filter((c): c is { id: string; fy: number } => c.fy != null)
     .sort((a, b) => a.fy - b.fy);
-
-  const row = (m: Metric) => findMetricRow(data, m);
-  const epsRow = row('eps'), peRow = row('pe'), ebitdaRow = row('ebitda'),
-    evRow = row('evEbitda'), netDebtRow = row('netDebt'), sharesRow = row('shares');
-
   const val = (rowId: string | undefined, colId: string): number | null => {
     if (!rowId) return null;
     const v = cells[`${rowId}:${colId}`];
@@ -143,9 +138,46 @@ export function deriveForwardTargetDetails(
     for (let j = idx + 1; j < cols.length; j++) { const v = val(rowId, cols[j].id); if (v != null) return v; }
     return null;
   };
+  return { cols, val, nearest };
+}
+
+/**
+ * EPS worked out as PAT ÷ shares (₹ Cr ÷ Cr = ₹/share) for each year column
+ * whose EPS cell is blank, keyed by column id. A blank shares cell borrows the
+ * nearest year's, as in the EV/EBITDA method. Typed EPS always wins.
+ */
+export function deriveEpsFromPat(data: ValuationTableData | null | undefined): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!data || !Array.isArray(data.rows) || !Array.isArray(data.columns)) return out;
+  const epsRow = findMetricRow(data, 'eps');
+  const patRow = data.rows.find(r => !r.metric && PAT_LABEL.test(r.label || ''));
+  const sharesRow = findMetricRow(data, 'shares');
+  if (!epsRow || !patRow || !sharesRow) return out;
+
+  const { cols, val, nearest } = gridReader(data);
+  cols.forEach((col, idx) => {
+    if (val(epsRow.id, col.id) != null) return;
+    const pat = val(patRow.id, col.id);
+    const shares = nearest(sharesRow.id, idx);
+    if (pat != null && shares != null && shares > 0) out[col.id] = pat / shares;
+  });
+  return out;
+}
+
+export function deriveForwardTargetDetails(
+  data: ValuationTableData | null | undefined,
+): Record<number, ForwardTarget> {
+  const out: Record<number, ForwardTarget> = {};
+  if (!data || !Array.isArray(data.rows) || !Array.isArray(data.columns)) return out;
+
+  const { cols, val, nearest } = gridReader(data);
+  const row = (m: Metric) => findMetricRow(data, m);
+  const epsRow = row('eps'), peRow = row('pe'), ebitdaRow = row('ebitda'),
+    evRow = row('evEbitda'), netDebtRow = row('netDebt'), sharesRow = row('shares');
+  const derivedEps = deriveEpsFromPat(data);
 
   cols.forEach((col, idx) => {
-    const eps = val(epsRow?.id, col.id);
+    const eps = val(epsRow?.id, col.id) ?? derivedEps[col.id] ?? null;
     const pe = val(peRow?.id, col.id);
     if (eps != null && pe != null && eps !== 0 && pe !== 0) {
       const price = eps * pe;

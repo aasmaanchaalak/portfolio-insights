@@ -65,9 +65,9 @@ export default function AuthorizePage() {
               {clientName || 'Claude'} wants to access {firm.name} as <strong>{user.email}</strong>.
             </p>
             <ul style={{ color: 'var(--secondary-text-color)', fontSize: '0.875rem', lineHeight: 1.6, margin: '0 0 1.5rem', paddingLeft: '1.25rem' }}>
-              <li>Read and update forward models for portfolio stocks and PE companies</li>
-              <li>Read and add notes</li>
-              <li>Read and add attachments</li>
+              <li>Read and update forward models for portfolio stocks, pipeline ideas and PE companies</li>
+              <li>Read and add notes and attachments</li>
+              <li>Update the PE checklist and manage pipeline ideas and guidance</li>
             </ul>
             <button className="password-submit" disabled={busy || !clientName} onClick={() => decide(true)}>
               {busy ? 'Connecting…' : 'Allow'}

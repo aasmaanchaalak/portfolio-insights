@@ -9,7 +9,7 @@ import { query } from '../db';
 import { uploadToR2, getPresignedUrl, attachmentKeyPrefix } from '../storage';
 import { ToolError } from './errors';
 
-export type AttachmentModule = 'thesis' | 'pe';
+export type AttachmentModule = 'thesis' | 'pe' | 'pipeline';
 
 const MAX_SIZE = 20 * 1024 * 1024;
 

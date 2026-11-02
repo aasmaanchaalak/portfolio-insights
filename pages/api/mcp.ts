@@ -39,7 +39,7 @@ async function handleMessage(msg: RpcRequest, user: McpUser): Promise<object | n
         serverInfo: { name: `${firm.shortName || firm.name} Portfolio Insights`, version: '1.0.0' },
         instructions:
           `Portfolio Insights for ${firm.name}, signed in as ${user.email}. ` +
-          'Public portfolio stocks are identified by NSE/BSE code (search_portfolio_stocks); PE tracker companies by code or name (list_pe_companies). ' +
+          'Public portfolio stocks are identified by NSE/BSE code (search_portfolio_stocks); PE tracker companies by code or name (list_pe_companies); pipeline ideas by ticker (list_pipeline_ideas — their forward model uses the stock model tools). ' +
           'Forward models are grids of rows × fiscal years (FY ends in March; "E" marks estimates). ' +
           'Read a model before updating it, and confirm the values with the user before writing.',
       });

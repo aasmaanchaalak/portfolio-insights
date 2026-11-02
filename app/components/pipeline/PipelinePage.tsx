@@ -5,6 +5,7 @@ import {
   PipelineIdea, PipelineNote, PipelineStage, PipelinePriority, PipelineOutcome, PipelineAlert, GuidanceEntry,
 } from '../../../types/pipeline';
 import { useAuth } from '../../contexts/AuthContext';
+import { resolveAuthor } from '../../../lib/pipeline/author';
 import './pipeline.css';
 import { DrawerTabs, DrawerTab } from '../drawer/DrawerTabs';
 import { ForwardMetricsTab } from '../thesis/ForwardMetricsTab';
@@ -105,18 +106,6 @@ function initials(name: string): string {
   if (parts.length === 0) return '—';
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
-function resolveAuthor(userName: string | undefined, teamMembers: string[]): string {
-  if (!userName || teamMembers.length === 0) return teamMembers[0] || '';
-  const lower = userName.toLowerCase();
-  // Exact match first
-  const exact = teamMembers.find(m => m.toLowerCase() === lower);
-  if (exact) return exact;
-  // First-word match (e.g. "Aditya Agarwal" → "Aditya")
-  const firstName = lower.split(' ')[0];
-  const partial = teamMembers.find(m => m.toLowerCase() === firstName || lower.startsWith(m.toLowerCase()));
-  return partial || teamMembers[0];
 }
 
 function isHit(i: PipelineIdea): boolean {

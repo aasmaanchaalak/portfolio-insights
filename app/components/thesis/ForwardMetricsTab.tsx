@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ValuationTableData, ValuationRow, ValuationColumn } from '../../../types/pe';
-import { computeCurrentFY, fyLabel, parseFYLabel, deriveForwardTargetDetails, findMetricRow, computeForwardIRR, fyEndDate } from '../../../lib/fiscalYear';
+import { computeCurrentFY, fyLabel, parseFYLabel, deriveForwardTargetDetails, deriveEpsFromPat, findMetricRow, computeForwardIRR, fyEndDate } from '../../../lib/fiscalYear';
 import { uuid } from '../../../lib/uuid';
 // The valuation grid is styled by the PE tracker's sheet; import it here so it
 // loads even when the (lazy) PE pages haven't been opened yet.
@@ -18,7 +18,7 @@ type Metric = NonNullable<ValuationRow['metric']>;
 // Locked rows the target price is derived from, in the order they're added.
 const METRIC_ROWS: { metric: Metric; label: string; hint: string }[] = [
   { metric: 'ebitda', label: 'EBITDA', hint: '₹ Cr — used with EV/EBITDA when P/E is blank' },
-  { metric: 'eps', label: 'EPS', hint: 'Target price = EPS × P/E' },
+  { metric: 'eps', label: 'EPS', hint: 'Target price = EPS × P/E. A blank year uses PAT ÷ shares (shown in grey)' },
   { metric: 'pe', label: 'P/E (target)', hint: 'Target price = EPS × P/E' },
   { metric: 'evEbitda', label: 'EV/EBITDA (target)', hint: 'Used when P/E is blank: (EBITDA × EV/EBITDA − net debt) ÷ shares' },
   { metric: 'netDebt', label: 'Net debt (₹ Cr)', hint: 'Negative for net cash. A blank year uses the nearest year’s value' },
@@ -294,6 +294,7 @@ export function ForwardMetricsTab({ stockCode, stockName }: ForwardMetricsTabPro
   const sortedRows = [...rows].sort((a, b) => a.order - b.order);
   const sortedCols = [...columns].sort((a, b) => a.order - b.order);
   const targets = deriveForwardTargetDetails(tableData);
+  const derivedEps = deriveEpsFromPat(tableData);
 
   return (
     <div className="pe-valuation-container">
@@ -356,6 +357,8 @@ export function ForwardMetricsTab({ stockCode, stockName }: ForwardMetricsTabPro
                       type="number"
                       className="pe-valuation-cell-input"
                       value={cells[cellKey(row.id, col.id)] ?? ''}
+                      placeholder={row.metric === 'eps' && derivedEps[col.id] != null ? derivedEps[col.id].toFixed(2) : undefined}
+                      title={row.metric === 'eps' && derivedEps[col.id] != null ? 'PAT ÷ shares — type a value to override' : undefined}
                       onChange={e => updateCell(row.id, col.id, e.target.value)}
                       onPaste={e => handlePaste(e, row.id, col.id)}
                     />

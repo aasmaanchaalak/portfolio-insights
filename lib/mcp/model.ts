@@ -3,7 +3,7 @@
 // stocks) and the PE Valuation tab edit; cells are keyed "<rowId>:<colId>".
 
 import { ValuationTableData, ValuationRow } from '../../types/pe';
-import { fyLabel, parseFYLabel, deriveForwardTargetDetails } from '../fiscalYear';
+import { fyLabel, parseFYLabel, deriveForwardTargetDetails, deriveEpsFromPat } from '../fiscalYear';
 import { uuid } from '../uuid';
 
 // Defaults mirror the UI tabs so a grid started here looks the same as one
@@ -123,11 +123,19 @@ export function formatModel(data: ValuationTableData | null, withTargets: boolea
   if (!data || !data.rows?.length || !data.columns?.length) return '(no model saved yet)';
   const cols = [...data.columns].sort((a, b) => a.order - b.order);
   const rows = [...data.rows].sort((a, b) => a.order - b.order);
+  // Blank EPS cells show PAT ÷ shares, marked with * (stock models only).
+  const derivedEps = withTargets ? deriveEpsFromPat(data) : {};
+  const cell = (r: ValuationRow, colId: string) => {
+    const typed = data.cells?.[`${r.id}:${colId}`];
+    if (typeof typed !== 'number' && r.metric === 'eps' && derivedEps[colId] != null) return `${fmt(derivedEps[colId])}*`;
+    return fmt(typed);
+  };
   const lines = [
     `| Row | ${cols.map(c => c.year).join(' | ')} |`,
     `|---|${cols.map(() => '---:').join('|')}|`,
-    ...rows.map(r => `| ${r.label} | ${cols.map(c => fmt(data.cells?.[`${r.id}:${c.id}`])).join(' | ')} |`),
+    ...rows.map(r => `| ${r.label} | ${cols.map(c => cell(r, c.id)).join(' | ')} |`),
   ];
+  if (Object.keys(derivedEps).length > 0) lines.push('', '* EPS not entered; derived as PAT ÷ shares.');
 
   if (withTargets) {
     const targets = deriveForwardTargetDetails(data);
