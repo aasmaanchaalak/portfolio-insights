@@ -239,8 +239,7 @@ export async function createIdea(data: CreateIdeaRequest): Promise<PipelineIdea>
     INSERT INTO pipeline_ideas (
       ticker, company_name, exchange, added_by, assigned_to, source, why_interesting,
       price_at_add, current_price, stage, tag, priority, date_added, last_activity_at, closed_price
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,NOW(),
-      CASE WHEN $9 = 'closed' THEN $8::numeric END)
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,NOW(),$13)
     RETURNING *
   `, [
     data.ticker.toUpperCase(), data.companyName, data.exchange || null,
@@ -249,6 +248,9 @@ export async function createIdea(data: CreateIdeaRequest): Promise<PipelineIdea>
     data.priceAtAdd || null,
     data.stage || 'new', data.tag || null, data.priority || 'medium',
     data.dateAdded || new Date().toISOString().split('T')[0],
+    // Decided in JS: comparing $9 in SQL makes Postgres deduce text for it
+    // while the stage column wants varchar, and the insert fails.
+    data.stage === 'closed' ? data.priceAtAdd || null : null,
   ]);
   return toIdea(rows[0]);
 }
