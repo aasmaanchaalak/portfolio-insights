@@ -5,11 +5,11 @@
 import { query } from '../db';
 import { getGridKeyData, getAnalystOverrides, isVisibleToAnalyst, getCurrentFiscalYear, getTeamMembers } from '../queries';
 import { getThesisByStockCode, getForwardMetrics, upsertForwardMetrics, addNote } from '../thesis/queries';
-import { listCompanies, getCompanyById, getValuation, upsertValuation, getCommunications, createCommunication, updateMonitoring } from '../pe/queries';
+import { listCompanies, getCompanyById, getValuation, upsertValuation, getCommunications, createCommunication, updateMonitoring, updateThesis } from '../pe/queries';
 import { listIdeas, getIdeaByTicker, createIdea, updateIdea, decideIdea, getNotesByIdea, createNote, listGuidance, createGuidance, updateGuidance, STAGE_LABEL } from '../pipeline/queries';
 import { fetchLivePrice } from '../pipeline/price';
 import { resolveAuthor } from '../pipeline/author';
-import { CommunicationType, GuidanceVsActual, PECompany, ValuationTableData } from '../../types/pe';
+import { CommunicationType, GuidanceVsActual, PECompany, ThesisStatus, ValuationTableData } from '../../types/pe';
 import { PipelineIdea, PipelinePriority, PipelineStage, UpdateIdeaRequest } from '../../types/pipeline';
 import { McpUser } from './oauth';
 import { applyModelUpdates, defaultGrid, formatModel, ModelUpdate } from './model';
@@ -183,6 +183,20 @@ function formatChecklist(c: PECompany): string {
   ].join('\n');
 }
 
+function formatThesis(c: PECompany): string {
+  const drivers = (c.keyDrivers || '').split('\n').map(d => d.trim()).filter(Boolean);
+  const conditions = [...(c.breakConditions ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
+  return [
+    `Thesis status: ${c.thesisStatus || 'not set'}${c.lastReviewDate ? ` (last reviewed ${date(c.lastReviewDate)})` : ''}`,
+    `Investment thesis:\n${c.originalThesis || '—'}`,
+    `Key drivers:\n${drivers.length ? drivers.map(d => `- ${d}`).join('\n') : '—'}`,
+    `Break conditions (monitorables):\n${conditions.length
+      ? conditions.map((b, i) => `${i + 1}. ${b.isTriggered ? '⚠️ TRIGGERED' : '○'} ${b.condition}${b.isTriggered && b.triggeredAt ? ` (${date(b.triggeredAt)})` : ''}`).join('\n')
+      : '—'}`,
+    `Latest note: ${c.latestNote || '—'}`,
+  ].join('\n\n');
+}
+
 // ============ Pipeline ============
 
 async function resolveIdea(input: unknown): Promise<PipelineIdea> {
@@ -234,6 +248,7 @@ const ideaArg = { type: 'string', description: 'Pipeline idea ticker, company na
 // ============ Schemas ============
 
 const stockArg = { type: 'string', description: 'NSE/BSE code or company name of a portfolio stock or pipeline idea, e.g. "HDFCBANK"' };
+const THESIS_STATUSES: ThesisStatus[] = ['intact', 'monitor', 'broken'];
 const companyArg = { type: 'string', description: 'PE company code, name or id' };
 const updatesArg = {
   type: 'array',
@@ -420,7 +435,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'get_pe_notes',
     title: 'Get PE company notes',
-    description: 'Show a PE company\'s thesis summary, checklist (annual reports, DRHP, deck…) and its notes / communication log (newest first).',
+    description: 'Show a PE company\'s thesis (status, thesis, key drivers, break conditions / monitorables, latest note), checklist (annual reports, DRHP, deck…) and its notes / communication log (newest first).',
     inputSchema: {
       type: 'object',
       properties: { company: companyArg, limit: { type: 'number', description: 'How many entries (default 20, max 100)' } },
@@ -441,9 +456,8 @@ export const TOOLS: ToolDef[] = [
           ].filter(Boolean).join('\n')).join('\n')
         : 'No notes or communications.';
       return [
-        `${ref.companyName} (${ref.companyCode})${company?.thesisStatus ? ` — thesis status: ${company.thesisStatus}` : ''}`,
-        company?.originalThesis ? `\nThesis:\n${company.originalThesis}` : '',
-        company?.latestNote ? `\nLatest note: ${company.latestNote}` : '',
+        `${ref.companyName} (${ref.companyCode})`,
+        company ? `\n${formatThesis(company)}` : '',
         company ? `\n${formatChecklist(company)}` : '',
         `\nCommunication log:\n${log}`,
       ].join('\n');
@@ -560,6 +574,87 @@ export const TOOLS: ToolDef[] = [
         guidanceVsActualNotes: text('guidance_vs_actual_notes', c.guidanceVsActualNotes),
       });
       return `Updated ${c.companyName} (${c.companyCode}).\n\n${formatChecklist(updated)}`;
+    },
+  },
+  {
+    name: 'update_pe_thesis',
+    title: 'Update PE company thesis',
+    description: 'Edit a PE company\'s Thesis tab: status (intact/monitor/broken), investment thesis text, key drivers, latest note, and break conditions (the monitorables). Only the fields given change. Key drivers are one per line; add_key_drivers appends, key_drivers replaces the list. Break conditions can be added, edited, triggered/untriggered or removed — refer to existing ones by their number from get_pe_notes or by part of their text. Read the current thesis (get_pe_notes) before rewriting text.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        company: companyArg,
+        status: { type: 'string', enum: THESIS_STATUSES },
+        thesis: { type: ['string', 'null'], description: 'Replaces the investment thesis text; null clears' },
+        key_drivers: { type: ['array', 'null'], items: { type: 'string' }, description: 'Replaces the key-driver list; null clears' },
+        add_key_drivers: { type: 'array', items: { type: 'string' }, description: 'Appended to the key-driver list' },
+        latest_note: { type: ['string', 'null'], description: 'Replaces the latest note; null clears' },
+        add_break_conditions: { type: 'array', items: { type: 'string' }, description: 'New break conditions / monitorables' },
+        break_condition_updates: {
+          type: 'array',
+          description: 'Changes to existing break conditions',
+          items: {
+            type: 'object',
+            properties: {
+              condition: { type: 'string', description: 'Number (1-based, as listed) or part of the existing text' },
+              triggered: { type: 'boolean' },
+              text: { type: 'string', description: 'New wording' },
+              remove: { type: 'boolean' },
+            },
+            required: ['condition'],
+          },
+        },
+      },
+      required: ['company'],
+    },
+    annotations: { ...write, title: 'Update PE company thesis' },
+    async run(args) {
+      const ref = await resolveCompany(args.company);
+      const c = await getCompanyById(ref.id);
+      if (!c) throw new ToolError('Company not found');
+      const has = (k: string) => args[k] !== undefined;
+      const req: Parameters<typeof updateThesis>[1] = {};
+
+      if (has('status')) {
+        if (!THESIS_STATUSES.includes(args.status)) throw new ToolError(`status must be one of ${THESIS_STATUSES.join(', ')}`);
+        req.status = args.status;
+      }
+      if (has('thesis')) req.originalThesis = str(args.thesis) ?? null;
+      if (has('latest_note')) req.latestNote = str(args.latest_note) ?? null;
+
+      const lines = (v: unknown) => (Array.isArray(v) ? v : []).map(d => String(d ?? '').trim()).filter(Boolean);
+      if (has('key_drivers') || has('add_key_drivers')) {
+        const base = has('key_drivers') ? lines(args.key_drivers) : lines((c.keyDrivers || '').split('\n'));
+        const all = [...base, ...lines(args.add_key_drivers)];
+        req.keyDrivers = all.length ? all.join('\n') : null;
+      }
+
+      if (has('add_break_conditions') || has('break_condition_updates')) {
+        let list = [...(c.breakConditions ?? [])].sort((a, b) => a.sortOrder - b.sortOrder)
+          .map(b => ({ id: b.id as string | undefined, condition: b.condition, isTriggered: b.isTriggered, remove: false }));
+        const updates = Array.isArray(args.break_condition_updates) ? args.break_condition_updates : [];
+        for (const u of updates) {
+          const sel = String(u?.condition ?? '').trim();
+          const n = /^\d+$/.test(sel) ? Number(sel) : NaN;
+          let target = Number.isInteger(n) ? list[n - 1] : undefined;
+          if (!target && sel) {
+            const hits = list.filter(b => b.condition.toLowerCase().includes(sel.toLowerCase()));
+            if (hits.length > 1) throw new ToolError(`"${sel}" matches several break conditions — use its number`);
+            target = hits[0];
+          }
+          if (!target) throw new ToolError(`No break condition "${sel}" (${list.map((b, i) => `${i + 1}. ${b.condition}`).join('; ') || 'none defined'})`);
+          if (u.remove) { target.remove = true; continue; }
+          if (typeof u.triggered === 'boolean') target.isTriggered = u.triggered;
+          if (typeof u.text === 'string' && u.text.trim()) target.condition = u.text.trim();
+        }
+        list = list.filter(b => !b.remove);
+        for (const text of lines(args.add_break_conditions)) list.push({ id: undefined, condition: text, isTriggered: false, remove: false });
+        req.breakConditions = list.map((b, i) => ({ id: b.id, condition: b.condition, isTriggered: b.isTriggered, sortOrder: i }));
+      }
+
+      if (Object.keys(req).length === 0) throw new ToolError('Nothing to update');
+      const updated = await updateThesis(c.id, req);
+      return `Updated thesis for ${c.companyName} (${c.companyCode}).\n\n${formatThesis(updated)}`;
     },
   },
   {
