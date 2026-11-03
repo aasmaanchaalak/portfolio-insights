@@ -448,6 +448,29 @@ CREATE TABLE stock_pledges (
   CONSTRAINT stock_pledges_pkey PRIMARY KEY (stock_code)
 );
 
+CREATE TABLE pf_account_holdings (
+  id integer DEFAULT 1 NOT NULL,
+  holdings jsonb NOT NULL,
+  updated_by character varying(255),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT pf_account_holdings_id_check CHECK ((id = 1)),
+  CONSTRAINT pf_account_holdings_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE pf_accounts (
+  portfolio character varying(255) NOT NULL,
+  label character varying(255),
+  family_office character varying(255),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT pf_accounts_pkey PRIMARY KEY (portfolio)
+);
+
+CREATE TABLE stock_mtf (
+  stock_code character varying(50) NOT NULL,
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT stock_mtf_pkey PRIMARY KEY (stock_code)
+);
+
 CREATE TABLE stock_positioning (
   stock_code character varying(50) NOT NULL,
   conviction character varying(50) DEFAULT 'none'::character varying NOT NULL,

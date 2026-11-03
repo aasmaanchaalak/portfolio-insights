@@ -259,6 +259,7 @@ const PP_COLUMNS: PPCol[] = [
     { key: 'pledgedQty', label: 'Pledged qty', group: 'Ownership', align: 'right', cell: it => qtyStr(it.pledgedQty) ?? <PPDash /> },
     { key: 'freeQty', label: 'Free qty', group: 'Ownership', align: 'right', cell: it => qtyStr(it.freeQty) ?? <PPDash /> },
     { key: 'pledgedWhere', label: 'Pledged where', group: 'Ownership', align: 'left', cell: it => it.pledgedWhere || <PPDash /> },
+    { key: 'mtf', label: 'MTF', group: 'Ownership', align: 'left', cell: it => (it.mtf ? 'With MTF' : 'Without MTF') },
     // Workflow
     { key: 'assignedTo', label: 'Assigned to', group: 'Workflow', align: 'left', cell: it => it.assignedTo || <PPDash /> },
     { key: 'remarks', label: 'Remarks', group: 'Workflow', align: 'left', cell: it => it.remarks || <PPDash /> },
@@ -792,7 +793,7 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateIn
                         averageBuyPrice: item.quantity ? cost / item.quantity : item.averageBuyPrice,
                     }));
                     foHoldings = perRow
-                        .map((item, i) => ({ portfolio: rowPortfolios[i], name: item.scripName, nseCode: item.nseCode, bseCode: item.bseCode, quantity: item.quantity || 0 }))
+                        .map((item, i) => ({ portfolio: rowPortfolios[i], name: item.scripName, nseCode: item.nseCode, bseCode: item.bseCode, quantity: item.quantity || 0, averageBuyPrice: item.averageBuyPrice }))
                         .filter(h => h.portfolio && h.quantity > 0 && (h.nseCode || h.bseCode));
                 }
 
@@ -877,7 +878,7 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateIn
 };
 
 // Columns that should be hidden from analysts (financial amounts)
-const ANALYST_RESTRICTED_COLUMNS = ['quantity', 'investedAmount', 'calculatedAmount', 'absoluteGain', 'pledgedQty', 'pledgedWhere', 'freeQty'];
+const ANALYST_RESTRICTED_COLUMNS = ['quantity', 'investedAmount', 'calculatedAmount', 'absoluteGain', 'pledgedQty', 'pledgedWhere', 'freeQty', 'mtf'];
 
 // Trend options used by the multi-select trend filter.
 const TREND_OPTIONS = ['Strong Uptrend', 'Uptrend', 'Neutral', 'Downtrend', 'Strong Downtrend'];
@@ -896,6 +897,7 @@ interface FilterState {
     industryGroup: string[];
     industry: string[];
     pledged: string; // 'All' | 'Pledged' | 'Unpledged' | 'LAS' | 'F&O'
+    mtf: string; // 'All' | 'MTF' | 'NonMTF'
 }
 
 const INITIAL_FILTERS: FilterState = {
@@ -907,6 +909,7 @@ const INITIAL_FILTERS: FilterState = {
     industryGroup: [],
     industry: [],
     pledged: 'All',
+    mtf: 'All',
 };
 
 // Every numeric column that supports a min/max range filter. Range-filter state
@@ -950,9 +953,95 @@ const normalizeFilters = (f: any): FilterState => ({
     industryGroup: Array.isArray(f?.industryGroup) ? f.industryGroup : [],
     industry: Array.isArray(f?.industry) ? f.industry : [],
     pledged: typeof f?.pledged === 'string' ? f.pledged : 'All',
+    mtf: typeof f?.mtf === 'string' ? f.mtf : 'All',
 });
 
-const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void; isAnalyst?: boolean; teamMembers?: string[]; searchOpen?: boolean; onSearchOpenChange?: (open: boolean) => void }> = ({ gridKeyData, stocks, onStocksUpdate, isAnalyst = false, teamMembers = [], searchOpen = false, onSearchOpenChange }) => {
+const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stock[]; onStocksUpdate: (stocks: Stock[]) => void; isAnalyst?: boolean; teamMembers?: string[]; searchOpen?: boolean; onSearchOpenChange?: (open: boolean) => void }> = ({ gridKeyData: allGridKeyData, stocks, onStocksUpdate, isAnalyst = false, teamMembers = [], searchOpen = false, onSearchOpenChange }) => {
+    // ===== Account split =====
+    // The latest PF upload's per-account rows. Picking a family office or a
+    // single account rebuilds the holdings from just those rows, so value,
+    // weight, gain and the footer all describe the selection.
+    const [accountsData, setAccountsData] = useState<{ accounts: { portfolio: string; label: string | null; familyOffice: string | null }[]; holdings: any[] } | null>(null);
+    const [accountView, setAccountView] = useState<string>(() => {
+        try { return localStorage.getItem('pp-account-view') || 'all'; } catch { return 'all'; }
+    });
+    useEffect(() => {
+        if (isAnalyst) return;
+        let cancelled = false;
+        fetch('/api/accounts').then(r => (r.ok ? r.json() : null)).then(d => { if (!cancelled && d) setAccountsData(d); }).catch(() => {});
+        return () => { cancelled = true; };
+    }, [isAnalyst]);
+    useEffect(() => {
+        try { localStorage.setItem('pp-account-view', accountView); } catch {}
+    }, [accountView]);
+    const accountGroups = useMemo(() => {
+        const groups = new Map<string, { portfolio: string; label: string }[]>();
+        for (const a of accountsData?.accounts || []) {
+            const fo = a.familyOffice || '';
+            if (!groups.has(fo)) groups.set(fo, []);
+            groups.get(fo)!.push({ portfolio: a.portfolio, label: a.label || a.portfolio });
+        }
+        return [...groups.entries()]
+            .sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)))
+            .map(([familyOffice, accounts]) => ({ familyOffice, accounts }));
+    }, [accountsData]);
+    // A remembered selection whose account / family office is gone falls back to all.
+    const accountViewValid = useMemo(() => {
+        if (accountView === 'all') return 'all';
+        const accts = accountsData?.accounts || [];
+        if (accountView.startsWith('fo:') && accts.some(a => (a.familyOffice || '') === accountView.slice(3) && a.familyOffice)) return accountView;
+        if (accountView.startsWith('acct:') && accts.some(a => a.portfolio === accountView.slice(5))) return accountView;
+        return 'all';
+    }, [accountView, accountsData]);
+    const gridKeyData: GridKeyData[] = useMemo(() => {
+        const accountView = accountViewValid;
+        if (accountView === 'all' || !accountsData || accountsData.holdings.length === 0) return allGridKeyData;
+        let selected: Set<string>;
+        if (accountView.startsWith('fo:')) {
+            const fo = accountView.slice(3);
+            selected = new Set(accountsData.accounts.filter(a => (a.familyOffice || '') === fo).map(a => a.portfolio));
+        } else if (accountView.startsWith('acct:')) {
+            selected = new Set([accountView.slice(5)]);
+        } else {
+            return allGridKeyData;
+        }
+        if (selected.size === 0) return allGridKeyData;
+        const nameByCode = new Map<string, string>();
+        for (const g of allGridKeyData) {
+            const code = g.nseCode || g.bseCode;
+            if (code) nameByCode.set(code, g.scripName);
+        }
+        const merged = new Map<string, GridKeyData & { cost: number; costQty: number }>();
+        for (const h of accountsData.holdings) {
+            if (!selected.has(h.portfolio)) continue;
+            const code = h.nseCode || h.bseCode;
+            if (!code) continue;
+            const qty = Number(h.quantity) || 0;
+            const avg = h.averageBuyPrice != null ? Number(h.averageBuyPrice) : null;
+            const m = merged.get(code);
+            if (m) {
+                m.quantity = (m.quantity || 0) + qty;
+                if (avg != null) { m.cost += qty * avg; m.costQty += qty; }
+                m.nseCode = m.nseCode || h.nseCode || null;
+                m.bseCode = m.bseCode || h.bseCode || null;
+            } else {
+                merged.set(code, {
+                    scripName: nameByCode.get(code) || h.name,
+                    nseCode: h.nseCode || null,
+                    bseCode: h.bseCode || null,
+                    quantity: qty,
+                    averageBuyPrice: avg,
+                    cost: avg != null ? qty * avg : 0,
+                    costQty: avg != null ? qty : 0,
+                } as any);
+            }
+        }
+        // Same rule as the upload: 1-share holdings are left out.
+        return [...merged.values()]
+            .filter(m => (m.quantity || 0) > 1)
+            .map(({ cost, costQty, ...g }) => ({ ...g, averageBuyPrice: costQty > 0 ? cost / costQty : g.averageBuyPrice }));
+    }, [accountViewValid, accountsData, allGridKeyData]);
+
     // Default sort = portfolio weight descending (Part II: never alphabetical —
     // alphabetical buries an 18% position beneath a 0.06% one).
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' }>({
@@ -1244,7 +1333,8 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                 positioning: matchedStock?.positioning || null,
                 pledgedQty,
                 pledgedWhere,
-                freeQty
+                freeQty,
+                mtf: !!matchedStock?.mtf
             };
         });
     }, [gridKeyData, stocks]);
@@ -1346,6 +1436,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         (filters.industryGroup.length ? 1 : 0) +
         (filters.industry.length ? 1 : 0) +
         (filters.pledged !== 'All' ? 1 : 0) +
+        (filters.mtf !== 'All' ? 1 : 0) +
         (filters.remarksSearch ? 1 : 0) +
         NUMERIC_FILTER_DEFS.reduce((n, d) => n + ((rangeFilters[`${d.key}Min`] || rangeFilters[`${d.key}Max`]) ? 1 : 0), 0) +
         positioningFilters.convictions.length + positioningFilters.strategies.length + positioningFilters.actions.length;
@@ -1414,6 +1505,12 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                 if (filters.pledged === 'Unpledged') return !isPledged;
                 return where === filters.pledged; // 'LAS' or 'F&O'
             });
+        }
+
+        // Apply MTF filter
+        if (filters.mtf !== 'All') {
+            const wantMtf = filters.mtf === 'MTF';
+            filtered = filtered.filter(item => !!(item as any).mtf === wantMtf);
         }
 
         // Apply remarks filter
@@ -1534,6 +1631,31 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             fwdIrr2: wavg('fwdIrr2'),
         };
     }, [filteredAndSortedData]);
+
+    // Footer row mode: the default Total (sums / value-weighted averages above)
+    // or a plain per-column statistic across the displayed rows.
+    const [footStat, setFootStat] = useState<'total' | 'min' | 'median' | 'mean' | 'max'>('total');
+    const footSummary = useMemo(() => {
+        if (footStat === 'total') return summary;
+        const rows = filteredAndSortedData as any[];
+        const out: Record<string, any> = { count: summary.count };
+        for (const key of Object.keys(summary)) {
+            if (key === 'count') continue;
+            const vals = rows
+                .map(r => r[key])
+                .filter((v): v is number => typeof v === 'number' && !isNaN(v) && isFinite(v));
+            if (vals.length === 0) { out[key] = null; continue; }
+            if (footStat === 'min') out[key] = Math.min(...vals);
+            else if (footStat === 'max') out[key] = Math.max(...vals);
+            else if (footStat === 'mean') out[key] = vals.reduce((a, b) => a + b, 0) / vals.length;
+            else {
+                const s = [...vals].sort((a, b) => a - b);
+                const m = Math.floor(s.length / 2);
+                out[key] = s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+            }
+        }
+        return out;
+    }, [footStat, summary, filteredAndSortedData]);
 
     // Sortable header cell for the dense grid. Active column is inked with a
     // directional arrow; all others stay muted (Part II table chrome).
@@ -1850,6 +1972,28 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         }
     };
 
+    // Mark a holding with / without MTF (Margin Trading Facility) funding.
+    const handleMtfChange = async (item: any, mtf: boolean) => {
+        const code = item.nseCode || item.bseCode;
+        if (!code) return;
+        try {
+            const response = await fetch('/api/mtf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, mtf })
+            });
+            if (response.ok) {
+                onStocksUpdate(stocks.map(s =>
+                    ((s.nseCode && s.nseCode === item.nseCode) || (s.bseCode && s.bseCode === item.bseCode))
+                        ? { ...s, mtf }
+                        : s
+                ));
+            }
+        } catch (error) {
+            console.error('Error saving MTF:', error);
+        }
+    };
+
     // CSV export function for master data
     const exportToCSV = () => {
         // Define CSV headers
@@ -1899,6 +2043,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             'Pledged Qty',
             'Free Qty',
             'Pledged Where',
+            'MTF',
         ];
 
         // Helper to escape CSV values
@@ -1964,6 +2109,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             item.pledgedQty ?? '',
             item.freeQty ?? '',
             escapeCSV(item.pledgedWhere),
+            isAnalyst ? '' : (item.mtf ? 'With MTF' : 'Without MTF'),
         ]);
 
         // Combine headers and rows
@@ -1989,13 +2135,30 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
     return (
         <>
 
-            {gridKeyData.length === 0 ? (
+            {allGridKeyData.length === 0 ? (
                 <div className="empty-state">
                     <p>No holdings data available. Please upload PF data first.</p>
                 </div>
             ) : (
                 <>
                     <div className="action-bar">
+                        {!isAnalyst && accountGroups.length > 0 && (
+                            <select
+                                className="pp-account-select"
+                                aria-label="Accounts shown"
+                                value={accountViewValid}
+                                onChange={e => setAccountView(e.target.value)}
+                                title="Show all accounts, one family office, or a single account. Value, weight and gains are for the selection."
+                            >
+                                <option value="all">All accounts</option>
+                                {accountGroups.map(g => (
+                                    <optgroup key={g.familyOffice || '_none'} label={g.familyOffice || 'Not in a family office'}>
+                                        {g.familyOffice && <option value={`fo:${g.familyOffice}`}>{g.familyOffice} (all {g.accounts.length})</option>}
+                                        {g.accounts.map(a => <option key={a.portfolio} value={`acct:${a.portfolio}`}>{a.label}</option>)}
+                                    </optgroup>
+                                ))}
+                            </select>
+                        )}
                         <div className={`search-bar ${searchOpen || filters.searchTerm ? 'is-open' : ''}`}>
                             <input
                                 ref={searchInputRef}
@@ -2169,6 +2332,16 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                                 </select>
                                             </div>
                                         )}
+                                        {!isAnalyst && (
+                                            <div className="filter-group">
+                                                <label htmlFor="mtf">MTF</label>
+                                                <select id="mtf" name="mtf" value={filters.mtf} onChange={handleFilterChange}>
+                                                    <option value="All">All</option>
+                                                    <option value="MTF">With MTF</option>
+                                                    <option value="NonMTF">Without MTF</option>
+                                                </select>
+                                            </div>
+                                        )}
                                         <div className="filter-group">
                                             <label htmlFor="remarksSearch">Search Remarks</label>
                                             <input
@@ -2336,11 +2509,24 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                                 <div className="pp-id-sub">
                                                     {ticker && <span className="pp-ticker">{ticker}</span>}
                                                     {pos.strategyType && <span className="pp-strategy">{pos.strategyType}</span>}
+                                                    {!isAnalyst && it.mtf && <span className="pp-mtf" title="Bought with MTF (Margin Trading Facility)">MTF</span>}
                                                     {pledged && <span className="pp-pledged" title={`Pledged ${it.pledgedQty.toLocaleString('en-IN')}${it.pledgedWhere ? ' · ' + it.pledgedWhere : ''}`}>PLEDGED</span>}
                                                 </div>
                                             </div>
                                         </td>
-                                        {visibleOptional.map(c => c.key === 'assignedTo' ? (
+                                        {visibleOptional.map(c => c.key === 'mtf' ? (
+                                            <td key={c.key} className="pp-opt-text" onClick={e => e.stopPropagation()}>
+                                                <select
+                                                    className="pp-assign-select"
+                                                    aria-label={`MTF for ${item.scripName}`}
+                                                    value={it.mtf ? 'yes' : 'no'}
+                                                    onChange={e => handleMtfChange(item, e.target.value === 'yes')}
+                                                >
+                                                    <option value="no">Without MTF</option>
+                                                    <option value="yes">With MTF</option>
+                                                </select>
+                                            </td>
+                                        ) : c.key === 'assignedTo' ? (
                                             <td key={c.key} className="pp-opt-text" onClick={e => e.stopPropagation()}>
                                                 <select
                                                     className="pp-assign-select"
@@ -2367,9 +2553,23 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                             <tr className="pp-total-row">
                                 <td className="pp-select"></td>
                                 <td className="pp-rank"></td>
-                                <td className="pp-id-col pp-total-label">Total · {summary.count} holdings</td>
+                                <td className="pp-id-col pp-total-label">
+                                    <select
+                                        className="pp-assign-select pp-total-select"
+                                        aria-label="Footer statistic"
+                                        value={footStat}
+                                        onChange={e => setFootStat(e.target.value as typeof footStat)}
+                                    >
+                                        <option value="total">Total</option>
+                                        <option value="min">Min</option>
+                                        <option value="median">Median</option>
+                                        <option value="mean">Mean</option>
+                                        <option value="max">Max</option>
+                                    </select>
+                                    {' '}· {summary.count} holdings
+                                </td>
                                 {visibleOptional.map(c => (
-                                    <td key={c.key} className={c.align === 'left' ? 'pp-opt-text' : c.align === 'center' ? 'pp-action-col' : 'pp-num pp-total-num'}>{c.foot ? c.foot(summary) : ''}</td>
+                                    <td key={c.key} className={c.align === 'left' ? 'pp-opt-text' : c.align === 'center' ? 'pp-action-col' : 'pp-num pp-total-num'}>{c.foot ? c.foot(footSummary) : ''}</td>
                                 ))}
                                 <td className="pp-chevron"></td>
                             </tr>

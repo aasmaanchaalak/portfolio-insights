@@ -64,7 +64,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           }
 
           // Remove metadata fields from stock data before storing
-          const { remarks, assignedTo, bucket, entryDate, entryPrice, positioning, pledgedQty, pledgedWhere, freeQty, ...stockWithoutExtras } = stock;
+          const { remarks, assignedTo, bucket, entryDate, entryPrice, positioning, pledgedQty, pledgedWhere, freeQty, mtf, ...stockWithoutExtras } = stock;
           return stockWithoutExtras;
         }));
 

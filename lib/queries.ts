@@ -1024,6 +1024,43 @@ export async function setPledge(
   `, [stockCode, pledgedQty, pledgedWhere]);
 }
 
+// ============ MTF (Margin Trading Facility) ============
+//
+// Marks holdings bought with MTF funding. A row exists only for stocks marked
+// "with MTF"; no row means without MTF.
+
+let mtfTableReady = false;
+async function ensureMtfTable(): Promise<void> {
+  if (mtfTableReady) return;
+  await query(`
+    CREATE TABLE IF NOT EXISTS stock_mtf (
+      stock_code VARCHAR(50) PRIMARY KEY,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `);
+  mtfTableReady = true;
+}
+
+export async function getAllMtf(): Promise<Record<string, boolean>> {
+  await ensureMtfTable();
+  const rows = await query<any>(`SELECT stock_code FROM stock_mtf`);
+  const result: Record<string, boolean> = {};
+  rows.forEach(row => { result[row.stock_code] = true; });
+  return result;
+}
+
+export async function setMtf(stockCode: string, mtf: boolean): Promise<void> {
+  await ensureMtfTable();
+  if (!mtf) {
+    await query(`DELETE FROM stock_mtf WHERE stock_code = $1`, [stockCode]);
+    return;
+  }
+  await query(`
+    INSERT INTO stock_mtf (stock_code) VALUES ($1)
+    ON CONFLICT (stock_code) DO UPDATE SET updated_at = NOW()
+  `, [stockCode]);
+}
+
 // ============ Technical States ============
 
 export interface TechnicalState {

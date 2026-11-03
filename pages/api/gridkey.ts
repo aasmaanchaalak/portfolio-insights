@@ -14,6 +14,7 @@ import { upsertExitedWatchIdea } from '../../lib/pipeline/queries';
 import { getGridKeyResponse } from '../../lib/portfolioResponse';
 import { setHoldings } from '../../lib/fo/queries';
 import { getOpsSettings } from '../../lib/firmSettings';
+import { saveAccountHoldings } from '../../lib/accounts';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -183,6 +184,23 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
               && String(h.portfolio || '').trim().toLowerCase() === foPortfolio.toLowerCase())
             .map((h: any) => ({ name: h.name, nseCode: h.nseCode || null, bseCode: h.bseCode || null, quantity: Number(h.quantity) }));
           await setHoldings(foPortfolio, clean, authUser(req).name || authUser(req).email);
+        }
+
+        // Every account's own rows, for the account / family office split.
+        if (Array.isArray(foHoldings) && foHoldings.length > 0) {
+          const accountRows = foHoldings
+            .filter((h: any) => h && typeof h.name === 'string' && String(h.portfolio || '').trim() && Number(h.quantity) > 0 && (h.nseCode || h.bseCode))
+            .map((h: any) => ({
+              portfolio: String(h.portfolio).trim(),
+              name: h.name,
+              nseCode: h.nseCode || null,
+              bseCode: h.bseCode || null,
+              quantity: Number(h.quantity),
+              averageBuyPrice: h.averageBuyPrice != null && isFinite(Number(h.averageBuyPrice)) ? Number(h.averageBuyPrice) : null,
+            }));
+          if (accountRows.length > 0) {
+            await saveAccountHoldings(accountRows, authUser(req).name || authUser(req).email);
+          }
         }
 
         res.status(200).json({

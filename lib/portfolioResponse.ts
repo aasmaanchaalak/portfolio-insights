@@ -11,6 +11,7 @@ import {
   getAllPositioning,
   getAllThemes,
   getAllPledges,
+  getAllMtf,
   getGridKeyData,
   getPrivateInvestments,
   getAnalystOverrides,
@@ -28,7 +29,7 @@ export interface SharedReads {
 export async function getPortfolioResponse(role: UserRole, shared: SharedReads = {}): Promise<any[]> {
   // Everything in one parallel round trip (the Screener snapshot used to be
   // fetched first, costing an extra sequential trip to the database).
-  const [portfolioData, remarksMap, assignmentsMap, bucketsMap, entryDataMap, positioningMap, themesMap, pledgesMap, gridKey, overrides] = await Promise.all([
+  const [portfolioData, remarksMap, assignmentsMap, bucketsMap, entryDataMap, positioningMap, themesMap, pledgesMap, mtfMap, gridKey, overrides] = await Promise.all([
     getPortfolioData(),
     getAllRemarks(),
     getAllAssignments(),
@@ -37,6 +38,7 @@ export async function getPortfolioResponse(role: UserRole, shared: SharedReads =
     getAllPositioning(),
     getAllThemes(),
     getAllPledges(),
+    role === 'analyst' ? Promise.resolve({} as Record<string, boolean>) : getAllMtf(),
     shared.gridKey ?? getGridKeyData(),
     role === 'analyst' ? (shared.overrides ?? getAnalystOverrides()) : Promise.resolve(null),
   ]);
@@ -87,6 +89,7 @@ export async function getPortfolioResponse(role: UserRole, shared: SharedReads =
       themes: code && themesMap[code] ? themesMap[code] : [],
       pledgedQty: code && pledgesMap[code] ? pledgesMap[code].pledgedQty : null,
       pledgedWhere: code && pledgesMap[code] ? pledgesMap[code].pledgedWhere : null,
+      mtf: !!(code && mtfMap[code]),
     };
   });
 

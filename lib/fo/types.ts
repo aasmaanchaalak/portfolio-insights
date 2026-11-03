@@ -47,6 +47,7 @@ export interface FoHolding {
   nseCode: string | null;
   bseCode: string | null;
   quantity: number;
+  averageBuyPrice?: number | null; // upload rows only; feeds the account split
 }
 
 // ---------- dashboard payload ----------

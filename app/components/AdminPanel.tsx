@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useFirm } from '../contexts/FirmContext';
 import { BENCHMARKS } from '../../lib/benchmarks';
+import AccountsSettings from './AccountsSettings';
 
 const MAX_LOGO_BYTES = 500 * 1024;
 
@@ -723,6 +724,9 @@ export default function AdminPanel() {
           )}
         </div>
       </div>
+
+      {/* Accounts & Family Offices */}
+      <AccountsSettings />
 
       {/* Fiscal Year */}
       <div className="admin-section" style={{ marginBottom: '2rem', padding: '1.25rem', background: 'var(--surface-color)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>

@@ -38,6 +38,7 @@ export interface Stock {
   themes?: string[];
   pledgedQty?: number | null;     // Quantity pledged for LAS / F&O margin
   pledgedWhere?: 'LAS' | 'F&O' | null; // Where the shares are pledged
+  mtf?: boolean;                  // Bought with MTF (Margin Trading Facility) funding
 }
 
 export interface GridKeyData {
