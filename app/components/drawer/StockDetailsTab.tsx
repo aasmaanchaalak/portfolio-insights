@@ -1,6 +1,8 @@
 'use client';
 
 import React from 'react';
+import { RATIO_DEFS, formatRatio } from '../../../lib/ratios';
+
 interface StockDetailsTabProps {
   stockCode: string | null;
   stockName: string;
@@ -110,12 +112,18 @@ export function StockDetailsTab({ stockCode, stockName, holding, forwardIrrLabel
         { label: 'Market Cap', value: fmt(data.marketCap, '₹', ' Cr', 0) },
         { label: '% of Mcap', value: data.positionPctOfMarketCap == null ? 'N/A' : `${data.positionPctOfMarketCap.toFixed(data.positionPctOfMarketCap < 0.01 ? 4 : 2)}%` },
         { label: 'P/E', value: fmt(data.priceToEarning) },
-        { label: 'ROCE %', value: pct(data.roce) },
         { label: 'Profit Growth %', value: pct(data.yoyQuarterlyProfitGrowth), color: color(data.yoyQuarterlyProfitGrowth) },
         { label: 'Sales Growth %', value: pct(data.yoyQuarterlySalesGrowth), color: color(data.yoyQuarterlySalesGrowth) },
         { label: 'RSI', value: fmt(data.rsi) },
       ],
     },
+    ...(['Profitability & Valuation', 'Operational', 'Solvency'] as const).map(group => ({
+      title: group,
+      rows: [
+        ...(group === 'Profitability & Valuation' ? [{ label: 'ROCE %', value: pct(data.roce) }] : []),
+        ...RATIO_DEFS.filter(d => d.group === group).map(d => ({ label: d.label, value: formatRatio(d, data[d.key]) })),
+      ],
+    })),
     {
       title: 'Technicals',
       rows: [

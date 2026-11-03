@@ -30,6 +30,7 @@ import { NotificationToggle } from './components/NotificationToggle';
 import { FOPage } from './components/fo/FOPage';
 import { FODataPage } from './components/fo/FODataPage';
 import { FoHolding } from '../lib/fo/types';
+import { RATIO_DEFS, RATIO_KEYS, RATIO_ALIAS_MAP, normalizeHeader } from '../lib/ratios';
 
 type SortKey = keyof Stock;
 type SortDirection = 'ascending' | 'descending';
@@ -152,11 +153,14 @@ const SCREENER_REQUIRED = [
     'Return over 1day', 'Return over 1week', 'Return over 1month',
     'Return over 3months', 'Return over 6months', 'Return over 1year',
 ];
-const SCREENER_OPTIONAL = ['DMA 50', 'DMA 200', 'Down from 52w high', 'Up from 52w low', 'Market Capitalization', 'RSI', 'Return on capital employed'];
+const SCREENER_OPTIONAL = ['DMA 50', 'DMA 200', 'Down from 52w high', 'Up from 52w low', 'Market Capitalization', 'RSI', 'Return on capital employed',
+    ...RATIO_DEFS.map(d => d.aliases[0])];
 const SCREENER_EXAMPLE = [
     'Reliance Industries', '500325', 'RELIANCE', 'Energy', 'Refineries & Marketing',
     '1420.50', '24.10', '12.40', '8.20', '0.85', '-1.20', '3.40', '6.10', '9.80', '14.20',
     '1385.20', '1342.70', '8.40', '21.60', '1922000', '58.2', '9.70',
+    // EV/EBITDA, P/S, EV/Sales, GPM, OPM, NPM, ROE, ROA, inventory/receivable/payable days, CCC, D/E, interest coverage
+    '11.8', '2.05', '2.30', '35.2', '17.5', '8.1', '8.9', '4.1', '62', '14', '58', '18', '0.44', '6.3',
 ];
 const PF_REQUIRED = ['Asset name', 'Bse', 'Nse', 'Quantity', 'Average buy price'];
 const PF_OPTIONAL = ['Portfolio'];
@@ -240,7 +244,7 @@ const PP_COLUMNS: PPCol[] = [
     { key: 'priceToEarning', label: 'P/E', group: 'Fundamentals', align: 'right', cell: it => <PlainNum v={it.priceToEarning} />, foot: s => <PlainNum v={s.priceToEarning} /> },
     { key: 'marketCap', label: 'Market cap', short: 'Mkt cap', group: 'Fundamentals', align: 'right', cell: it => fmtMarketCapCr(it.marketCap) ?? <PPDash />, foot: s => fmtMarketCapCr(s.marketCap) ?? null },
     { key: 'positionPctOfMarketCap', label: '% of mcap', group: 'Fundamentals', align: 'right', cell: it => (it.positionPctOfMarketCap == null ? <PPDash /> : <span title="Position value as a percentage of the company's market cap">{it.positionPctOfMarketCap < 0.01 ? it.positionPctOfMarketCap.toFixed(4) : it.positionPctOfMarketCap.toFixed(2)}%</span>) },
-    { key: 'roce', label: 'ROCE %', group: 'Fundamentals', align: 'right', cell: it => <PctColored v={it.roce} />, foot: s => <PctColored v={s.roce} /> },
+    { key: 'roce', label: 'ROCE %', group: 'Profitability & Valuation', align: 'right', cell: it => <PctColored v={it.roce} />, foot: s => <PctColored v={s.roce} /> },
     { key: 'yoyQuarterlyProfitGrowth', label: 'Profit growth %', short: 'Profit gr %', group: 'Fundamentals', align: 'right', cell: it => <PctColored v={it.yoyQuarterlyProfitGrowth} />, foot: s => <PctColored v={s.yoyQuarterlyProfitGrowth} /> },
     { key: 'yoyQuarterlySalesGrowth', label: 'Sales growth %', short: 'Sales gr %', group: 'Fundamentals', align: 'right', cell: it => <PctColored v={it.yoyQuarterlySalesGrowth} />, foot: s => <PctColored v={s.yoyQuarterlySalesGrowth} /> },
     // Technicals
@@ -265,7 +269,20 @@ const PP_COLUMNS: PPCol[] = [
     { key: 'remarks', label: 'Remarks', group: 'Workflow', align: 'left', cell: it => it.remarks || <PPDash /> },
 ];
 
-const PP_GROUP_ORDER = ['Position', 'Performance', 'Fundamentals', 'Technicals', 'Classification', 'Ownership', 'Workflow'];
+// Ratio columns from the Screener upload (lib/ratios.ts). ROCE sits in the
+// registry above but is shown in the Profitability & Valuation group.
+const RATIO_COLUMNS: PPCol[] = RATIO_DEFS.map(d => ({
+    key: d.key,
+    label: d.label,
+    short: d.short,
+    group: d.group,
+    align: 'right' as const,
+    cell: (it: any) => d.kind === 'pct' ? <PctColored v={it[d.key]} /> : <PlainNum v={it[d.key]} digits={d.digits} />,
+    foot: (s: any) => d.kind === 'pct' ? <PctColored v={s[d.key]} /> : <PlainNum v={s[d.key]} digits={d.digits} />,
+}));
+PP_COLUMNS.splice(PP_COLUMNS.findIndex(c => c.key === 'roce') + 1, 0, ...RATIO_COLUMNS);
+
+const PP_GROUP_ORDER = ['Position', 'Performance', 'Fundamentals', 'Profitability & Valuation', 'Operational', 'Solvency', 'Technicals', 'Classification', 'Ownership', 'Workflow'];
 
 // The default "lens" — shown until the user customises.
 const PP_DEFAULT_COLUMNS = ['quantity', 'averageBuyPrice', 'investedAmount', 'currentPrice', 'calculatedAmount', 'gainPercentage', 'weightage'];
@@ -552,12 +569,12 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                     const entry: Partial<Stock> = {};
 
                     header.forEach((csvColumn, index) => {
-                        const internalKey = columnMapping[csvColumn];
+                        const internalKey = columnMapping[csvColumn] ?? RATIO_ALIAS_MAP[normalizeHeader(csvColumn)];
                         if (!internalKey) return;
 
                         let value = values[index] ? values[index].trim() : null;
 
-                        if (['currentPrice', 'priceToEarning', 'yoyQuarterlyProfitGrowth', 'yoyQuarterlySalesGrowth', 'dma50', 'dma200', 'downFrom52WeekHigh', 'upFrom52WeekLow', 'return1D', 'return1M', 'return1W', 'return3M', 'return6M', 'return1Y', 'marketCap', 'rsi', 'roce'].includes(internalKey)) {
+                        if (['currentPrice', 'priceToEarning', 'yoyQuarterlyProfitGrowth', 'yoyQuarterlySalesGrowth', 'dma50', 'dma200', 'downFrom52WeekHigh', 'upFrom52WeekLow', 'return1D', 'return1M', 'return1W', 'return3M', 'return6M', 'return1Y', 'marketCap', 'rsi', 'roce', ...RATIO_KEYS].includes(internalKey)) {
                              // Remove any commas from numbers (e.g., "1,234.56" -> "1234.56")
                              const cleanValue = value ? value.replace(/,/g, '') : null;
                              (entry as any)[internalKey] = (cleanValue === null || cleanValue === '') ? null : parseFloat(cleanValue);
@@ -618,7 +635,7 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
                     <ul>
                         <li>A CSV exported from a Screener.in screen, or any CSV with these exact column names</li>
                         <li>Required columns: <code>{SCREENER_REQUIRED.join(', ')}</code></li>
-                        <li>Optional columns (DMA, 52-week, market cap, RSI and ROCE views stay blank without them): <code>{SCREENER_OPTIONAL.join(', ')}</code></li>
+                        <li>Optional columns (DMA, 52-week, market cap, RSI, ROCE and ratio views stay blank without them; ratio headers also match common Screener names like Debtor days, Return on equity, OPM, NPM last year): <code>{SCREENER_OPTIONAL.join(', ')}</code></li>
                         <li>Numeric columns can be empty for N/A values</li>
                         <li>Optional separately: <strong>1 April prices</strong> (top right) — a CSV of <code>ticker,price</code> used as the exact financial-year-start baseline for YTD returns</li>
                     </ul>
@@ -923,6 +940,7 @@ const NUMERIC_FILTER_DEFS: { key: string; label: string }[] = [
     { key: 'marketCap', label: 'Market Cap (Cr)' },
     { key: 'rsi', label: 'RSI' },
     { key: 'roce', label: 'ROCE %' },
+    ...RATIO_DEFS.map(d => ({ key: d.key, label: d.label })),
     { key: 'yoyQuarterlyProfitGrowth', label: 'Profit Growth %' },
     { key: 'yoyQuarterlySalesGrowth', label: 'Sales Growth %' },
     { key: 'dma50ChangePercent', label: 'Chg % vs 50 DMA' },
@@ -1310,6 +1328,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                     : null,
                 rsi: matchedStock?.rsi ?? null,
                 roce: matchedStock?.roce ?? null,
+                ...Object.fromEntries(RATIO_KEYS.map(k => [k, (matchedStock as any)?.[k] ?? null])),
                 yoyQuarterlyProfitGrowth: matchedStock?.yoyQuarterlyProfitGrowth ?? null,
                 yoyQuarterlySalesGrowth: matchedStock?.yoyQuarterlySalesGrowth ?? null,
                 dma50: dma50,
@@ -1613,6 +1632,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             marketCap: wavg('marketCap'),
             rsi: wavg('rsi'),
             roce: wavg('roce'),
+            ...Object.fromEntries(RATIO_KEYS.map(k => [k, wavg(k)])),
             yoyQuarterlyProfitGrowth: wavg('yoyQuarterlyProfitGrowth'),
             yoyQuarterlySalesGrowth: wavg('yoyQuarterlySalesGrowth'),
             dma50ChangePercent: wavg('dma50ChangePercent'),
@@ -2020,6 +2040,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             'Market Cap (Cr)',
             '% of Mcap',
             'ROCE %',
+            ...RATIO_DEFS.map(d => d.label),
             'Profit Growth %',
             'Sales Growth %',
             'DMA 50',
@@ -2086,6 +2107,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             formatNum(item.marketCap),
             formatNum(item.positionPctOfMarketCap, 4),
             formatNum(item.roce),
+            ...RATIO_KEYS.map(k => formatNum(item[k])),
             formatNum(item.yoyQuarterlyProfitGrowth),
             formatNum(item.yoyQuarterlySalesGrowth),
             formatNum(item.dma50),

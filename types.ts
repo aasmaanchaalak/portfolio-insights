@@ -29,6 +29,21 @@ export interface Stock {
   rsi?: number | null;
   marketCap?: number | null;
   roce?: number | null;
+  // Ratios from the Screener upload (lib/ratios.ts)
+  evEbitda?: number | null;
+  priceToSales?: number | null;
+  evSales?: number | null;
+  gpm?: number | null;
+  opm?: number | null;
+  npm?: number | null;
+  roe?: number | null;
+  roa?: number | null;
+  inventoryDays?: number | null;
+  receivableDays?: number | null;
+  payableDays?: number | null;
+  cashConversionCycle?: number | null;
+  debtToEquity?: number | null;
+  interestCoverage?: number | null;
   remarks?: string | null;
   assignedTo?: string | null;
   bucket?: string | null;

@@ -1,6 +1,7 @@
 # Portfolio Insights - Claude Documentation
 
 ## 🧹 Latest Changes
+- **NEW**: Ratios from the Screener upload, defined once in `lib/ratios.ts` (header aliases, label, format): EV/EBITDA, P/S, EV/Sales, GPM, OPM, NPM, ROE, ROA, inventory/receivable/payable days, cash conversion cycle, D/E, interest coverage (ROCE was already there as `roce`). All optional upload columns; they become Portfolio page columns (groups Profitability & Valuation, Operational, Solvency), range filters, footer stats, CSV export columns and stock drawer sections.
 - **NEW**: Account splits. A combined PF export's per-account rows ("Portfolio" column) are kept in `pf_account_holdings` (`lib/accounts.ts`, migration 035, also auto-created); Admin → Accounts & Family Offices (`app/components/AccountsSettings.tsx`, `/api/accounts`) gives each account a display name and a family office. The Portfolio page's account selector (All / family office / single account) rebuilds holdings from those rows, so value, weight, gains and the footer are for the selection. Hidden from analysts. Value history, pledges, MTF and F&O stay combined / per stock.
 - **NEW**: MTF flag per stock (`stock_mtf`, migration 034, `/api/mtf`): MTF column with inline editor, MTF badge, MTF filter, CSV column. Hidden from analysts.
 - **NEW**: Portfolio table footer selector: Total (sums / value-weighted) or Min / Median / Mean / Max across displayed rows.
