@@ -5171,7 +5171,7 @@ const App: React.FC = () => {
 
     if (authLoading) {
         return (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 'calc(100vh / var(--page-zoom, 1))' }}>
                 <div>Loading...</div>
             </div>
         );

@@ -26,7 +26,6 @@
      navbar, and bring the bottom to 48px. */
   margin-top: -12px;
   padding: 0 0 8px;
-  max-width: 1480px;
   width: 100%;
   color: var(--pl-ink);
   font-family: var(--font-sans);

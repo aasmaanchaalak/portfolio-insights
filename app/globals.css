@@ -1,3 +1,12 @@
+/* Default page zoom: 85% on desktop (wide screen + mouse). Phones, tablets
+   and the installed mobile app stay at 100%. Full-height elements divide
+   by --page-zoom because zoom also shrinks vh units. */
+:root { --page-zoom: 1; }
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+  :root { --page-zoom: 0.85; }
+  html { zoom: 0.85; }
+}
+
 :root {
   /* ── Sagun Capital design language (DESIGN.md) ──
      Neutrals are TRUE greys (hue 0). Brand is crimson — chrome only, never data.
@@ -117,8 +126,8 @@ body {
 .app-root {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
+  height: calc(100vh / var(--page-zoom));
+  height: calc(100dvh / var(--page-zoom));
   overflow: hidden;
 }
 
@@ -1780,7 +1789,7 @@ a:hover {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
+  min-height: calc(100vh / var(--page-zoom));
   background: linear-gradient(135deg, var(--surface-color) 0%, var(--background-color) 100%);
   padding: 2rem;
 }
@@ -4841,7 +4850,7 @@ a:hover {
 /* ── Two-column row: Portfolio Quality (left) | Return Drivers (right) ── */
 .dashboard-page .dashboard-two-col {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 34px;
   align-items: start;
   margin-bottom: 26px;
@@ -4906,8 +4915,9 @@ a:hover {
 .dashboard-page .leaderboard-grid { gap: 16px; }
 
 /* Weakening / Strengthening panels sit side by side, boxless. */
-.dashboard-page .alerts-grid { grid-template-columns: 1fr 1fr; gap: 24px; }
+.dashboard-page .alerts-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; }
 .dashboard-page .alert-column {
+  min-width: 0;
   background: none;
   border: 0;
   border-radius: 0;
@@ -4953,7 +4963,7 @@ a:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.weak-chips { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.weak-chips { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 4px 6px; flex: 0 1 auto; min-width: 0; }
 .weak-chip {
   font-size: 11px;
   color: var(--ink-muted);

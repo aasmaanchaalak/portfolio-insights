@@ -168,7 +168,7 @@
   border: 1px solid var(--rule);
   border-radius: var(--radius-card);
   overflow: auto;
-  max-height: calc(100vh - 340px);
+  max-height: calc(100vh / var(--page-zoom, 1) - 340px);
 }
 
 .pe-table {
@@ -574,7 +574,7 @@
   top: 0;
   right: 0;
   width: 600px;
-  height: 100vh;
+  height: calc(100vh / var(--page-zoom, 1));
   background-color: var(--background-color);
   box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
   transform: translateX(100%);
