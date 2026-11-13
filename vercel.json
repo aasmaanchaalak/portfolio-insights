@@ -20,6 +20,12 @@
     },
     "pages/api/mcp.ts": {
       "maxDuration": 60
+    },
+    "pages/api/cron/market-data.ts": {
+      "maxDuration": 60
+    },
+    "pages/api/fo/market.ts": {
+      "maxDuration": 60
     }
   }
 }

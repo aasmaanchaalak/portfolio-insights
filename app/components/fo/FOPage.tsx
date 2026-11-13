@@ -1,12 +1,13 @@
 'use client';
 
 // F&O dashboard (FO_BRIEF.md): summary row, positions grouped by
-// underlying, month P&L, margin and collateral.
+// underlying, month P&L, margin and collateral, then NSE market positioning.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FoDashboard, DashLeg, Purpose, PURPOSES } from '../../../lib/fo/types';
 import { isIndianMarketOpen } from '../../../lib/marketHours';
 import { FOSummary, utilColor } from './FOSummary';
+import { FOMarket } from './FOMarket';
 import { grp, px, rsAbs, rsSigned, rsOrDash, pctSigned, signColor, shortDate } from './format';
 import './fo.css';
 
@@ -437,6 +438,7 @@ export function FOPage({ canEdit, onOpenData }: { canEdit: boolean; onOpenData?:
           <Margin data={data} />
         </>
       )}
+      <FOMarket />
     </div>
   );
 }

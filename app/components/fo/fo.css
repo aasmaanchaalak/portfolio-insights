@@ -3,7 +3,6 @@
    crimson only on chrome (selected segments, links). */
 
 .fo-page {
-  max-width: 1480px;
   width: 100%;
   color: var(--ink);
   font-family: var(--font-sans);
@@ -171,6 +170,38 @@
 .fo-msg.err { color: var(--negative); }
 .fo-history-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .fo-history-list span { font-size: 12px; padding: 2px 7px; border-radius: var(--radius-chip); background: oklch(0.96 0.002 0); color: oklch(0.45 0.003 0); }
+
+/* ---- Market positioning (NSE end of day) ---- */
+.fo-mk { margin-bottom: 34px; }
+.fo-mk-sub { font-size: 11.5px; color: var(--ink-muted); margin-top: 2px; }
+.fo-mk-scroll { margin-bottom: 0; }
+.fo-mk-table { min-width: 760px; }
+.fo-mk-row { display: grid; grid-template-columns: minmax(80px, 1fr) repeat(7, minmax(0, 1fr)); column-gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--rule-soft); align-items: baseline; font-size: 13px; }
+.fo-mk-row > span { white-space: nowrap; }
+.fo-mk-row.fo-c-head span { font-size: 11px; font-weight: 600; color: oklch(0.48 0.003 0); white-space: normal; }
+.fo-mk-who { font-weight: 500; }
+.fo-mk-row.is-fii .fo-mk-who { font-weight: 700; }
+.fo-mk .fo-foot b { font-weight: 600; color: var(--ink-2); }
+.fo-mk-charts-head { margin-top: 28px; }
+.fo-mk-key-exp { display: inline-block; width: 0; height: 10px; border-left: 1px dashed oklch(0.55 0.08 250); vertical-align: -1px; margin: 0 3px 0 1px; }
+
+/* Charts: one shared session axis */
+.fo-ch { width: 100%; margin-top: 14px; }
+.fo-ch svg { display: block; overflow: visible; }
+.fo-ch-title { font-size: 12.5px; font-weight: 600; fill: var(--ink); }
+.fo-ch-value { font-size: 12.5px; font-weight: 600; fill: var(--ink); font-variant-numeric: tabular-nums; }
+.fo-ch-muted { font-weight: 400; fill: var(--ink-muted); }
+.fo-ch-tick { font-size: 10.5px; fill: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.fo-ch-frame { stroke: var(--rule-soft); stroke-width: 1; }
+.fo-ch-base { stroke: oklch(0.72 0.003 0); stroke-width: 1; stroke-dasharray: 4 3; }
+.fo-ch-zero { stroke: oklch(0.8 0.003 0); stroke-width: 1; }
+.fo-ch-line { fill: none; stroke: var(--accent-bar); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.fo-ch-line-daily { fill: none; stroke: oklch(0.78 0.003 0); stroke-width: 1; stroke-linejoin: round; }
+.fo-ch-expiry { stroke: oklch(0.55 0.08 250); stroke-width: 1; stroke-dasharray: 2 3; opacity: 0.7; }
+.fo-ch-expiry-label { font-size: 9.5px; fill: oklch(0.5 0.08 250); }
+.fo-ch-cross { stroke: oklch(0.45 0.003 0); stroke-width: 1; }
+.fo-ch-cross-date { font-size: 10.5px; font-weight: 600; fill: var(--ink); }
+.fo-ch-dot { fill: var(--accent-bar); stroke: var(--page); stroke-width: 1.5; }
 
 @media (max-width: 900px) {
   .fo-two-col { grid-template-columns: minmax(0, 1fr); gap: 26px; }

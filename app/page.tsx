@@ -4866,16 +4866,43 @@ function writeAppCache(email: string, patch: Partial<CachedAppData>) {
     }
 }
 
+const LAST_PAGE_KEY = 'pi-last-page';
+const LAST_DATA_TAB_KEY = 'pi-last-data-tab';
+
 const App: React.FC = () => {
     const { user, loading: authLoading, logout, isAdmin, isAnalyst, isManager } = useAuth();
     const { firm } = useFirm();
-    const [page, setPage] = useState<'dashboard' | 'insights' | 'analysis' | 'data' | 'pe' | 'fo' | 'pipeline' | 'admin'>(
-        // Phones land on Public Portfolio; desktop keeps Pipeline. Safe to read
-        // window here: nothing page-specific renders until auth has loaded.
-        () => (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 'insights' : 'pipeline')
-    );
+    type PageId = 'dashboard' | 'insights' | 'analysis' | 'data' | 'pe' | 'fo' | 'pipeline' | 'admin';
+    type DataTab = 'pf' | 'screener' | 'entry' | 'fo';
+    const [page, setPage] = useState<PageId>(() => {
+        // Reopen on the last visited page (per browser). Otherwise phones land
+        // on Public Portfolio and desktop on Pipeline. Safe to read window here:
+        // nothing page-specific renders until auth has loaded.
+        if (typeof window === 'undefined') return 'pipeline';
+        try {
+            const saved = localStorage.getItem(LAST_PAGE_KEY) as PageId | null;
+            if (saved && ['dashboard', 'insights', 'analysis', 'data', 'pe', 'fo', 'pipeline', 'admin'].includes(saved)) return saved;
+        } catch {}
+        return window.matchMedia('(max-width: 767px)').matches ? 'insights' : 'pipeline';
+    });
     // Sections of the Data page (manager-only uploads and entry data).
-    const [dataTab, setDataTab] = useState<'pf' | 'screener' | 'entry' | 'fo'>('pf');
+    const [dataTab, setDataTab] = useState<DataTab>(() => {
+        try {
+            const saved = typeof window !== 'undefined' ? localStorage.getItem(LAST_DATA_TAB_KEY) as DataTab | null : null;
+            if (saved && ['pf', 'screener', 'entry', 'fo'].includes(saved)) return saved;
+        } catch {}
+        return 'pf';
+    });
+    useEffect(() => { try { localStorage.setItem(LAST_PAGE_KEY, page); } catch {} }, [page]);
+    useEffect(() => { try { localStorage.setItem(LAST_DATA_TAB_KEY, dataTab); } catch {} }, [dataTab]);
+    // A saved page this user can't open (role changed, other user on this
+    // browser) falls back to the default landing page.
+    useEffect(() => {
+        if (authLoading || !user) return;
+        if ((page === 'data' && !isManager) || (page === 'admin' && !isAdmin)) {
+            setPage(window.matchMedia('(max-width: 767px)').matches ? 'insights' : 'pipeline');
+        }
+    }, [authLoading, user, page, isManager, isAdmin]);
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [gridKeyData, setGridKeyData] = useState<GridKeyData[]>([]);
     const [privateInvestments, setPrivateInvestments] = useState<PrivateInvestments>({ totalInvested: 0, count: 0 });

@@ -2,8 +2,11 @@
 # market hours (09:15–15:30 IST = 03:45–10:00 UTC, Mon–Fri) and sends push
 # notifications. The endpoint itself skips runs outside market hours.
 #
-# Repo secrets needed: APP_URL (e.g. https://portfolio-insights-oj4v.vercel.app)
-# and CRON_SECRET (same value as the Vercel env var).
+# One step per deployment (same repo, different Vercel projects). Repo secrets:
+#   Sagun:      APP_URL (e.g. https://portfolio-insights-oj4v.vercel.app), CRON_SECRET
+#   Shikherjee: APP_URL_SHIKHERJEE, CRON_SECRET_SHIKHERJEE
+# Each CRON_SECRET must match that Vercel project's CRON_SECRET env var.
+# A step whose secrets aren't set is skipped; one site failing doesn't stop the other.
 name: Portfolio alerts
 
 on:
@@ -14,10 +17,22 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
-      - name: Run alert check
+      - name: Run alert check (Sagun)
+        if: always()
+        env:
+          URL: ${{ secrets.APP_URL }}
+          SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          curl -fsS --max-time 90 -X POST \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.APP_URL }}/api/cron/alerts"
+          if [ -z "$URL" ] || [ -z "$SECRET" ]; then echo "Not configured, skipping"; exit 0; fi
+          curl -fsS --max-time 90 -X POST -H "Authorization: Bearer $SECRET" "$URL/api/cron/alerts"
+
+      - name: Run alert check (Shikherjee)
+        if: always()
+        env:
+          URL: ${{ secrets.APP_URL_SHIKHERJEE }}
+          SECRET: ${{ secrets.CRON_SECRET_SHIKHERJEE }}
+        run: |
+          if [ -z "$URL" ] || [ -z "$SECRET" ]; then echo "Not configured, skipping"; exit 0; fi
+          curl -fsS --max-time 90 -X POST -H "Authorization: Bearer $SECRET" "$URL/api/cron/alerts"

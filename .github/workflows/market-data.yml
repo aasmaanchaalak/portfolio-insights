@@ -1,0 +1,53 @@
+# Fetches NSE end-of-day market data for the F&O page (participant-wise OI,
+# advance/decline from the bhavcopy, MTF disclosure) on weekday evenings.
+# Scheduled for 18:30 IST (13:00 UTC): GitHub often starts scheduled runs late,
+# so it lands around 19:00, after NSE has published. Each run also fills any
+# day missed in the last year, and the F&O page refetches if the latest day is
+# still missing, so a run that's too early catches up.
+#
+# Same secrets as alerts.yml (one step per deployment):
+#   Sagun:      APP_URL, CRON_SECRET
+#   Shikherjee: APP_URL_SHIKHERJEE, CRON_SECRET_SHIKHERJEE
+name: NSE market data
+
+on:
+  schedule:
+    - cron: '0 13 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fetch market data (Sagun)
+        if: always()
+        env:
+          URL: ${{ secrets.APP_URL }}
+          SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$URL" ] || [ -z "$SECRET" ]; then echo "Not configured, skipping"; exit 0; fi
+          # A run has a ~45s budget; the first one back-fills a year, so call
+          # again while files remain (at most 6 times).
+          for i in 1 2 3 4 5 6; do
+            out=$(curl -fsS --max-time 90 -X POST -H "Authorization: Bearer $SECRET" "$URL/api/cron/market-data")
+            echo "$out"
+            echo "$out" | grep -q '"remaining":0' && break
+            sleep 5
+          done
+
+      - name: Fetch market data (Shikherjee)
+        if: always()
+        env:
+          URL: ${{ secrets.APP_URL_SHIKHERJEE }}
+          SECRET: ${{ secrets.CRON_SECRET_SHIKHERJEE }}
+        run: |
+          if [ -z "$URL" ] || [ -z "$SECRET" ]; then echo "Not configured, skipping"; exit 0; fi
+          # A run has a ~45s budget; the first one back-fills a year, so call
+          # again while files remain (at most 6 times).
+          for i in 1 2 3 4 5 6; do
+            out=$(curl -fsS --max-time 90 -X POST -H "Authorization: Bearer $SECRET" "$URL/api/cron/market-data")
+            echo "$out"
+            echo "$out" | grep -q '"remaining":0' && break
+            sleep 5
+          done
