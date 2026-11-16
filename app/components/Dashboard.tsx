@@ -167,7 +167,7 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                 dma200: matchedStock?.dma200 || null,
                 downFrom52WeekHigh: matchedStock?.downFrom52WeekHigh || null,
                 upFrom52WeekLow: matchedStock?.upFrom52WeekLow || null,
-                return1D: matchedStock?.return1D || null,
+                return1D: matchedStock?.return1D ?? null,
                 return1W: matchedStock?.return1W || null,
                 return1M: matchedStock?.return1M || null,
                 return3M: matchedStock?.return3M || null,
@@ -1435,10 +1435,10 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                                             {g.chips.map((c, i) => <span key={i} className="weak-chip">{c}</span>)}
                                         </span>
                                         {g.value == null ? (
-                                            <span className="weak-value">—</span>
+                                            <span className="weak-value" title="Today's price change"><span className="weak-value-k">Today</span>—</span>
                                         ) : (
-                                            <span className={`weak-value ${g.value >= 0 ? 'positive' : 'negative'}`}>
-                                                {g.value >= 0 ? '+' : ''}{g.value.toFixed(2)}%
+                                            <span className={`weak-value ${g.value >= 0 ? 'positive' : 'negative'}`} title="Today's price change">
+                                                <span className="weak-value-k">Today</span>{g.value >= 0 ? '+' : ''}{g.value.toFixed(2)}%
                                             </span>
                                         )}
                                     </div>
@@ -1460,10 +1460,10 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                                             {g.chips.map((c, i) => <span key={i} className="weak-chip">{c}</span>)}
                                         </span>
                                         {g.value == null ? (
-                                            <span className="weak-value">—</span>
+                                            <span className="weak-value" title="Today's price change"><span className="weak-value-k">Today</span>—</span>
                                         ) : (
-                                            <span className={`weak-value ${g.value >= 0 ? 'positive' : 'negative'}`}>
-                                                {g.value >= 0 ? '+' : ''}{g.value.toFixed(2)}%
+                                            <span className={`weak-value ${g.value >= 0 ? 'positive' : 'negative'}`} title="Today's price change">
+                                                <span className="weak-value-k">Today</span>{g.value >= 0 ? '+' : ''}{g.value.toFixed(2)}%
                                             </span>
                                         )}
                                     </div>
