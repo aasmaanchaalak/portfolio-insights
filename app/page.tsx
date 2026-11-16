@@ -1136,6 +1136,15 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             .catch(() => {});
     }, []);
 
+    // Open pipeline ideas, for the phone Add list (see pipelineAddRows).
+    const [pipelineIdeas, setPipelineIdeas] = useState<any[]>([]);
+    useEffect(() => {
+        fetch('/api/pipeline/ideas')
+            .then(res => (res.ok ? res.json() : null))
+            .then(data => { if (Array.isArray(data?.ideas)) setPipelineIdeas(data.ideas); })
+            .catch(() => {});
+    }, []);
+
     // Column visibility. Identity (rank + holding) is always shown; every other
     // column is toggleable via the Edit-columns panel. Default = the lens below.
     const COLUMN_PREFS_KEY = 'ppColumns_v3';
@@ -1823,14 +1832,67 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             ? filteredAndSortedData.filter(it => (it as any).positioning?.actionIntent === mobileLens.action)
             : filteredAndSortedData
     ), [filteredAndSortedData, mobileLens]);
+
+    // Pipeline ideas that belong on the Add list: open (not closed, not tagged
+    // Exited), not already held, and either a forward IRR of 20%+ in any year of
+    // the window or a price alert that has been reached (price at or below it).
+    // Price = screener (live) price, else the pipeline's cached close.
+    const PIPELINE_ADD_IRR = 20;
+    const pipelineAddRows = useMemo(() => {
+        const held = new Set<string>();
+        allGridKeyData.forEach(g => {
+            if (!(Number(g.quantity) > 0)) return;
+            if (g.nseCode) held.add(g.nseCode.toLowerCase());
+            if (g.bseCode) held.add(g.bseCode.toLowerCase());
+        });
+        const now = new Date();
+        const fyWindow = forwardWindow(currentFY, 3);
+        const rows: any[] = [];
+        for (const idea of pipelineIdeas) {
+            const ticker = String(idea.ticker || '').trim();
+            if (!ticker || idea.stage === 'closed' || idea.tag === 'Exited') continue;
+            const stock = stockByCode.get(ticker.toLowerCase());
+            if ([ticker, stock?.nseCode, stock?.bseCode].some(c => c && held.has(String(c).toLowerCase()))) continue;
+
+            const price = stock?.currentPrice != null ? Number(stock.currentPrice)
+                : idea.currentPrice != null ? Number(idea.currentPrice) : null;
+            const targets = forwardTargets[ticker] || forwardTargets[ticker.toUpperCase()]
+                || (stock?.nseCode && forwardTargets[stock.nseCode]) || (stock?.bseCode && forwardTargets[stock.bseCode]) || {};
+            const fwdIrr: Record<string, number | null> = {};
+            fyWindow.forEach((fy, offset) => { fwdIrr[`fwdIrr${offset}`] = computeForwardIRR(price, targets[fy], fy, now); });
+            const irrHit = Object.values(fwdIrr).some(v => v != null && v >= PIPELINE_ADD_IRR);
+            const alertPrice = idea.alert?.type === 'price' && idea.alert.value > 0 ? Number(idea.alert.value) : null;
+            const alertHit = alertPrice != null && price != null && price <= alertPrice;
+            if (!irrHit && !alertHit) continue;
+
+            const dma200 = stock?.dma200 || null;
+            rows.push({
+                scripName: idea.companyName || stock?.name || ticker,
+                nseCode: stock?.nseCode || (/^\d+$/.test(ticker) ? null : ticker),
+                bseCode: stock?.bseCode || (/^\d+$/.test(ticker) ? ticker : null),
+                currentPrice: price,
+                downFrom52WeekHigh: stock?.downFrom52WeekHigh ?? null,
+                dma200ChangePercent: price != null && dma200 ? ((price - dma200) / dma200) * 100 : null,
+                ...fwdIrr,
+                pipelineStage: idea.stage,
+                alertPrice,
+                alertHit,
+                irrHit,
+            });
+        }
+        const best = (r: any) => Math.max(...[r.fwdIrr0, r.fwdIrr1, r.fwdIrr2].map(v => (v == null ? -Infinity : v)));
+        return rows.sort((a, b) => best(b) - best(a));
+    }, [pipelineIdeas, allGridKeyData, stockByCode, forwardTargets, currentFY]);
+
     const actionCounts = useMemo(() => {
         const counts: Partial<Record<ActionIntent, number>> = {};
         filteredAndSortedData.forEach(it => {
             const a = (it as any).positioning?.actionIntent as ActionIntent | undefined;
             if (a) counts[a] = (counts[a] || 0) + 1;
         });
+        counts.add = (counts.add || 0) + pipelineAddRows.length;
         return counts;
-    }, [filteredAndSortedData]);
+    }, [filteredAndSortedData, pipelineAddRows]);
 
     // Bulk select on the desktop table: tick rows, then move them all into a
     // positioning bucket (Add / Exit, or back to Hold) in one go.
@@ -2483,7 +2545,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                 </button>
                             </div>
                         </div>
-                        {mobileRows.length === 0 && (
+                        {mobileRows.length === 0 && !(mobileLens.action === 'add' && pipelineAddRows.length > 0) && (
                             <div className="pp-mempty">
                                 {mobileLens.action
                                     ? `No holdings in ${mobileLens.label}.`
@@ -2518,6 +2580,37 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                 </div>
                             );
                         })}
+                        {mobileLens.action === 'add' && pipelineAddRows.length > 0 && (
+                            <>
+                                <div className="pp-mgroup">From pipeline · {pipelineAddRows.length}</div>
+                                {pipelineAddRows.map(it => {
+                                    const ticker = it.nseCode || it.bseCode || '';
+                                    const fwdKey = mobileLens.main.key;
+                                    return (
+                                        <div key={`pl-${ticker}`} className="pp-mrow" onClick={() => handleStockNameClick(it)}>
+                                            <span className="pp-spine" data-conviction="" />
+                                            <div className="pp-mrow-left">
+                                                <div className="pp-mrow-title">
+                                                    <span className="pp-mrow-name">{splitCompanySuffix(it.scripName)[0]}</span>
+                                                    {ticker && <span className="pp-ticker">{ticker}</span>}
+                                                </div>
+                                                <div className="pp-mrow-below">
+                                                    {it.irrHit && <span className="pp-mreason">IRR 20%+</span>}
+                                                    {it.alertHit && <span className="pp-mreason">At alert {fmtUnitPrice(it.alertPrice)}</span>}
+                                                    {mobileLens.below.map(b => (
+                                                        <span key={b.key}><span className="pp-mrow-k">{b.label}</span>{b.render(it)}</span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div className="pp-mrow-right">
+                                                <div className="pp-mrow-main">{fwdKey.startsWith('fwdIrr') ? <PctColored v={it[fwdKey]} /> : mobileLens.main.render(it)}</div>
+                                                <div className="pp-mrow-sub"><span className="pp-mrow-k">Price</span>{fmtUnitPrice(it.currentPrice) ?? <PPDash />}</div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </>
+                        )}
                     </div>
 
                     {viewMode === 'table' ? (
