@@ -1274,6 +1274,32 @@ a:hover {
 }
 
 
+/* PF Data: complete PF / transactions switch and the transactions preview */
+.pf-mode-toggle { display: inline-flex; align-self: flex-start; border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden; margin-bottom: 1rem; }
+.pf-mode-toggle button { padding: 0.5rem 1rem; border: none; background: var(--surface-color); color: var(--secondary-text-color); font-size: 0.875rem; font-weight: 500; cursor: pointer; }
+.pf-mode-toggle button + button { border-left: 1px solid var(--border-color); }
+.pf-mode-toggle button.active { background: var(--accent-color); color: #fff; }
+.txn-files { display: flex; flex-direction: column; gap: 0.5rem; }
+.txn-file { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; }
+.txn-file-name { font-weight: 600; font-size: 0.875rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.txn-file-meta { font-size: 0.8rem; color: var(--secondary-text-color); }
+.txn-file-portfolio { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--secondary-text-color); margin-left: auto; }
+.txn-file-portfolio select { font-size: 0.85rem; padding: 0.25rem 0.4rem; max-width: 260px; }
+.txn-plan { display: flex; flex-direction: column; gap: 0.75rem; }
+.txn-summary { font-size: 0.875rem; }
+.txn-warn { font-size: 0.8rem; color: var(--caution-ink, #8a5a00); }
+.txn-unresolved { display: flex; flex-direction: column; gap: 0.4rem; }
+.txn-map-row { display: flex; align-items: center; gap: 0.75rem; font-size: 0.85rem; }
+.txn-map-row span { flex: 0 0 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.txn-map-row input { padding: 0.3rem 0.5rem; font-size: 0.85rem; width: 180px; }
+.txn-table-wrap { overflow-x: auto; max-height: 420px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px; }
+.txn-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.txn-table th { position: sticky; top: 0; background: var(--surface-color); text-align: left; font-weight: 600; padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+.txn-table td { padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+.txn-table .r { text-align: right; }
+.txn-code { color: var(--secondary-text-color); font-size: 0.75rem; margin-left: 0.25rem; }
+.txn-note { color: var(--secondary-text-color); white-space: normal !important; min-width: 160px; }
+
 /* Remarks Column Styles */
 .stock-table .remarks-cell {
   min-width: 200px;

@@ -29,6 +29,7 @@ import { PipelinePage } from './components/pipeline/PipelinePage';
 import { NotificationToggle } from './components/NotificationToggle';
 import { FOPage } from './components/fo/FOPage';
 import { FODataPage } from './components/fo/FODataPage';
+import { PfTransactionsUpload, TxnApplyResult, TXN_TEMPLATE_HEADERS, TXN_TEMPLATE_EXAMPLE } from './components/PfTransactionsUpload';
 import { FoHolding } from '../lib/fo/types';
 import { RATIO_DEFS, RATIO_KEYS, RATIO_ALIAS_MAP, normalizeHeader } from '../lib/ratios';
 
@@ -672,7 +673,12 @@ const UploadPage: React.FC<{ onDataUploaded: (data: Stock[]) => void }> = ({ onD
     );
 };
 
-const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateInvestments: { totalInvested: number; count: number }, foHoldings: FoHolding[] | null) => void }> = ({ onGridKeyUploaded }) => {
+const GridKeyPage: React.FC<{
+    onGridKeyUploaded: (data: GridKeyData[], privateInvestments: { totalInvested: number; count: number }, foHoldings: FoHolding[] | null) => void;
+    onTransactionsApplied: (r: TxnApplyResult) => void | Promise<void>;
+}> = ({ onGridKeyUploaded, onTransactionsApplied }) => {
+    // Two ways to update holdings: a complete PF export, or transactions applied to the last one.
+    const [mode, setMode] = useState<'complete' | 'transactions'>('complete');
     const [file, setFile] = useState<File | null>(null);
     const [status, setStatus] = useState('');
     const [error, setError] = useState('');
@@ -848,9 +854,39 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateIn
         <div className="upload-container">
             <header className="main-header">
                 <h1>PF Data Upload</h1>
-                <p>Upload your holdings CSV to add quantity and buy price data to your portfolio.</p>
+                <p>{mode === 'complete'
+                    ? 'Upload your holdings CSV to add quantity and buy price data to your portfolio.'
+                    : 'Upload buys and sells since the last PF upload; they are applied to the current holdings.'}</p>
             </header>
 
+            <div className="pf-mode-toggle" role="tablist" aria-label="Upload type">
+                <button type="button" role="tab" aria-selected={mode === 'complete'} className={mode === 'complete' ? 'active' : ''} onClick={() => setMode('complete')}>Upload complete PF</button>
+                <button type="button" role="tab" aria-selected={mode === 'transactions'} className={mode === 'transactions' ? 'active' : ''} onClick={() => setMode('transactions')}>Upload transactions</button>
+            </div>
+
+            {mode === 'transactions' ? (
+            <div className="upload-content">
+                <div className="upload-instructions">
+                    <h3>File Requirements</h3>
+                    <ul>
+                        <li>GridKey's transaction report (.xlsx), one file per portfolio. Several files can be uploaded together.</li>
+                        <li>Or a CSV with columns <code>{TXN_TEMPLATE_HEADERS.slice(0, 5).join(', ')}</code>; optional <code>{TXN_TEMPLATE_HEADERS.slice(5).join(', ')}</code></li>
+                        <li>Buys add to the quantity at their cost (amount incl. brokerage), so the average buy price is the weighted average. Sells reduce the quantity and keep the average. Bonus shares come in at zero cost. Dividends are ignored.</li>
+                        <li>Each transaction is applied once: re-uploading a report or an overlapping date range skips what's already applied. Trades already in the last complete PF upload are recognised from the report's Bal Qty and skipped.</li>
+                        <li>You see every change before it's saved. New stocks get their first buy as entry date and price; stocks sold out move to Pipeline → Exited-Watch with the actual sell price.</li>
+                    </ul>
+                    <button
+                        type="button"
+                        className="process-btn"
+                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', marginBottom: '1rem' }}
+                        onClick={() => downloadTemplate('pf_transactions_template.csv', TXN_TEMPLATE_HEADERS, TXN_TEMPLATE_EXAMPLE)}
+                    >
+                        ↓ Download CSV template
+                    </button>
+                </div>
+                <PfTransactionsUpload onApplied={onTransactionsApplied} />
+            </div>
+            ) : (
             <div className="upload-content">
                 <div className="upload-instructions">
                     <h3>File Requirements</h3>
@@ -890,6 +926,7 @@ const GridKeyPage: React.FC<{ onGridKeyUploaded: (data: GridKeyData[], privateIn
                     {error && <div className="status-message error">{error}</div>}
                 </div>
             </div>
+            )}
         </div>
     );
 };
@@ -5151,6 +5188,35 @@ const App: React.FC = () => {
         }
     };
 
+    // After holdings are saved (complete PF or transactions): report new and
+    // exited stocks, refresh state, snapshot value and quality history.
+    const afterHoldingsSaved = async (
+        data: GridKeyData[],
+        privateInv: { totalInvested: number; count: number },
+        result: { newStocks?: { code: string; name: string }[]; exitedStocks?: { ticker: string; companyName: string }[] },
+    ) => {
+        const newStocks = result.newStocks || [];
+        if (newStocks.length > 0) {
+            const list = newStocks.map(s => `• ${s.name} (${s.code})`).join('\n');
+            alert(`${newStocks.length} new ${newStocks.length === 1 ? 'company' : 'companies'} added since last upload:\n\n${list}`);
+        }
+        const exitedStocks = result.exitedStocks || [];
+        if (exitedStocks.length > 0) {
+            const list = exitedStocks.map(s => `• ${s.companyName} (${s.ticker})`).join('\n');
+            alert(`${exitedStocks.length} exited ${exitedStocks.length === 1 ? 'company' : 'companies'} moved to Pipeline → Exited-Watch:\n\n${list}`);
+        }
+
+        setGridKeyData(data);
+        setPrivateInvestments(privateInv);
+
+        // Save portfolio value to history after gridKey is updated
+        await savePortfolioValueToHistory();
+        // Snapshot quality metrics using the freshly uploaded holdings
+        await savePortfolioMetricsToHistory(data, stocks);
+
+        setTimeout(() => setPage('insights'), 1000);
+    };
+
     const handleGridKeyUploaded = async (data: GridKeyData[], privateInv: { totalInvested: number; count: number }, foHoldings: FoHolding[] | null) => {
         try {
             // Save to API
@@ -5167,27 +5233,7 @@ const App: React.FC = () => {
             }
 
             const result = await response.json().catch(() => ({}));
-            const newStocks: { code: string; name: string }[] = result.newStocks || [];
-            if (newStocks.length > 0) {
-                const list = newStocks.map(s => `• ${s.name} (${s.code})`).join('\n');
-                alert(`${newStocks.length} new ${newStocks.length === 1 ? 'company' : 'companies'} added since last upload:\n\n${list}`);
-            }
-
-            const exitedStocks: { ticker: string; companyName: string }[] = result.exitedStocks || [];
-            if (exitedStocks.length > 0) {
-                const list = exitedStocks.map(s => `• ${s.companyName} (${s.ticker})`).join('\n');
-                alert(`${exitedStocks.length} exited ${exitedStocks.length === 1 ? 'company' : 'companies'} moved to Pipeline → Exited-Watch:\n\n${list}`);
-            }
-
-            setGridKeyData(data);
-            setPrivateInvestments(privateInv);
-
-            // Save portfolio value to history after gridKey is updated
-            await savePortfolioValueToHistory();
-            // Snapshot quality metrics using the freshly uploaded holdings
-            await savePortfolioMetricsToHistory(data, stocks);
-
-            setTimeout(() => setPage('insights'), 1000);
+            await afterHoldingsSaved(data, privateInv, result);
         } catch (error) {
             console.error('Error saving GridKey data:', error);
             // Still update the UI even if API fails
@@ -5195,6 +5241,9 @@ const App: React.FC = () => {
             setPrivateInvestments(privateInv);
         }
     };
+
+    // Transactions are saved by /api/pf-transactions, which returns the new holdings.
+    const handleTransactionsApplied = (r: TxnApplyResult) => afterHoldingsSaved(r.data, r.privateInvestments, r);
 
     if (authLoading) {
         return (
@@ -5349,7 +5398,7 @@ const App: React.FC = () => {
                                 </button>
                             ))}
                         </div>
-                        {dataTab === 'pf' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} />}
+                        {dataTab === 'pf' && <GridKeyPage onGridKeyUploaded={handleGridKeyUploaded} onTransactionsApplied={handleTransactionsApplied} />}
                         {dataTab === 'screener' && <UploadPage onDataUploaded={handleDataUploaded} />}
                         {dataTab === 'entry' && <EntryDataPage gridKeyData={gridKeyData} stocks={liveStocks} />}
                         {dataTab === 'fo' && <FODataPage />}
