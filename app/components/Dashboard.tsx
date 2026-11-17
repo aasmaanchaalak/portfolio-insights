@@ -1435,10 +1435,10 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                                             {g.chips.map((c, i) => <span key={i} className="weak-chip">{c}</span>)}
                                         </span>
                                         {g.value == null ? (
-                                            <span className="weak-value" title="Today's price change"><span className="weak-value-k">Today</span>—</span>
+                                            <span className="weak-value" title="Today's price change">—</span>
                                         ) : (
                                             <span className={`weak-value ${g.value >= 0 ? 'positive' : 'negative'}`} title="Today's price change">
-                                                <span className="weak-value-k">Today</span>{g.value >= 0 ? '+' : ''}{g.value.toFixed(2)}%
+                                                {g.value >= 0 ? '+' : ''}{g.value.toFixed(2)}%
                                             </span>
                                         )}
                                     </div>
@@ -1460,10 +1460,10 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
                                             {g.chips.map((c, i) => <span key={i} className="weak-chip">{c}</span>)}
                                         </span>
                                         {g.value == null ? (
-                                            <span className="weak-value" title="Today's price change"><span className="weak-value-k">Today</span>—</span>
+                                            <span className="weak-value" title="Today's price change">—</span>
                                         ) : (
                                             <span className={`weak-value ${g.value >= 0 ? 'positive' : 'negative'}`} title="Today's price change">
-                                                <span className="weak-value-k">Today</span>{g.value >= 0 ? '+' : ''}{g.value.toFixed(2)}%
+                                                {g.value >= 0 ? '+' : ''}{g.value.toFixed(2)}%
                                             </span>
                                         )}
                                     </div>
