@@ -15,7 +15,8 @@ import { ValuationTableData } from '../../../types/pe';
 // exited stocks. For each such stock that has a Forward Metrics grid, returns
 // its `category` ('portfolio' | 'pipeline' | 'exited'), pipeline stage, the full grid
 // (every row, keyed by fiscal year) plus the derived target price
-// (EPS × target P/E, or EV/EBITDA-based when P/E is blank) and forward IRR from today's price to each FY-end in the
+// (book value × P/B when book value is given, else EPS × P/E, else
+// EV/EBITDA, else revenue × P/S) and forward IRR from today's price to each FY-end in the
 // current forward window, alongside sector, shares outstanding (market cap /
 // price), ROCE and current EPS (price / P/E). Deliberately excludes quantity,
 // amounts, and the price / P/E / market cap inputs themselves.
@@ -187,7 +188,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           return {
             fy: fyLabel(fy, currentFY),
             targetPrice: target != null ? Number(target.toFixed(2)) : null,
-            targetMethod: targets[fy]?.method ?? null, // 'pe' | 'evEbitda'
+            targetMethod: targets[fy]?.method ?? null, // 'pb' | 'pe' | 'evEbitda' | 'ps'
             forwardIRR: irr != null ? Number(irr.toFixed(2)) : null,
           };
         });

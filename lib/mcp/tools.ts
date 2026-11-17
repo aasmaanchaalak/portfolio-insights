@@ -297,7 +297,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'get_stock_model',
     title: 'Get stock forward model',
-    description: 'Show the forward model (Forward Metrics grid: Revenue, EBITDA, PAT, EPS, target P/E, EV/EBITDA, net debt, shares… by fiscal year) for a portfolio stock, with the derived target price per year.',
+    description: 'Show the forward model (Forward Metrics grid: Revenue, EBITDA, PAT, EPS, target P/E, EV/EBITDA, P/S, book value, P/B, net debt, shares… by fiscal year) for a portfolio stock, with the derived target price per year.',
     inputSchema: { type: 'object', properties: { stock: stockArg }, required: ['stock'] },
     annotations: { ...read, title: 'Get stock forward model' },
     async run(args, user) {
@@ -309,7 +309,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'update_stock_model',
     title: 'Update stock forward model',
-    description: 'Set cells in a portfolio stock\'s forward model (e.g. after results). Only the given cells change. Target price comes from EPS × P/E (target) — a blank EPS is derived as PAT ÷ shares, so entering PAT is enough — or (EBITDA × EV/EBITDA − net debt) ÷ shares when P/E is blank. Use ₹ Cr for EBITDA/PAT/net debt, Cr for shares. Call get_stock_model first to see the rows.',
+    description: 'Set cells in a portfolio stock\'s forward model (e.g. after results). Only the given cells change. Target price per year: book value × P/B (target) ÷ shares whenever book value is given; else EPS × P/E (target) — a blank EPS is derived as PAT ÷ shares, so entering PAT is enough; else (EBITDA × EV/EBITDA − net debt) ÷ shares; else revenue × P/S (target) ÷ shares. Use ₹ Cr for revenue/EBITDA/PAT/book value/net debt, Cr for shares. Call get_stock_model first to see the rows.',
     inputSchema: {
       type: 'object',
       properties: { stock: stockArg, updates: updatesArg, create_missing: createMissingArg },

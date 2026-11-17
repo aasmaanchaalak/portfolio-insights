@@ -79,20 +79,26 @@ export function fyDescription(fy: number): string {
 // ---------------------------------------------------------------------------
 // Forward target-price derivation from a Forward Metrics grid.
 //
-// For each year column:
+// For each year column, the first method that has its inputs wins:
+//   0. P/B method        target = book value × target P/B ÷ shares
+//                        always used when book value and P/B are set for the year
 //   1. P/E method        target = EPS × target P/E            (when both are set;
 //                        a blank EPS uses PAT ÷ shares, see deriveEpsFromPat)
 //   2. EV/EBITDA method  target = (EBITDA × target EV/EBITDA − net debt) ÷ shares
-//                        used when P/E is blank. EBITDA and net debt are in ₹ Cr,
-//                        shares in crore, so the result is ₹ per share. A blank
-//                        net debt or shares cell borrows the nearest year that has
-//                        one (earlier years first); net debt defaults to 0.
+//   3. P/S method        target = revenue × target P/S ÷ shares
+// Revenue, EBITDA, book value and net debt are in ₹ Cr, shares in crore, so the
+// result is ₹ per share. A blank net debt or shares cell borrows the nearest
+// year that has one (earlier years first); net debt defaults to 0.
 //
 // Rows are found by their `metric` tag first (locked rows), then by label as a
 // fallback for older grids saved before the rows were tagged.
 // ---------------------------------------------------------------------------
 
-export type ForwardMethod = 'pe' | 'evEbitda';
+export type ForwardMethod = 'pb' | 'pe' | 'evEbitda' | 'ps';
+
+export const FORWARD_METHOD_LABEL: Record<ForwardMethod, string> = {
+  pb: 'P/B', pe: 'P/E', evEbitda: 'EV/EBITDA', ps: 'P/S',
+};
 
 export interface ForwardTarget {
   price: number;
@@ -108,6 +114,10 @@ const METRIC_LABELS: Record<Metric, RegExp> = {
   evEbitda: /ev\s*\/\s*ebitda/i,
   netDebt: /net\s*debt/i,
   shares: /shares/i,
+  sales: /^\s*(revenue|sales|net\s*sales)\s*(\(.*\))?\s*$/i,
+  ps: /p\s*\/\s*s\b|price\s*to\s*sales/i,
+  bookValue: /book\s*value|net\s*worth/i,
+  pb: /p\s*\/\s*b(v)?\b|price\s*to\s*book/i,
 };
 
 export function findMetricRow(data: ValuationTableData, metric: Metric) {
@@ -173,24 +183,40 @@ export function deriveForwardTargetDetails(
   const { cols, val, nearest } = gridReader(data);
   const row = (m: Metric) => findMetricRow(data, m);
   const epsRow = row('eps'), peRow = row('pe'), ebitdaRow = row('ebitda'),
-    evRow = row('evEbitda'), netDebtRow = row('netDebt'), sharesRow = row('shares');
+    evRow = row('evEbitda'), netDebtRow = row('netDebt'), sharesRow = row('shares'),
+    salesRow = row('sales'), psRow = row('ps'), bookRow = row('bookValue'), pbRow = row('pb');
   const derivedEps = deriveEpsFromPat(data);
 
   cols.forEach((col, idx) => {
+    const shares = nearest(sharesRow?.id, idx);
+    const hasShares = shares != null && shares > 0;
+    const set = (price: number, method: ForwardMethod) => {
+      if (price > 0 && isFinite(price)) { out[col.fy] = { price, method }; return true; }
+      return false;
+    };
+
+    // 0. Book value given → P/B, ahead of everything else.
+    const book = val(bookRow?.id, col.id);
+    const pb = val(pbRow?.id, col.id);
+    if (book != null && pb != null && pb > 0 && hasShares && set((book * pb) / shares!, 'pb')) return;
+
+    // 1. P/E
     const eps = val(epsRow?.id, col.id) ?? derivedEps[col.id] ?? null;
     const pe = val(peRow?.id, col.id);
-    if (eps != null && pe != null && eps !== 0 && pe !== 0) {
-      const price = eps * pe;
-      if (price > 0) out[col.fy] = { price, method: 'pe' };
-      return;
-    }
+    if (eps != null && pe != null && eps !== 0 && pe !== 0 && set(eps * pe, 'pe')) return;
+
+    // 2. EV/EBITDA
     const ebitda = val(ebitdaRow?.id, col.id);
     const multiple = val(evRow?.id, col.id);
-    const shares = nearest(sharesRow?.id, idx);
-    if (ebitda == null || multiple == null || multiple <= 0 || shares == null || shares <= 0) return;
-    const netDebt = nearest(netDebtRow?.id, idx) ?? 0;
-    const price = (ebitda * multiple - netDebt) / shares;
-    if (price > 0) out[col.fy] = { price, method: 'evEbitda' };
+    if (ebitda != null && multiple != null && multiple > 0 && hasShares) {
+      const netDebt = nearest(netDebtRow?.id, idx) ?? 0;
+      if (set((ebitda * multiple - netDebt) / shares!, 'evEbitda')) return;
+    }
+
+    // 3. P/S
+    const sales = val(salesRow?.id, col.id);
+    const ps = val(psRow?.id, col.id);
+    if (sales != null && ps != null && ps > 0 && hasShares) set((sales * ps) / shares!, 'ps');
   });
   return out;
 }

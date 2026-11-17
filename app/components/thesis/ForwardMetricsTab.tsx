@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ValuationTableData, ValuationRow, ValuationColumn } from '../../../types/pe';
-import { computeCurrentFY, fyLabel, parseFYLabel, deriveForwardTargetDetails, deriveEpsFromPat, findMetricRow, computeForwardIRR, fyEndDate } from '../../../lib/fiscalYear';
+import { computeCurrentFY, fyLabel, parseFYLabel, deriveForwardTargetDetails, deriveEpsFromPat, findMetricRow, computeForwardIRR, fyEndDate, FORWARD_METHOD_LABEL } from '../../../lib/fiscalYear';
 import { uuid } from '../../../lib/uuid';
 // The valuation grid is styled by the PE tracker's sheet; import it here so it
 // loads even when the (lazy) PE pages haven't been opened yet.
@@ -16,25 +16,34 @@ interface ForwardMetricsTabProps {
 type Metric = NonNullable<ValuationRow['metric']>;
 
 // Locked rows the target price is derived from, in the order they're added.
+// Method per year: P/B when book value is given, else P/E, else EV/EBITDA,
+// else P/S (see deriveForwardTargetDetails).
 const METRIC_ROWS: { metric: Metric; label: string; hint: string }[] = [
+  { metric: 'sales', label: 'Revenue', hint: '₹ Cr — used with P/S when P/E and EV/EBITDA are blank' },
   { metric: 'ebitda', label: 'EBITDA', hint: '₹ Cr — used with EV/EBITDA when P/E is blank' },
   { metric: 'eps', label: 'EPS', hint: 'Target price = EPS × P/E. A blank year uses PAT ÷ shares (shown in grey)' },
   { metric: 'pe', label: 'P/E (target)', hint: 'Target price = EPS × P/E' },
   { metric: 'evEbitda', label: 'EV/EBITDA (target)', hint: 'Used when P/E is blank: (EBITDA × EV/EBITDA − net debt) ÷ shares' },
+  { metric: 'ps', label: 'P/S (target)', hint: 'Used when P/E and EV/EBITDA are blank: revenue × P/S ÷ shares' },
+  { metric: 'bookValue', label: 'Book value (₹ Cr)', hint: 'Net worth in ₹ Cr. When filled in (with P/B), P/B is always used for that year' },
+  { metric: 'pb', label: 'P/B (target)', hint: 'Book value × P/B ÷ shares — used first whenever book value is given' },
   { metric: 'netDebt', label: 'Net debt (₹ Cr)', hint: 'Negative for net cash. A blank year uses the nearest year’s value' },
   { metric: 'shares', label: 'Shares (Cr)', hint: 'Shares outstanding in crore. A blank year uses the nearest year’s value' },
 ];
 const METRIC_INFO = Object.fromEntries(METRIC_ROWS.map(m => [m.metric, m])) as Record<Metric, (typeof METRIC_ROWS)[number]>;
 
 const DEFAULT_ROWS: Omit<ValuationRow, 'id'>[] = [
-  { label: 'Revenue', order: 0 },
+  { label: METRIC_INFO.sales.label, order: 0, metric: 'sales', locked: true },
   { label: 'EBITDA', order: 1, metric: 'ebitda', locked: true },
   { label: 'PAT', order: 2 },
   { label: METRIC_INFO.eps.label, order: 3, metric: 'eps', locked: true },
   { label: METRIC_INFO.pe.label, order: 4, metric: 'pe', locked: true },
   { label: METRIC_INFO.evEbitda.label, order: 5, metric: 'evEbitda', locked: true },
-  { label: METRIC_INFO.netDebt.label, order: 6, metric: 'netDebt', locked: true },
-  { label: METRIC_INFO.shares.label, order: 7, metric: 'shares', locked: true },
+  { label: METRIC_INFO.ps.label, order: 6, metric: 'ps', locked: true },
+  { label: METRIC_INFO.bookValue.label, order: 7, metric: 'bookValue', locked: true },
+  { label: METRIC_INFO.pb.label, order: 8, metric: 'pb', locked: true },
+  { label: METRIC_INFO.netDebt.label, order: 9, metric: 'netDebt', locked: true },
+  { label: METRIC_INFO.shares.label, order: 10, metric: 'shares', locked: true },
 ];
 
 function newId(): string {
@@ -388,7 +397,7 @@ export function ForwardMetricsTab({ stockCode, stockName }: ForwardMetricsTabPro
                     {t ? (
                       <>
                         <span className="pe-valuation-derived-price">₹{t.price.toLocaleString('en-IN', { maximumFractionDigits: t.price >= 1000 ? 0 : 1 })}</span>
-                        <span className="pe-valuation-derived-method">{t.method === 'pe' ? 'P/E' : 'EV/EBITDA'}</span>
+                        <span className="pe-valuation-derived-method">{FORWARD_METHOD_LABEL[t.method]}</span>
                       </>
                     ) : <span className="pe-valuation-derived-empty">—</span>}
                   </td>

@@ -25,11 +25,12 @@ export interface ValuationRow {
   id: string;
   label: string;
   order: number;
-  // Semantic tag for locked rows the app derives from. EPS × P/E gives the
-  // forward target price used for Public Portfolio forward-IRR; when P/E is
-  // blank, (EBITDA × EV/EBITDA − net debt) ÷ shares does. Tagged rows are
+  // Semantic tag for locked rows the app derives the forward target price
+  // (forward IRR) from: book value × P/B when book value is given, else
+  // EPS × P/E, else (EBITDA × EV/EBITDA − net debt) ÷ shares, else
+  // revenue × P/S ÷ shares (see deriveForwardTargetDetails). Tagged rows are
   // non-deletable and their label is fixed.
-  metric?: 'eps' | 'pe' | 'ebitda' | 'evEbitda' | 'netDebt' | 'shares';
+  metric?: 'eps' | 'pe' | 'ebitda' | 'evEbitda' | 'netDebt' | 'shares' | 'sales' | 'ps' | 'bookValue' | 'pb';
   locked?: boolean;
 }
 

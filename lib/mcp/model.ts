@@ -3,20 +3,27 @@
 // stocks) and the PE Valuation tab edit; cells are keyed "<rowId>:<colId>".
 
 import { ValuationTableData, ValuationRow } from '../../types/pe';
-import { fyLabel, parseFYLabel, deriveForwardTargetDetails, deriveEpsFromPat } from '../fiscalYear';
+import { fyLabel, parseFYLabel, deriveForwardTargetDetails, deriveEpsFromPat, ForwardMethod } from '../fiscalYear';
+
+const METHOD_TEXT: Record<ForwardMethod, string> = {
+  pb: 'book value × P/B', pe: 'EPS × P/E', evEbitda: 'EV/EBITDA', ps: 'revenue × P/S',
+};
 import { uuid } from '../uuid';
 
 // Defaults mirror the UI tabs so a grid started here looks the same as one
 // started in the app (the Forward Metrics tab adds any missing locked rows).
 const STOCK_DEFAULT_ROWS: Omit<ValuationRow, 'id'>[] = [
-  { label: 'Revenue', order: 0 },
+  { label: 'Revenue', order: 0, metric: 'sales', locked: true },
   { label: 'EBITDA', order: 1, metric: 'ebitda', locked: true },
   { label: 'PAT', order: 2 },
   { label: 'EPS', order: 3, metric: 'eps', locked: true },
   { label: 'P/E (target)', order: 4, metric: 'pe', locked: true },
   { label: 'EV/EBITDA (target)', order: 5, metric: 'evEbitda', locked: true },
-  { label: 'Net debt (₹ Cr)', order: 6, metric: 'netDebt', locked: true },
-  { label: 'Shares (Cr)', order: 7, metric: 'shares', locked: true },
+  { label: 'P/S (target)', order: 6, metric: 'ps', locked: true },
+  { label: 'Book value (₹ Cr)', order: 7, metric: 'bookValue', locked: true },
+  { label: 'P/B (target)', order: 8, metric: 'pb', locked: true },
+  { label: 'Net debt (₹ Cr)', order: 9, metric: 'netDebt', locked: true },
+  { label: 'Shares (Cr)', order: 10, metric: 'shares', locked: true },
 ];
 const PE_DEFAULT_ROWS: Omit<ValuationRow, 'id'>[] = [
   { label: 'Valuation', order: 0 },
@@ -142,7 +149,7 @@ export function formatModel(data: ValuationTableData | null, withTargets: boolea
     const years = Object.keys(targets).map(Number).sort((a, b) => a - b);
     if (years.length > 0) {
       lines.push('', 'Derived target price (₹/share): ' + years
-        .map(fy => `FY${fy % 100} ${fmt(targets[fy].price)} (${targets[fy].method === 'pe' ? 'EPS × P/E' : 'EV/EBITDA'})`)
+        .map(fy => `FY${fy % 100} ${fmt(targets[fy].price)} (${METHOD_TEXT[targets[fy].method]})`)
         .join(', '));
     }
   }

@@ -937,11 +937,25 @@ const Dashboard: React.FC<DashboardProps> = ({ gridKeyData, stocks, privateInves
         // alignment. A stored cross that contradicts where the DMAs sit now is
         // stale (whipsaw within the 24h window) and is hidden — so a stock can
         // never show in both Golden and Death Cross.
-        const alignByCode = new Map(currentStates.map(s => [s.stockCode, s.dma50Above200]));
+        // Same for every state-based alert: a stored alert only shows while the
+        // stock is still on that side (e.g. crossed above then back below the
+        // 50 DMA within the window → only "Below 50 DMA" shows, never both).
+        const stateByCode = new Map(currentStates.map(s => [s.stockCode, s]));
         const crossConsistent = (a: Alert) => {
-            if (a.alertType === 'DEATH_CROSS') return alignByCode.get(a.stockCode) === false;
-            if (a.alertType === 'GOLDEN_CROSS') return alignByCode.get(a.stockCode) === true;
-            return true;
+            const s = stateByCode.get(a.stockCode);
+            if (!s) return true;
+            switch (a.alertType) {
+                case 'DEATH_CROSS': return s.dma50Above200 === false;
+                case 'GOLDEN_CROSS': return s.dma50Above200 === true;
+                case 'CROSSED_BELOW_50DMA': return !s.above50DMA;
+                case 'CROSSED_ABOVE_50DMA': return s.above50DMA;
+                case 'CROSSED_BELOW_200DMA': return !s.above200DMA;
+                case 'CROSSED_ABOVE_200DMA': return s.above200DMA;
+                case 'NEAR_52W_HIGH': return s.near52WeekHigh;
+                case 'NEAR_52W_LOW': return s.near52WeekLow;
+                case 'CROSSED_BELOW_COST': return s.belowCost;
+                default: return true;
+            }
         };
 
         // Only currently-held stocks — a stored alert for a since-exited holding
