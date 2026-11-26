@@ -1643,11 +1643,25 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
         return filtered;
     }, [enrichedDataWithWeightage, sortConfig, filters, rangeFilters, positioningFilters]);
 
-    // Column totals / weighted averages for the currently displayed rows.
-    // Sums for value-like columns; value-weighted averages for ratio/return
-    // columns. Reflects whatever filters (and therefore saved view) are active.
+    // Rows ticked with the table checkboxes (also drives the bulk Move-to bar).
+    const [selectedCodes, setSelectedCodes] = useState<Set<string>>(() => new Set());
+
+    // Rows the footer covers: the ticked rows among those displayed, or every
+    // displayed row when nothing visible is ticked.
+    const footRows = useMemo(() => {
+        const picked = filteredAndSortedData.filter(it => {
+            const code = (it as any).nseCode || (it as any).bseCode;
+            return code && selectedCodes.has(code);
+        });
+        return picked.length > 0 ? picked : filteredAndSortedData;
+    }, [filteredAndSortedData, selectedCodes]);
+    const footIsSelection = footRows !== filteredAndSortedData;
+
+    // Column totals / weighted averages for the footer rows (selection or all
+    // displayed). Sums for value-like columns; value-weighted averages for
+    // ratio/return columns. Reflects whatever filters (and saved view) are active.
     const summary = useMemo(() => {
-        const rows = filteredAndSortedData as any[];
+        const rows = footRows as any[];
         const sum = (key: string) => rows.reduce((acc, r) => acc + (typeof r[key] === 'number' && !isNaN(r[key]) ? r[key] : 0), 0);
         const wavg = (key: string) => {
             let num = 0, den = 0;
@@ -1696,14 +1710,14 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             fwdIrr1: wavg('fwdIrr1'),
             fwdIrr2: wavg('fwdIrr2'),
         };
-    }, [filteredAndSortedData]);
+    }, [footRows]);
 
     // Footer row mode: the default Total (sums / value-weighted averages above)
     // or a plain per-column statistic across the displayed rows.
     const [footStat, setFootStat] = useState<'total' | 'min' | 'median' | 'mean' | 'max'>('total');
     const footSummary = useMemo(() => {
         if (footStat === 'total') return summary;
-        const rows = filteredAndSortedData as any[];
+        const rows = footRows as any[];
         const out: Record<string, any> = { count: summary.count };
         for (const key of Object.keys(summary)) {
             if (key === 'count') continue;
@@ -1721,7 +1735,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
             }
         }
         return out;
-    }, [footStat, summary, filteredAndSortedData]);
+    }, [footStat, summary, footRows]);
 
     // Sortable header cell for the dense grid. Active column is inked with a
     // directional arrow; all others stay muted (Part II table chrome).
@@ -1896,7 +1910,6 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
 
     // Bulk select on the desktop table: tick rows, then move them all into a
     // positioning bucket (Add / Exit, or back to Hold) in one go.
-    const [selectedCodes, setSelectedCodes] = useState<Set<string>>(() => new Set());
     const [bulkSaving, setBulkSaving] = useState(false);
     const clearSelection = () => setSelectedCodes(new Set());
     const visibleCodes = useMemo(() => (
@@ -2718,7 +2731,7 @@ const PortfolioInsightsPage: React.FC<{ gridKeyData: GridKeyData[]; stocks: Stoc
                                         <option value="mean">Mean</option>
                                         <option value="max">Max</option>
                                     </select>
-                                    {' '}· {summary.count} holdings
+                                    {' '}· {footIsSelection ? `${summary.count} selected` : `${summary.count} holdings`}
                                 </td>
                                 {visibleOptional.map(c => (
                                     <td key={c.key} className={c.align === 'left' ? 'pp-opt-text' : c.align === 'center' ? 'pp-action-col' : 'pp-num pp-total-num'}>{c.foot ? c.foot(footSummary) : ''}</td>
